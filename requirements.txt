@@ -1,0 +1,13 @@
+pytesseract
+easyocr
+paddleocr
+paddlepaddle
+python-doctr
+opencv-python
+pandas
+tqdm
+pillow
+google-cloud-vision
+jiwer
+
+# NOTE: Install Tesseract OCR separately (Windows installer)
