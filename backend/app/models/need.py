@@ -13,7 +13,7 @@ class Need(Base):
     category = Column(Enum(NeedCategory), nullable=False)
     urgency = Column(Enum(NeedUrgency), nullable=False, default=NeedUrgency.MEDIUM)
     status = Column(Enum(NeedStatus), nullable=False, default=NeedStatus.NEW)
-    org_id = Column(Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
     created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     priority_score = Column(Float, nullable=True)
     latitude = Column(Float, nullable=True)
