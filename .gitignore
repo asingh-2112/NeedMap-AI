@@ -1,0 +1,25 @@
+# Output files
+outputs/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Data folder (too large for GitHub)
+data/
+
+# Model caches
+.cache/
+.paddlex/
+
+# Environment
+.env
+venv/
+
+# VS Code
+.vscode/
+
+# Windows
+Thumbs.db
+desktop.ini
