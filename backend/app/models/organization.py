@@ -7,7 +7,7 @@ class Organization(Base):
     __tablename__ = "organizations"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
     organization_name = Column(String(255), nullable=False)
     address = Column(String(500), nullable=True)
     phone = Column(String(20), nullable=True)

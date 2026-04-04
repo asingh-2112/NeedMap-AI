@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, Float, DateTime, Enum, func
+from sqlalchemy import Column, Integer, String, Boolean, Float, DateTime, Enum, ForeignKey, func
 from sqlalchemy.orm import relationship
 from app.database import Base
 from app.models.enums import UserRole
@@ -12,9 +12,8 @@ class User(Base):
     email = Column(String(255), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
     role = Column(Enum(UserRole), nullable=False, default=UserRole.VOLUNTEER)
-    organization_id = Column(Integer, nullable=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True)
     phone = Column(String(20), nullable=True)
-    skills = Column(String(500), nullable=True)
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
     radius_km = Column(Float, nullable=True)
