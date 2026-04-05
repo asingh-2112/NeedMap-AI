@@ -3,7 +3,7 @@ import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from app.database import engine, Base
+from app.database import Base, get_engine, get_session_local
 
 # Import all models so Base knows about them
 import app.models  # noqa: F401
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if os.getenv("RUN_MIGRATIONS", "false").lower() == "true":
-        Base.metadata.create_all(bind=engine)
+        Base.metadata.create_all(bind=get_engine())
         logger.info("Database tables created / verified.")
     yield
 
@@ -30,9 +30,8 @@ def root():
 @app.get("/health")
 def health_check():
     from sqlalchemy import text
-    from app.database import SessionLocal
 
-    db = SessionLocal()
+    db = get_session_local()()
     try:
         db.execute(text("SELECT 1"))
         db_status = "connected"

@@ -16,10 +16,11 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 # 5. Create tables in Supabase
+export RUN_MIGRATIONS=true
 python -c "
-from app.database import engine, Base
+from app.database import Base, get_engine
 import app.models
-Base.metadata.create_all(bind=engine)
+Base.metadata.create_all(bind=get_engine())
 print('✅ Tables created!')
 "
 
@@ -32,6 +33,8 @@ uvicorn app.main:app --reload
 - Copy `.env.example` to `.env` and add your Supabase connection string:
 ```
 DATABASE_URL=postgresql://postgres.xxxxx:[PASSWORD]@aws-0-region.pooler.supabase.com:6543/postgres
+SQLALCHEMY_ECHO=false
+RUN_MIGRATIONS=false
 ```
 
 ## Tech Stack
