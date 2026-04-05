@@ -11,7 +11,7 @@ class Organization(Base):
     organization_name = Column(String(255), nullable=False)
     address = Column(String(500), nullable=True)
     phone = Column(String(20), nullable=True)
-    is_active = Column(Boolean, default=True)
+    is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

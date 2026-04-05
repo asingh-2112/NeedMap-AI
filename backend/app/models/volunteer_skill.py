@@ -10,7 +10,11 @@ class VolunteerSkill(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     volunteer_id = Column(Integer, ForeignKey("volunteers.id", ondelete="CASCADE"), nullable=False, index=True)
     skill_name = Column(String(100), nullable=False)
-    proficiency = Column(Enum(Proficiency), nullable=False, default=Proficiency.BEGINNER)
+    proficiency = Column(
+        Enum(Proficiency, values_callable=lambda enum_cls: [member.value for member in enum_cls]),
+        nullable=False,
+        default=Proficiency.BEGINNER,
+    )
 
     # Relationships
     volunteer = relationship("Volunteer", back_populates="skills")

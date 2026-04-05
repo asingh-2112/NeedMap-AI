@@ -10,9 +10,20 @@ class Need(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
-    category = Column(Enum(NeedCategory), nullable=False)
-    urgency = Column(Enum(NeedUrgency), nullable=False, default=NeedUrgency.MEDIUM)
-    status = Column(Enum(NeedStatus), nullable=False, default=NeedStatus.NEW)
+    category = Column(
+        Enum(NeedCategory, values_callable=lambda enum_cls: [member.value for member in enum_cls]),
+        nullable=False,
+    )
+    urgency = Column(
+        Enum(NeedUrgency, values_callable=lambda enum_cls: [member.value for member in enum_cls]),
+        nullable=False,
+        default=NeedUrgency.MEDIUM,
+    )
+    status = Column(
+        Enum(NeedStatus, values_callable=lambda enum_cls: [member.value for member in enum_cls]),
+        nullable=False,
+        default=NeedStatus.NEW,
+    )
     organization_id = Column(Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
     created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     priority_score = Column(Float, nullable=True)

@@ -9,7 +9,10 @@ class NeedSource(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     need_id = Column(Integer, ForeignKey("needs.id", ondelete="CASCADE"), nullable=False, index=True)
-    source_type = Column(Enum(SourceType), nullable=False)
+    source_type = Column(
+        Enum(SourceType, values_callable=lambda enum_cls: [member.value for member in enum_cls]),
+        nullable=False,
+    )
     location = Column(String(100), nullable=True)
     multimedia_txt = Column(String(500), nullable=True)
     ai_extraction = Column(String(500), nullable=True)

@@ -11,7 +11,11 @@ class Assignment(Base):
     need_id = Column(Integer, ForeignKey("needs.id", ondelete="CASCADE"), nullable=False, index=True)
     organization_id = Column(Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
     volunteer_id = Column(Integer, ForeignKey("volunteers.id", ondelete="CASCADE"), nullable=False, index=True)
-    status = Column(Enum(AssignmentStatus), nullable=False, default=AssignmentStatus.PROPOSED)
+    status = Column(
+        Enum(AssignmentStatus, values_callable=lambda enum_cls: [member.value for member in enum_cls]),
+        nullable=False,
+        default=AssignmentStatus.PROPOSED,
+    )
     match_score = Column(Float, nullable=True)
     assigned_at = Column(DateTime(timezone=True), server_default=func.now())
     accepted_at = Column(DateTime(timezone=True), nullable=True)
