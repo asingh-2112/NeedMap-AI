@@ -1,9 +1,11 @@
 import logging
-import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
-from app.database import Base, get_engine, get_session_local
+from app.core.database import Base, get_engine, get_session_local
+from app.api.auth import router as auth_router
+from app.api.users import router as users_router
+from app.core.config import settings
 
 # Import all models so Base knows about them
 import app.models  # noqa: F401
@@ -13,14 +15,16 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    if os.getenv("RUN_MIGRATIONS", "false").lower() == "true":
+    if settings.run_migrations:
         Base.metadata.create_all(bind=get_engine())
         logger.info("Database tables created / verified.")
     yield
 
 
-app = FastAPI(title="NeedMap AI", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title=settings.app_name, version=settings.app_version, lifespan=lifespan)
 
+app.include_router(auth_router)
+app.include_router(users_router)
 
 @app.get("/")
 def root():

@@ -1,0 +1,51 @@
+import os
+from dataclasses import dataclass
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_int(name: str, default: int) -> int:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return default
+
+
+@dataclass(frozen=True)
+class Settings:
+    app_name: str
+    app_version: str
+    database_url: str | None
+    sqlalchemy_echo: bool
+    run_migrations: bool
+    jwt_secret_key: str
+    jwt_algorithm: str
+    jwt_expire_minutes: int
+
+    @property
+    def jwt_expire_seconds(self) -> int:
+        return self.jwt_expire_minutes * 60
+
+
+settings = Settings(
+    app_name=os.getenv("APP_NAME", "NeedMap AI"),
+    app_version=os.getenv("APP_VERSION", "0.1.0"),
+    database_url=os.getenv("DATABASE_URL"),
+    sqlalchemy_echo=_env_bool("SQLALCHEMY_ECHO", default=False),
+    run_migrations=_env_bool("RUN_MIGRATIONS", default=False),
+    jwt_secret_key=os.getenv("JWT_SECRET_KEY", ""),
+    jwt_algorithm=os.getenv("JWT_ALGORITHM", "HS256"),
+    jwt_expire_minutes=_env_int("JWT_EXPIRE_MINUTES", default=60),
+)

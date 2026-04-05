@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, Float, Text, DateTime, ForeignKey, Enum, func
 from sqlalchemy.orm import relationship
-from app.database import Base
+from app.core.database import Base
 from app.models.enums import NeedCategory, NeedUrgency, NeedStatus
 
 
