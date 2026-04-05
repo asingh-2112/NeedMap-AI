@@ -17,7 +17,7 @@ class Volunteer(Base):
     verified = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    last_seen_timestamp = Column(DateTime(timezone=True), nullable=True)
+    last_seen = Column(DateTime(timezone=True), nullable=True)
 
     # Relationships
     user = relationship("User", back_populates="volunteer_profile")

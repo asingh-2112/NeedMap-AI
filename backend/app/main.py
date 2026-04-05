@@ -2,7 +2,7 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from app.database import Base, get_engine, get_session_local
 
 # Import all models so Base knows about them
@@ -31,7 +31,8 @@ def root():
 def health_check():
     from sqlalchemy import text
 
-    db = get_session_local()()
+    SessionLocal = get_session_local()
+    db = SessionLocal()
     try:
         db.execute(text("SELECT 1"))
         db_status = "connected"
@@ -41,4 +42,7 @@ def health_check():
     finally:
         db.close()
 
-    return {"status": "healthy" if db_status == "connected" else "unhealthy", "database": db_status}
+    if db_status != "connected":
+        raise HTTPException(status_code=503, detail="Database unhealthy")
+
+    return {"status": "healthy", "database": "connected"}
