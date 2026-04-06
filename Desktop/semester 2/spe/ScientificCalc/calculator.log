@@ -1,0 +1,13 @@
+2026-02-27 21:54:30,339 - INFO - Calculator application started
+2026-02-27 21:54:36,391 - INFO - square_root(3.0) = 1.7320508075688772
+2026-02-27 21:54:45,636 - INFO - square_root(4.0) = 2.0
+2026-02-27 21:54:51,447 - ERROR - ValueError: Cannot compute square root of a negative number: -1.0
+2026-02-27 21:54:58,212 - WARNING - Invalid menu choice entered: x
+2026-02-27 21:55:06,785 - INFO - factorial(3) = 6
+2026-02-27 21:55:10,641 - INFO - factorial(1) = 1
+2026-02-27 21:55:14,516 - INFO - factorial(0) = 1
+2026-02-27 21:55:19,246 - ERROR - ValueError: Factorial is only defined for non-negative integers: -1
+2026-02-27 21:55:27,132 - ERROR - ValueError: invalid literal for int() with base 10: '2.0'
+2026-02-27 21:55:50,587 - INFO - natural_log(2.0) = 0.6931471805599453
+2026-02-27 21:55:56,883 - ERROR - ValueError: Natural log is only defined for positive numbers: 0.0
+2026-02-27 21:56:14,794 - INFO - Calculator application exited by user
