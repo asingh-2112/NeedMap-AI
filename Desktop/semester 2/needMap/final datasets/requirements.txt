@@ -1,0 +1,14 @@
+# OCR Engines
+pytesseract
+easyocr
+paddleocr
+python-doctr[torch]
+
+# Image handling
+Pillow
+opencv-python
+
+# Utilities
+numpy
+pandas
+tqdm
