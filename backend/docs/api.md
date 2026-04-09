@@ -200,6 +200,81 @@ Validation rules:
 
 ---
 
+### `PATCH /users/me`
+Update the logged-in user's profile (name, phone).  
+**Auth required:** Yes
+
+**Request Body** (at least one field required)
+```json
+{
+  "user_name": "Abhishek Kumar Singh",
+  "phone": "+919608524613"
+}
+```
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `user_name` | `string \| null` | ❌ | 2–255 chars |
+| `phone` | `string \| null` | ❌ | Max 20 chars |
+
+**Success Response `200`** — updated user object (same as `GET /auth/me`)
+
+**Error Responses**
+| Code | Reason |
+|------|--------|
+| `401` | Missing, invalid, or expired token |
+| `422` | No fields provided or validation failed |
+
+---
+
+### `PUT /users/me/password`
+Change the logged-in user's password.  
+**Auth required:** Yes
+
+**Request Body**
+```json
+{
+  "old_password": "OldPass@123",
+  "new_password": "NewPass@456"
+}
+```
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `old_password` | `string` | ✅ | Min 8 chars; must match current password |
+| `new_password` | `string` | ✅ | Min 8 chars; must differ from old password |
+
+**Success Response `200`**
+```json
+{ "message": "Password changed successfully" }
+```
+
+**Error Responses**
+| Code | Reason |
+|------|--------|
+| `401` | Current password incorrect or invalid token |
+| `422` | Validation failed (short password, same as old) |
+
+---
+
+### `DELETE /users/me`
+Soft-delete (deactivate) the logged-in user's account (`is_active = false`).  
+**Auth required:** Yes
+
+**Request Body:** None
+
+**Success Response `200`**
+```json
+{ "message": "Account deactivated successfully" }
+```
+
+**Error Responses**
+| Code | Reason |
+|------|--------|
+| `401` | Missing, invalid, or expired token |
+
+---
+
 ## 3. Organizations
 
 ### `POST /organizations`

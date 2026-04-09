@@ -50,6 +50,28 @@ class UserLocationUpdateRequest(BaseModel):
         return self
 
 
+class UserProfileUpdateRequest(BaseModel):
+    user_name: str | None = Field(default=None, min_length=2, max_length=255)
+    phone: str | None = Field(default=None, max_length=20)
+
+    @model_validator(mode="after")
+    def validate_at_least_one(self):
+        if self.user_name is None and self.phone is None:
+            raise ValueError("Provide at least one field to update")
+        return self
+
+
+class PasswordChangeRequest(BaseModel):
+    old_password: str = Field(..., min_length=8)
+    new_password: str = Field(..., min_length=8)
+
+    @model_validator(mode="after")
+    def passwords_differ(self):
+        if self.old_password == self.new_password:
+            raise ValueError("New password must be different from old password")
+        return self
+
+
 # ── Response schemas (what the server returns) ────────────────────────────────
 
 class UserResponse(BaseModel):
