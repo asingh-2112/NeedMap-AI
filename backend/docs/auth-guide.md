@@ -58,11 +58,14 @@ Content-Type: application/json
 | `user_name` | string | ✅ | 2–255 characters |
 | `email` | string | ✅ | Valid email format, must be unique |
 | `password` | string | ✅ | Min 8 characters |
-| `role` | string | ✅ | One of: `admin`, `ngo_coordinator`, `volunteer`, `field_reporter` |
+| `role` | string | ✅ | Must be `volunteer` for self-registration |
 | `phone` | string | ❌ | Optional |
 | `latitude` | number | ❌ | -90 to 90 (must be sent with `longitude`) |
 | `longitude` | number | ❌ | -180 to 180 (must be sent with `latitude`) |
 | `radius_km` | number | ❌ | Must be > 0 |
+
+> ⚠️ `owner` and `admin` accounts cannot self-register.
+> They must be created through organization flows.
 
 ### How frontend should collect location
 

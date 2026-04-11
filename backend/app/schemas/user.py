@@ -61,6 +61,21 @@ class UserProfileUpdateRequest(BaseModel):
         return self
 
 
+class AddMemberRequest(BaseModel):
+    """Used by org owner/admin to add a member to their organization."""
+    user_name: str = Field(..., min_length=2, max_length=255)
+    email: EmailStr
+    password: str = Field(..., min_length=8)
+    role: UserRole
+    phone: str | None = Field(default=None, max_length=20)
+
+    @model_validator(mode="after")
+    def validate_role(self):
+        if self.role == UserRole.OWNER:
+            raise ValueError("Owner role is assigned only during organization registration")
+        return self
+
+
 class PasswordChangeRequest(BaseModel):
     old_password: str = Field(..., min_length=8)
     new_password: str = Field(..., min_length=8)

@@ -78,8 +78,13 @@ Create a new user account.
 **Error Responses**
 | Code | Reason |
 |------|--------|
+| `403` | Role is `owner` or `admin` (must be created by an organization) |
 | `409` | Email already exists |
 | `422` | Validation error (missing/invalid fields) |
+
+> ⚠️ `owner` and `admin` accounts **cannot self-register**.
+> They must be created via `POST /organizations/register` (first owner)
+> or `POST /organizations/{id}/members` (subsequent members).
 
 ---
 
@@ -277,9 +282,95 @@ Soft-delete (deactivate) the logged-in user's account (`is_active = false`).
 
 ## 3. Organizations
 
+### `POST /organizations/register`
+Register a new organization **and** its first owner user in one step. The owner is logged in immediately.  
+**Auth required:** No (public endpoint)
+
+**Request Body**
+```json
+{
+  "organization_name": "Hope Foundation",
+  "address": "12 Main Street, Delhi",
+  "phone": "+911234567890",
+  "owner_name": "Abhishek Singh",
+  "owner_email": "owner@hopefoundation.org",
+  "owner_password": "StrongPass@123"
+}
+```
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `organization_name` | `string` | ✅ | 2–255 chars |
+| `address` | `string \| null` | ❌ | |
+| `phone` | `string \| null` | ❌ | |
+| `owner_name` | `string` | ✅ | 2–255 chars |
+| `owner_email` | `string` | ✅ | Valid email, must be unique |
+| `owner_password` | `string` | ✅ | Min 8 chars |
+
+**Success Response `201`**
+```json
+{
+  "organization": {
+    "id": 1,
+    "organization_name": "Hope Foundation",
+    "address": "12 Main Street, Delhi",
+    "phone": "+911234567890",
+    "user_id": 1,
+    "is_active": true,
+    "created_at": "2026-04-05T12:00:00Z"
+  },
+  "access_token": "eyJhbGciOiJIUzI1NiIs...",
+  "token_type": "bearer",
+  "expires_in": 3600
+}
+```
+
+**Error Responses**
+| Code | Reason |
+|------|--------|
+| `409` | Owner email already registered |
+| `422` | Validation error |
+
+---
+
+### `POST /organizations/{organization_id}/members`
+Add a new member (any role) to an organization.  
+**Auth required:** Yes (owner or admin of the organization)
+
+**Request Body**
+```json
+{
+  "user_name": "Priya Sharma",
+  "email": "priya@hopefoundation.org",
+  "password": "SecurePass@456",
+  "role": "admin",
+  "phone": "+919876543210"
+}
+```
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `user_name` | `string` | ✅ | 2–255 chars |
+| `email` | `string` | ✅ | Must be unique |
+| `password` | `string` | ✅ | Min 8 chars |
+| `role` | `string` enum | ✅ | Allowed values: `admin`, `volunteer` |
+| `phone` | `string \| null` | ❌ | |
+
+**Success Response `201`** — standard user object (same as `POST /auth/register` response)
+
+**Error Responses**
+| Code | Reason |
+|------|--------|
+| `403` | Not the owner or admin |
+| `404` | Organization not found |
+| `409` | Email already registered |
+| `422` | Validation error |
+
+---
+
 ### `POST /organizations`
 Create a new organization. Caller becomes the owner.  
-**Auth required:** Yes (`admin` or `ngo_coordinator` role)
+**Auth required:** Yes (`owner` or `admin` role)
 
 **Request Body**
 ```json
@@ -373,12 +464,18 @@ Update organization fields.
 
 ### `DELETE /organizations/{organization_id}`
 Soft-delete (deactivate) an organization (`is_active = false`).  
-**Auth required:** Yes (owner or admin only)
+**Auth required:** Yes (owner only)
 
 **Success Response `200`**
 ```json
 { "message": "Organization deactivated successfully" }
 ```
+
+**Error Responses**
+| Code | Reason |
+|------|--------|
+| `403` | Only the owner can deactivate this organization |
+| `404` | Organization not found |
 
 ---
 
@@ -678,7 +775,7 @@ Remove a skill from a volunteer.
 
 ### `POST /assignments`
 Assign a volunteer to a need.  
-**Auth required:** Yes (`ngo_coordinator` or `admin`)
+**Auth required:** Yes (`owner` or `admin`)
 
 **Request Body**
 ```json
@@ -808,10 +905,9 @@ Database connectivity check.
 ### `UserRole`
 | Value | Description |
 |-------|-------------|
-| `admin` | Full system access |
-| `ngo_coordinator` | Manages organization, needs, assignments |
-| `volunteer` | Field worker |
-| `field_reporter` | Submits need reports only |
+| `owner` | Owns an organization; same org-management access as admin plus can delete the organization |
+| `admin` | Manages organization, needs, assignments within the organization |
+| `volunteer` | Volunteer user |
 
 ### `NeedCategory`
 | Value |

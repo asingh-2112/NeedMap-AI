@@ -3,11 +3,22 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.security import create_access_token, hash_password, verify_password
+from app.models.enums import UserRole
 from app.models.user import User
 from app.schemas.user import TokenResponse, UserLoginRequest, UserRegisterRequest
 
 
+# Only volunteers can self-register.
+_RESTRICTED_ROLES = {UserRole.OWNER, UserRole.ADMIN}
+
+
 def register_user(db: Session, payload: UserRegisterRequest) -> User:
+    if payload.role in _RESTRICTED_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Owner and admin accounts must be created by an organization",
+        )
+
     existing = db.query(User).filter(User.email == payload.email).first()
     if existing:
         raise HTTPException(
