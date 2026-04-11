@@ -36,6 +36,21 @@ and assignments all belong to an organization.
 - Any authenticated user can **list** and **view** organizations
 - Deletion is **soft** — `is_active` is set to `false`, data is preserved
 
+### Essential frontend rules
+
+- There should be a separate **Organization Signup** screen from the volunteer signup screen
+- The first person creating an organization becomes the **owner** automatically
+- The owner and admin can both manage organization details and members
+- Only the owner should see the **Delete / Deactivate Organization** action in the UI
+- Admins can be created only from inside an existing organization by owner/admin users
+- Volunteers can either:
+  - self-register through `POST /auth/register`, or
+  - be added into an organization by owner/admin users
+- Frontend should use both `role` and `organization_id` from `GET /auth/me` to decide:
+  - whether to show organization dashboard
+  - whether to show add-member UI
+  - whether to show delete-organization UI
+
 ### Registration flow
 
 ```
@@ -77,6 +92,14 @@ Content-Type: application/json
 2. Creates an owner user (role = `owner`) as the owner
 3. Links the owner's `organization_id` to the new org
 4. Returns a JWT token so the owner is **logged in immediately**
+
+### What frontend should do right after success
+
+1. Save `access_token`
+2. Store `organization.id` if your app keeps org context in state
+3. Redirect to organization dashboard / onboarding
+4. Show owner-only actions such as adding admins/volunteers
+5. Do **not** ask the user to log in again — they are already authenticated
 
 ### Request Body
 ```json
@@ -187,6 +210,17 @@ Only the **owner** of the organization or an **admin**. Others get `403`.
 - Automatically links the user's `organization_id` to the org
 - The new user can log in immediately with their email/password
 - Added members can only be `admin` or `volunteer`
+
+### Practical UI recommendations
+
+- Use a role dropdown with only these values:
+  - `admin`
+  - `volunteer`
+- Do not expose `owner` in the add-member UI
+- Prefer labeling roles clearly in the frontend:
+  - `owner` → Organization Owner
+  - `admin` → Organization Admin
+  - `volunteer` → Volunteer
 
 ### Request Body
 ```json

@@ -28,6 +28,17 @@ NeedMap AI uses **JWT (JSON Web Token)** based authentication.
 - You must send this token in the **header of every protected request**
 - The token **expires after 60 minutes** — after that you must login again
 
+### Essential frontend rules
+
+- `POST /auth/register` is **only for volunteers**
+- `owner` and `admin` users are **never created from the normal signup screen**
+- An organization must be created first using `POST /organizations/register`
+- That organization registration flow creates the **first owner account** automatically
+- Additional admins are added later by the owner/admin using `POST /organizations/{id}/members`
+- Frontend should keep **two separate entry points**:
+  - **Volunteer Signup** → `POST /auth/register`
+  - **Organization Signup** → `POST /organizations/register`
+
 ---
 
 ## 2. Register
@@ -122,8 +133,18 @@ navigator.geolocation.getCurrentPosition(
 ### Error Responses
 | Code | `detail` | What to show user |
 |------|----------|-------------------|
+| `403` | `"Owner and admin accounts must be created by an organization"` | Redirect user to organization registration flow |
 | `409` | `"Email already registered"` | "This email is already in use" |
 | `422` | Validation details | Show field-level errors |
+
+### Frontend decision table
+
+| User wants to do | Frontend should call |
+|------------------|----------------------|
+| Join as volunteer | `POST /auth/register` |
+| Create a new organization | `POST /organizations/register` |
+| Add another admin to existing org | `POST /organizations/{id}/members` |
+| Add volunteer to existing org | `POST /organizations/{id}/members` |
 
 ---
 

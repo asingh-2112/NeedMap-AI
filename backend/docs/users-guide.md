@@ -26,6 +26,18 @@ All user endpoints are under `/users/me` — they always operate on the **curren
 - Every request needs `Authorization: Bearer <token>` header
 - If token is missing/expired, backend returns `401`
 
+### Essential frontend rules
+
+- `GET /auth/me` is the main source of truth for the logged-in user's `role` and `organization_id`
+- Use `role` to decide what UI to show:
+  - `volunteer` → volunteer features only
+  - `admin` → organization management UI
+  - `owner` → organization management UI + delete organization action
+- Use `organization_id` to know whether the user already belongs to an organization
+- User profile endpoints in this document **do not change role**
+- User profile endpoints in this document **do not assign organization membership**
+- Role changes and org membership are handled through organization APIs, not `/users/me`
+
 ### Base pattern for all requests
 
 ```javascript
