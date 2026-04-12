@@ -472,9 +472,9 @@ Create a new community need.
 | `category` | `string` enum | ✅ |
 | `urgency` | `string` enum | ✅ |
 | `organization_id` | `integer` | ✅ |
-| `latitude` | `number \| null` | ❌ |
-| `longitude` | `number \| null` | ❌ |
-| `address` | `string \| null` | ❌ |
+| `latitude` | `number` | ✅ |
+| `longitude` | `number` | ✅ |
+| `address` | `string` | ✅ |
 
 **Success Response `201`**
 ```json

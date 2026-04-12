@@ -11,14 +11,14 @@ class NeedCreateRequest(BaseModel):
     category: NeedCategory
     urgency: NeedUrgency
     organization_id: int
-    latitude: float | None = Field(default=None, ge=-90, le=90)
-    longitude: float | None = Field(default=None, ge=-180, le=180)
-    address: str | None = Field(default=None, max_length=500)
+    latitude: float = Field(..., ge=-90, le=90)
+    longitude: float = Field(..., ge=-180, le=180)
+    address: str = Field(..., min_length=2, max_length=500)
 
     @model_validator(mode="after")
     def validate_location_pair(self):
-        if (self.latitude is None) != (self.longitude is None):
-            raise ValueError("Both latitude and longitude are required together")
+        if not self.address.strip():
+            raise ValueError("Address is required")
         return self
 
 
@@ -54,6 +54,19 @@ class NeedUpdateRequest(BaseModel):
 
         if (self.latitude is None) != (self.longitude is None):
             raise ValueError("Both latitude and longitude are required together")
+
+        location_fields = {"latitude", "longitude", "address"}
+        provided_location_fields = self.model_fields_set.intersection(location_fields)
+
+        if provided_location_fields and provided_location_fields != location_fields:
+            raise ValueError("Provide latitude, longitude, and address together")
+
+        if provided_location_fields == location_fields:
+            if self.latitude is None or self.longitude is None or self.address is None:
+                raise ValueError("Latitude, longitude, and address cannot be null")
+            if not self.address.strip():
+                raise ValueError("Address is required")
+
         return self
 
 
@@ -67,9 +80,9 @@ class NeedResponse(BaseModel):
     organization_id: int
     created_by: int | None
     priority_score: float | None
-    latitude: float | None
-    longitude: float | None
-    address: str | None
+    latitude: float
+    longitude: float
+    address: str
     created_at: datetime
     resolved_at: datetime | None
 

@@ -65,7 +65,7 @@ def list_needs(
 def list_need_heatmap_items(db: Session) -> list[Need]:
     return (
         db.query(Need)
-        .filter(Need.latitude.is_not(None), Need.longitude.is_not(None), Need.status != NeedStatus.CLOSED)
+        .filter(Need.status != NeedStatus.CLOSED)
         .order_by(Need.created_at.desc())
         .all()
     )

@@ -30,7 +30,7 @@ Need Sources are raw inputs that support those needs (voice notes, surveys, uplo
 
 - Always attach `Authorization: Bearer <token>`
 - `organization_id` must refer to an existing active organization
-- `latitude` and `longitude` must be sent together
+- `latitude`, `longitude`, and `address` are required when creating a need
 - Use `GET /needs/heatmap` for map markers (already filtered to geo-ready records)
 - Closing a need is soft-close (`status = closed`) via `DELETE /needs/{id}`
 - Add source records using `/needs/{need_id}/sources` to keep audit trail
@@ -78,9 +78,9 @@ Content-Type: application/json
 | `category` | enum | ✅ | See enum list in api.md |
 | `urgency` | enum | ✅ | `critical`, `high`, `medium`, `low` |
 | `organization_id` | integer | ✅ | Must exist and be active |
-| `latitude` | number | ❌ | -90 to 90; send with `longitude` |
-| `longitude` | number | ❌ | -180 to 180; send with `latitude` |
-| `address` | string | ❌ | Max 500 chars |
+| `latitude` | number | ✅ | -90 to 90 |
+| `longitude` | number | ✅ | -180 to 180 |
+| `address` | string | ✅ | 2–500 chars |
 
 ### Success Response `201`
 Returns full need object.
@@ -90,7 +90,7 @@ Returns full need object.
 |------|----------|-------------------|
 | `401` | `"Invalid or expired token"` | Redirect to login |
 | `404` | `"Organization not found"` | Ask user to pick valid org |
-| `422` | `"Both latitude and longitude are required together"` | Ask for both coordinates |
+| `422` | Validation object | Ask user to provide latitude, longitude, and address |
 | `422` | Validation object | Show field errors |
 
 ### JavaScript Example
@@ -216,7 +216,7 @@ Example:
 
 ### Validation Rules
 - At least one field must be sent
-- If changing coordinates, send both `latitude` and `longitude`
+- If updating location, send `latitude`, `longitude`, and `address` together
 - If changing `organization_id`, target organization must exist and be active
 
 ### Error Responses
@@ -224,7 +224,7 @@ Example:
 |------|----------|
 | `404` | `"Need not found"` or `"Organization not found"` |
 | `422` | `"Provide at least one field to update"` |
-| `422` | `"Both latitude and longitude are required together"` |
+| `422` | `"Provide latitude, longitude, and address together"` |
 
 ---
 
@@ -301,7 +301,7 @@ Array of source objects for the need.
 | Endpoint | HTTP Code | Typical `detail` | Meaning |
 |----------|-----------|------------------|---------|
 | `POST /needs` | `404` | `"Organization not found"` | Invalid/inactive org |
-| `POST /needs` | `422` | `"Both latitude and longitude are required together"` | Incomplete geo pair |
+| `POST /needs` | `422` | Validation error on `latitude`/`longitude`/`address` | Missing required location fields |
 | `GET /needs/{id}` | `404` | `"Need not found"` | Invalid need id |
 | `PATCH /needs/{id}` | `422` | `"Provide at least one field to update"` | Empty body |
 | `DELETE /needs/{id}` | `404` | `"Need not found"` | Invalid need id |
