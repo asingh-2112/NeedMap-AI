@@ -7,7 +7,6 @@ from app.models.enums import UserRole
 from app.models.organization import Organization
 from app.models.user import User
 from app.schemas.organization import (
-    OrganizationCreateRequest,
     OrganizationRegisterRequest,
     OrganizationRegisterResponse,
     OrganizationResponse,
@@ -125,35 +124,6 @@ def add_member(db: Session, current_user: User, organization_id: int, payload: A
     db.refresh(new_user)
 
     return new_user
-
-
-# ── Existing CRUD (token-protected) ─────────────────────────────────────────
-
-def create_organization(db: Session, current_user: User, payload: OrganizationCreateRequest) -> Organization:
-    if current_user.role not in {UserRole.OWNER, UserRole.ADMIN}:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only owner or admin can create organization",
-        )
-
-    organization = Organization(
-        user_id=current_user.id,
-        organization_name=payload.organization_name,
-        address=payload.address,
-        phone=payload.phone,
-        is_active=True,
-    )
-    db.add(organization)
-    db.flush()
-
-    current_user.organization_id = organization.id
-    current_user.role = UserRole.OWNER
-    db.add(current_user)
-
-    db.commit()
-    db.refresh(organization)
-
-    return organization
 
 
 def list_active_organizations(db: Session) -> list[Organization]:

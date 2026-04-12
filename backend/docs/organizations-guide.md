@@ -11,13 +11,12 @@
 1. [Overview](#1-overview)
 2. [Register Organization (+ First Owner)](#2-register-organization--first-owner)
 3. [Add Member to Organization](#3-add-member-to-organization)
-4. [Create Organization (Existing User)](#4-create-organization-existing-user)
-5. [List Organizations](#5-list-organizations)
-6. [Get Single Organization](#6-get-single-organization)
-7. [Update Organization](#7-update-organization)
-8. [Deactivate Organization](#8-deactivate-organization)
-9. [Error Reference](#9-error-reference)
-10. [Frontend Flow Diagrams](#10-frontend-flow-diagrams)
+4. [List Organizations](#4-list-organizations)
+5. [Get Single Organization](#5-get-single-organization)
+6. [Update Organization](#6-update-organization)
+7. [Deactivate Organization](#7-deactivate-organization)
+8. [Error Reference](#8-error-reference)
+9. [Frontend Flow Diagrams](#9-frontend-flow-diagrams)
 
 ---
 
@@ -31,7 +30,7 @@ and assignments all belong to an organization.
 - **Owners and admins cannot self-register.** The first owner is created via `POST /organizations/register`
 - Additional admins are added via `POST /organizations/{id}/members`
 - `POST /auth/register` only allows the `volunteer` role
-- The user who creates an organization becomes its **owner** (`user_id` on the org)
+- Organizations can be created only via `POST /organizations/register`
 - The **owner** and **admin** have the same org access, except only the owner can deactivate the organization
 - Any authenticated user can **list** and **view** organizations
 - Deletion is **soft** — `is_active` is set to `false`, data is preserved
@@ -320,94 +319,7 @@ await addMember(1, {
 
 ---
 
-## 4. Create Organization (Existing User)
-
-### Endpoint
-```
-POST /organizations
-Authorization: Bearer <token>
-Content-Type: application/json
-```
-
-### Who can call this?
-Only users with role `owner` or `admin`. All other roles get `403`.
-
-> 💡 This endpoint is for users who **already have an account** and want to
-> create a new organization. For first-time setup, use `POST /organizations/register` instead.
-
-### Request Body
-```json
-{
-  "organization_name": "Hope Foundation",
-  "address": "12 Main Street, Delhi",
-  "phone": "+911234567890"
-}
-```
-
-### Field Rules
-| Field | Type | Required | Rules |
-|-------|------|----------|-------|
-| `organization_name` | string | ✅ | 2–255 characters |
-| `address` | string | ❌ | Max 500 characters |
-| `phone` | string | ❌ | Max 20 characters |
-
-### Success Response `201`
-```json
-{
-  "id": 1,
-  "organization_name": "Hope Foundation",
-  "address": "12 Main Street, Delhi",
-  "phone": "+911234567890",
-  "user_id": 1,
-  "is_active": true,
-  "created_at": "2026-04-05T12:00:00Z"
-}
-```
-
-> 💡 **After creating an org**, the creator's `organization_id` is automatically
-> set to the new organization's `id`. You can verify this by calling `GET /auth/me`.
-
-### Error Responses
-| Code | `detail` | What to show user |
-|------|----------|-------------------|
-| `401` | `"Invalid or expired token"` | Redirect to login |
-| `403` | `"Only owner or admin can create organization"` | "You don't have permission to create an organization" |
-| `422` | Validation object | Show field-level errors |
-
-### JavaScript Example
-```javascript
-async function createOrganization(orgData) {
-  const token = localStorage.getItem("access_token");
-
-  const response = await fetch("http://localhost:8000/organizations", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${token}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(orgData)
-  });
-
-  if (response.ok) {
-    const newOrg = await response.json();
-    return newOrg;
-  }
-
-  const error = await response.json();
-
-  if (response.status === 403) {
-    alert("You don't have permission to create an organization.");
-  } else if (response.status === 422) {
-    console.error("Validation error:", error);
-  }
-
-  return null;
-}
-```
-
----
-
-## 5. List Organizations
+## 4. List Organizations
 
 ### Endpoint
 ```
@@ -477,7 +389,7 @@ async function listOrganizations() {
 
 ---
 
-## 6. Get Single Organization
+## 5. Get Single Organization
 
 ### Endpoint
 ```
@@ -539,7 +451,7 @@ async function getOrganization(orgId) {
 
 ---
 
-## 7. Update Organization
+## 6. Update Organization
 
 ### Endpoint
 ```
@@ -633,7 +545,7 @@ await updateOrganization(1, { address: "New Address", phone: "+911234567891" });
 
 ---
 
-## 8. Deactivate Organization
+## 7. Deactivate Organization
 
 ### Endpoint
 ```
@@ -708,14 +620,12 @@ async function deactivateOrganization(orgId) {
 
 ---
 
-## 9. Error Reference
+## 8. Error Reference
 
 ### Full error table for all organization endpoints
 
 | Endpoint | HTTP Code | `detail` | Cause | Frontend Action |
 |----------|-----------|----------|-------|-----------------|
-| `POST /organizations` | `403` | `"Only owner or admin can create organization"` | Wrong role | Show permission error |
-| `POST /organizations` | `422` | Validation object | Missing/invalid fields | Show field errors |
 | `GET /organizations` | `401` | `"Invalid or expired token"` | Bad/expired token | Redirect to login |
 | `GET /organizations/{id}` | `404` | `"Organization not found"` | Org doesn't exist or deactivated | Show "not found" |
 | `PATCH /organizations/{id}` | `403` | `"Not the owner or admin"` | Not authorized | Show permission error |
@@ -732,7 +642,6 @@ async function deactivateOrganization(orgId) {
 |--------|---------|---------|-------------|
 | Register org | ✅ | ❌ | ❌ |
 | Add members | ✅ | ✅ (same org) | ❌ |
-| Create org (existing user) | ✅ | ✅ | ❌ |
 | List orgs | ✅ | ✅ | ✅ |
 | View org | ✅ | ✅ | ✅ |
 | Update org | ✅ | ✅ (same org) | ❌ |
@@ -740,7 +649,7 @@ async function deactivateOrganization(orgId) {
 
 ---
 
-## 10. Frontend Flow Diagrams
+## 9. Frontend Flow Diagrams
 
 ### Organization Registration Flow (First Time)
 ```
@@ -900,9 +809,6 @@ POST   /organizations/register         → no token needed → returns token
 
 // Add member to org (owner / admin only)
 POST   /organizations/{id}/members     → Bearer token required
-
-// Create organization (existing owner / admin)
-POST   /organizations                  → Bearer token required
 
 // List all active organizations
 GET    /organizations                  → Bearer token required

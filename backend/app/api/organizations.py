@@ -5,7 +5,6 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.organization import (
-    OrganizationCreateRequest,
     OrganizationRegisterRequest,
     OrganizationRegisterResponse,
     OrganizationResponse,
@@ -14,7 +13,6 @@ from app.schemas.organization import (
 from app.schemas.user import AddMemberRequest, UserResponse
 from app.services.organization_service import (
     add_member,
-    create_organization,
     deactivate_organization,
     get_active_organization_by_id,
     list_active_organizations,
@@ -48,15 +46,6 @@ def add_member_route(
 
 
 # ── Existing CRUD routes ──────────────────────────────────────────────────────
-
-@router.post("", response_model=OrganizationResponse, status_code=status.HTTP_201_CREATED)
-def create_organization_route(
-    payload: OrganizationCreateRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    return create_organization(db=db, current_user=current_user, payload=payload)
-
 
 @router.get("", response_model=list[OrganizationResponse])
 def list_organizations_route(

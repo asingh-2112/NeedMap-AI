@@ -368,40 +368,6 @@ Add a new member (any role) to an organization.
 
 ---
 
-### `POST /organizations`
-Create a new organization. Caller becomes the owner.  
-**Auth required:** Yes (`owner` or `admin` role)
-
-**Request Body**
-```json
-{
-  "organization_name": "Hope Foundation",
-  "address": "12 Main Street, Delhi",
-  "phone": "+911234567890"
-}
-```
-
-| Field | Type | Required |
-|-------|------|----------|
-| `organization_name` | `string` | ✅ |
-| `address` | `string \| null` | ❌ |
-| `phone` | `string \| null` | ❌ |
-
-**Success Response `201`**
-```json
-{
-  "id": 1,
-  "organization_name": "Hope Foundation",
-  "address": "12 Main Street, Delhi",
-  "phone": "+911234567890",
-  "user_id": 1,
-  "is_active": true,
-  "created_at": "2026-04-05T12:00:00Z"
-}
-```
-
----
-
 ### `GET /organizations`
 List all active organizations.  
 **Auth required:** Yes

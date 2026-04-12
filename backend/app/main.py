@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from app.core.database import Base, get_engine, get_session_local
 from app.api.auth import router as auth_router
+from app.api.needs import router as needs_router
 from app.api.organizations import router as organizations_router
 from app.api.users import router as users_router
 from app.core.config import settings
@@ -27,6 +28,7 @@ app = FastAPI(title=settings.app_name, version=settings.app_version, lifespan=li
 app.include_router(auth_router)
 app.include_router(users_router)
 app.include_router(organizations_router)
+app.include_router(needs_router)
 
 @app.get("/")
 def root():
