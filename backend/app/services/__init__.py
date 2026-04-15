@@ -1,4 +1,11 @@
 from app.services.auth_service import login_user, register_user
+from app.services.assignment_service import (
+    create_assignment,
+    get_assignment_by_id,
+    list_assignments,
+    submit_assignment_feedback,
+    update_assignment_status,
+)
 from app.services.need_service import (
     add_need_source,
     close_need,
@@ -61,4 +68,9 @@ __all__ = [
     "add_volunteer_skill",
     "update_volunteer_skill",
     "delete_volunteer_skill",
+    "create_assignment",
+    "list_assignments",
+    "get_assignment_by_id",
+    "update_assignment_status",
+    "submit_assignment_feedback",
 ]

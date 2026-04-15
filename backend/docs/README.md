@@ -10,6 +10,7 @@ This folder contains backend API and frontend integration documentation.
 - [organizations-guide.md](organizations-guide.md) — frontend organization/role integration guide
 - [needs-guide.md](needs-guide.md) — frontend needs and need-sources integration guide
 - [volunteers-guide.md](volunteers-guide.md) — frontend volunteers and skills integration guide
+- [assignments-guide.md](assignments-guide.md) — frontend assignments integration guide
 
 ## Implemented APIs
 
@@ -17,6 +18,7 @@ This folder contains backend API and frontend integration documentation.
 - Need Sources: `POST /needs/{id}/sources`, `GET /needs/{id}/sources`
 - Volunteers: `POST /volunteers`, `GET /volunteers`, `GET /volunteers/{id}`, `PATCH /volunteers/{id}`
 - Volunteer Skills: `POST /volunteers/{id}/skills`, `PATCH /volunteers/{id}/skills/{sid}`, `DELETE /volunteers/{id}/skills/{sid}`
+- Assignments: `POST /assignments`, `GET /assignments`, `GET /assignments/{id}`, `PATCH /assignments/{id}/status`, `PATCH /assignments/{id}/feedback`
 
 ## Frontend Notes
 

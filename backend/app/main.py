@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from app.core.database import Base, get_engine, get_session_local
 from app.api.auth import router as auth_router
+from app.api.assignments import router as assignments_router
 from app.api.needs import router as needs_router
 from app.api.organizations import router as organizations_router
 from app.api.users import router as users_router
@@ -31,6 +32,7 @@ app.include_router(users_router)
 app.include_router(organizations_router)
 app.include_router(needs_router)
 app.include_router(volunteers_router)
+app.include_router(assignments_router)
 
 @app.get("/")
 def root():
