@@ -23,6 +23,15 @@ from app.services.user_service import (
     update_location,
     update_profile,
 )
+from app.services.volunteer_service import (
+    add_volunteer_skill,
+    create_volunteer,
+    delete_volunteer_skill,
+    get_volunteer_by_id,
+    list_volunteers,
+    update_volunteer,
+    update_volunteer_skill,
+)
 
 __all__ = [
     "register_user",
@@ -45,4 +54,11 @@ __all__ = [
     "update_location",
     "change_password",
     "deactivate_account",
+    "create_volunteer",
+    "list_volunteers",
+    "get_volunteer_by_id",
+    "update_volunteer",
+    "add_volunteer_skill",
+    "update_volunteer_skill",
+    "delete_volunteer_skill",
 ]

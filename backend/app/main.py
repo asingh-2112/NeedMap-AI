@@ -7,6 +7,7 @@ from app.api.auth import router as auth_router
 from app.api.needs import router as needs_router
 from app.api.organizations import router as organizations_router
 from app.api.users import router as users_router
+from app.api.volunteers import router as volunteers_router
 from app.core.config import settings
 
 # Import all models so Base knows about them
@@ -29,6 +30,7 @@ app.include_router(auth_router)
 app.include_router(users_router)
 app.include_router(organizations_router)
 app.include_router(needs_router)
+app.include_router(volunteers_router)
 
 @app.get("/")
 def root():
