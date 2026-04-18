@@ -45,6 +45,7 @@ class SourceType(str, enum.Enum):
     TELEGRAM = "telegram"
     WEB_FORM = "web_form"
     PHONE_CALL = "phone_call"
+    IMAGE = "image"
 
 
 class Proficiency(str, enum.Enum):

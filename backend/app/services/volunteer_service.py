@@ -1,5 +1,5 @@
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.enums import UserRole
 from app.models.organization import Organization
@@ -89,7 +89,15 @@ def list_volunteers(
 
 
 def get_volunteer_by_id(db: Session, volunteer_id: int) -> Volunteer:
-    return _get_volunteer_or_404(db, volunteer_id)
+    volunteer = (
+        db.query(Volunteer)
+        .options(joinedload(Volunteer.skills))
+        .filter(Volunteer.id == volunteer_id)
+        .first()
+    )
+    if volunteer is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Volunteer not found")
+    return volunteer
 
 
 def update_volunteer(
@@ -188,6 +196,28 @@ def update_volunteer_skill(
     db.commit()
     db.refresh(skill)
     return skill
+
+
+def list_volunteers_with_relations(
+    db: Session,
+    organization_id: int | None = None,
+    verified: bool | None = None,
+) -> list[Volunteer]:
+    """
+    Same filters as list_volunteers, but eagerly loads .user and .skills
+    so the matching scorer can access geo coords and skill data without
+    triggering lazy-load queries inside the ML module.
+    """
+    query = (
+        db.query(Volunteer)
+        .options(joinedload(Volunteer.user), joinedload(Volunteer.skills))
+        .filter(Volunteer.is_active.is_(True))
+    )
+    if organization_id is not None:
+        query = query.filter(Volunteer.organization_id == organization_id)
+    if verified is not None:
+        query = query.filter(Volunteer.verified == verified)
+    return query.order_by(Volunteer.created_at.desc()).all()
 
 
 def delete_volunteer_skill(db: Session, volunteer_id: int, skill_id: int) -> None:

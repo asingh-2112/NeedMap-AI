@@ -33,10 +33,18 @@ class Settings:
     jwt_secret_key: str
     jwt_algorithm: str
     jwt_expire_minutes: int
+    # LLM / Portkey
+    portkey_api_key: str | None
+    llm_model: str
+    openai_api_key: str | None
 
     @property
     def jwt_expire_seconds(self) -> int:
         return self.jwt_expire_minutes * 60
+
+    @property
+    def llm_enabled(self) -> bool:
+        return bool(self.portkey_api_key or self.openai_api_key)
 
 
 settings = Settings(
@@ -48,4 +56,7 @@ settings = Settings(
     jwt_secret_key=os.getenv("JWT_SECRET_KEY", ""),
     jwt_algorithm=os.getenv("JWT_ALGORITHM", "HS256"),
     jwt_expire_minutes=_env_int("JWT_EXPIRE_MINUTES", default=60),
+    portkey_api_key=os.getenv("PORTKEY_API_KEY"),
+    llm_model=os.getenv("LLM_MODEL", "claude-sonnet-4-6"),
+    openai_api_key=os.getenv("OPENAI_API_KEY"),
 )

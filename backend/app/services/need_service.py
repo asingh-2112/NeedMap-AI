@@ -1,3 +1,5 @@
+import math
+
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -143,3 +145,35 @@ def list_need_sources(db: Session, need_id: int) -> list[NeedSource]:
         .order_by(NeedSource.created_at.desc())
         .all()
     )
+
+
+# ── ML helper functions ───────────────────────────────────────────────────────
+
+def count_need_sources(db: Session, need_id: int) -> int:
+    return db.query(NeedSource).filter(NeedSource.need_id == need_id).count()
+
+
+def count_nearby_open_needs(db: Session, lat: float, lng: float, radius_km: float = 5.0) -> int:
+    """
+    Counts open needs within ~radius_km of (lat, lng) using a bounding-box
+    approximation. Excludes the exact location match to avoid self-counting
+    (caller should subtract 1 if the current need is already in the DB).
+    """
+    delta_lat = radius_km / 111.0
+    delta_lng = radius_km / (111.0 * math.cos(math.radians(lat)))
+    return (
+        db.query(Need)
+        .filter(
+            Need.status != NeedStatus.CLOSED,
+            Need.latitude.between(lat - delta_lat, lat + delta_lat),
+            Need.longitude.between(lng - delta_lng, lng + delta_lng),
+        )
+        .count()
+    )
+
+
+def set_priority_score(db: Session, need: Need, score: float) -> None:
+    need.priority_score = score
+    db.add(need)
+    db.commit()
+    db.refresh(need)

@@ -1,0 +1,1556 @@
+{
+  "info": {
+    "_postman_id": "needmap-ai-ml-collection-complete",
+    "name": "NeedMap-AI \u2014 Complete ML Integration (FIXED)",
+    "description": "\u2705 Complete API test suite for NeedMap-AI backend (ml-model-integration branch) with working volunteer workflow.\n\n## How to use\n1. Run the server: `uvicorn app.main:app --reload` from backend/\n2. Run **Setup** folder in order (all 4 requests)\n3. Run remaining requests in order within each folder\n4. IDs are captured automatically via test scripts\n\n## Setup flow\n- Register org \u2192 get admin token\n- Register volunteer user \u2192 get volunteer token  \n- Login verification\n- Health check\n\n## ML features covered\n- Priority scoring (auto on POST /needs, manual trigger, PATCH recompute)\n- Text ingestion (LLM extracts category/urgency from raw text)\n- Voice ingestion (pre-transcribed text path)\n- OCR extraction (EasyOCR on local sample image)\n- Volunteer\u2013need matching (composite score breakdown)\n- Assignment match_score auto-computation",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "admin_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "volunteer_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "volunteer_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "org_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "need_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "ingest_need_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "assignment_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "source_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "00 \u00b7 Setup (run all 4 first)",
+      "item": [
+        {
+          "name": "[SETUP] Register Org + Admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/organizations/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "organizations",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organization_name\": \"NeedMap Relief Trust\",\n  \"address\": \"12 Mission Road, Bengaluru - 560001\",\n  \"phone\": \"+91-80-12345678\",\n  \"owner_name\": \"Admin User\",\n  \"owner_email\": \"admin@needmap-test.example.com\",\n  \"owner_password\": \"Test@1234\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const r = pm.response.json();",
+                  "pm.collectionVariables.set('admin_token', r.access_token);",
+                  "pm.collectionVariables.set('org_id', String(r.organization.id));",
+                  "pm.test('org_id captured', () => pm.expect(r.organization.id).to.be.a('number'));",
+                  "pm.test('admin_token captured', () => pm.expect(r.access_token).to.be.a('string'));",
+                  "console.log('\u2705 Admin registered | org_id:', r.organization.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "[SETUP] Register Volunteer User (role=VOLUNTEER)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_name\": \"Volunteer User\",\n  \"email\": \"volunteer@needmap-test.example.com\",\n  \"password\": \"VolPass@1234\",\n  \"role\": \"volunteer\",\n  \"phone\": \"+91-98765-43210\",\n  \"latitude\": 28.6139,\n  \"longitude\": 77.2090\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created (or 200 if already exists)', () => {",
+                  "  const status = pm.response.code;",
+                  "  pm.expect([200, 201]).to.include(status);",
+                  "});",
+                  "console.log('\u2705 Volunteer user registered');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "[SETUP] Login as Volunteer \u2192 get volunteer_token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"volunteer@needmap-test.example.com\",\n  \"password\": \"VolPass@1234\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.collectionVariables.set('volunteer_token', r.access_token);",
+                  "pm.test('volunteer_token captured', () => pm.expect(r.access_token).to.be.a('string'));",
+                  "console.log('\u2705 Volunteer logged in | token ready');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "[SETUP] Health Check",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 healthy', () => pm.response.to.have.status(200));",
+                  "pm.test('DB connected', () => pm.expect(pm.response.json().database).to.eql('connected'));",
+                  "console.log('\u2705 Health check passed');"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "01 \u00b7 Auth & Profile",
+      "item": [
+        {
+          "name": "Get My Profile (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('has email', () => pm.expect(pm.response.json().email).to.be.a('string'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Profile (name + description)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "me"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Admin User Updated\",\n  \"description\": \"I am a doctor and first aid trainer with logistics experience.\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 \u00b7 Organisations",
+      "item": [
+        {
+          "name": "List Organisations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/organizations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "organizations"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('array', () => pm.expect(pm.response.json()).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Organisation",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/organizations/{{org_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "organizations",
+                "{{org_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('id matches', () => pm.expect(String(pm.response.json().id)).to.eql(pm.collectionVariables.get('org_id')));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 \u00b7 Needs \u2014 CRUD + auto priority",
+      "item": [
+        {
+          "name": "Create Need  [auto priority_score]",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/needs",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "needs"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Water supply cut off - Block 7\",\n  \"description\": \"300 families without clean drinking water for 3 days. Pipeline burst near main road. Children and elderly falling sick. Urgent plumbing needed.\",\n  \"category\": \"water_access\",\n  \"urgency\": \"critical\",\n  \"organization_id\": {{org_id}},\n  \"latitude\": 28.6139,\n  \"longitude\": 77.2090,\n  \"address\": \"Block 7, Sector 4, New Delhi - 110045\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const r = pm.response.json();",
+                  "pm.collectionVariables.set('need_id', String(r.id));",
+                  "pm.test('need_id captured', () => pm.expect(r.id).to.be.a('number'));",
+                  "pm.test('priority_score auto-set', () => {",
+                  "  pm.expect(r.priority_score).to.not.be.null;",
+                  "  pm.expect(r.priority_score).to.be.above(50);",
+                  "  console.log('priority_score =', r.priority_score);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Needs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/needs?status=open",
+              "query": [
+                {
+                  "key": "status",
+                  "value": "open"
+                }
+              ],
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "needs"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('array', () => pm.expect(pm.response.json()).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Need",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/needs/{{need_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "needs",
+                "{{need_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('priority_score present', () => pm.expect(pm.response.json().priority_score).to.be.a('number'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Need \u2014 urgency change recomputes priority",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/needs/{{need_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "needs",
+                "{{need_id}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"urgency\": \"low\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test('priority dropped after urgency=low', () => {",
+                  "  pm.expect(r.priority_score).to.be.a('number');",
+                  "  console.log('priority_score after urgency=low:', r.priority_score);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Compute Priority \u2014 manual trigger",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/needs/{{need_id}}/compute-priority",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "needs",
+                "{{need_id}}",
+                "compute-priority"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('priority_score is number', () => pm.expect(pm.response.json().priority_score).to.be.a('number'));",
+                  "console.log('manual priority_score =', pm.response.json().priority_score);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Needs Heatmap",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/needs/heatmap",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "needs",
+                "heatmap"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('array of heatmap items', () => pm.expect(pm.response.json()).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04 \u00b7 ML \u2014 Text Ingest",
+      "item": [
+        {
+          "name": "Ingest Field Note \u2192 creates Need",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/needs/ingest/text",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "needs",
+                "ingest",
+                "text"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"raw_text\": \"Field report from Dharavi, Mumbai. Heavy rainfall last night caused partial roof collapse in Building Block C. Approximately 15 families (60 people) are now without shelter. Single mothers and young children among affected. We urgently need emergency tents, blankets, and a medical team for the elderly. Please send help immediately.\",\n  \"organization_id\": {{org_id}},\n  \"latitude\": 19.0390,\n  \"longitude\": 72.8554,\n  \"address\": \"Building C, Dharavi, Mumbai - 400017\",\n  \"create_need\": true\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const r = pm.response.json();",
+                  "pm.collectionVariables.set('ingest_need_id', String(r.need_id));",
+                  "pm.test('LLM extracted category', () => pm.expect(r.category).to.be.a('string'));",
+                  "pm.test('LLM extracted urgency', () => pm.expect(r.urgency).to.be.a('string'));",
+                  "pm.test('confidence > 0', () => pm.expect(r.confidence).to.be.above(0));",
+                  "pm.test('need created', () => pm.expect(r.need_id).to.be.a('number'));",
+                  "console.log('Extracted:', r.category, r.urgency, 'confidence:', r.confidence, 'model:', r.model_used);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ingest Water Crisis \u2014 extraction only (no need created)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/needs/ingest/text",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "needs",
+                "ingest",
+                "text"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"raw_text\": \"The families near the old bridge have had no clean water for two weeks. Children are falling sick with diarrhea. We need plumbers to fix the burst pipe and water tankers for immediate supply. Estimated 300 families affected.\",\n  \"organization_id\": {{org_id}},\n  \"create_need\": false\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const r = pm.response.json();",
+                  "pm.test('need NOT created (create_need=false)', () => pm.expect(r.need_id).to.be.null);",
+                  "pm.test('category = water_access', () => pm.expect(r.category).to.eql('water_access'));",
+                  "console.log('Extraction only:', JSON.stringify(r, null, 2));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ingest Medical Emergency Text",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/needs/ingest/text",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "needs",
+                "ingest",
+                "text"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"raw_text\": \"URGENT: Suspected cholera outbreak in Barmer district, Rajasthan. 45 patients, 3 deaths already reported. Nearest hospital 50km away. Need medical team with doctors and nurses, oral rehydration salts, IV fluids immediately. This is life-threatening.\",\n  \"organization_id\": {{org_id}},\n  \"latitude\": 25.7521,\n  \"longitude\": 71.4052,\n  \"address\": \"Barmer District, Rajasthan - 344001\",\n  \"create_need\": true\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const r = pm.response.json();",
+                  "pm.test('category = health', () => pm.expect(r.category).to.eql('health'));",
+                  "pm.test('urgency = critical', () => pm.expect(r.urgency).to.eql('critical'));",
+                  "console.log('Medical ingest:', r.category, r.urgency, '| model:', r.model_used);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "05 \u00b7 ML \u2014 Voice Ingest (transcript path)",
+      "item": [
+        {
+          "name": "Ingest Voice Note (pre-transcribed)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/needs/ingest/voice",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "needs",
+                "ingest",
+                "voice"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transcription\": \"This is a field report from the Godavari flood relief camp. About two hundred families are stranded near the river bank. They have been without food for two days now. Children are crying from hunger and the elderly are very weak. We urgently need cooked meals, dry ration packets, and clean drinking water. The camp is located near the old Godavari bridge, roughly 10 kilometres from Rajahmundry town. Please send food supplies and relief teams immediately.\",\n  \"organization_id\": {{org_id}},\n  \"latitude\": 16.9891,\n  \"longitude\": 81.7838,\n  \"address\": \"Near Godavari Bridge, Rajahmundry, Andhra Pradesh\",\n  \"create_need\": true\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const r = pm.response.json();",
+                  "pm.test('category = food', () => pm.expect(r.category).to.eql('food'));",
+                  "pm.test('urgency present', () => pm.expect(['critical','high','medium']).to.include(r.urgency));",
+                  "pm.test('need created', () => pm.expect(r.need_id).to.be.a('number'));",
+                  "console.log('Voice ingest:', r.category, r.urgency, '| affected:', r.affected_count, '| model:', r.model_used);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ingest Voice \u2014 extraction only",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/needs/ingest/voice",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "needs",
+                "ingest",
+                "voice"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transcription\": \"Hello this is Ravi calling from Nandyal. There is a mental health crisis here. Many people have been traumatized after the recent floods. We need counsellors and mental health workers urgently. About 50 people need support.\",\n  \"organization_id\": {{org_id}},\n  \"create_need\": false\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const r = pm.response.json();",
+                  "pm.test('need NOT created', () => pm.expect(r.need_id).to.be.null);",
+                  "console.log('Voice extraction only:', r.category, r.urgency);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "06 \u00b7 ML \u2014 OCR Extract",
+      "item": [
+        {
+          "name": "OCR \u2014 local sample image (extraction only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/needs/ocr-extract",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "needs",
+                "ocr-extract"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"image_url\": \"http://localhost:8000/samples/water_crisis_notice.png\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test('multimedia_txt (OCR text) present', () => pm.expect(r.multimedia_txt).to.be.a('string').with.length.above(10));",
+                  "pm.test('structured fields extracted', () => {",
+                  "  pm.expect(r.structured).to.be.an('object');",
+                  "  pm.expect(r.category_hint).to.be.a('string');",
+                  "});",
+                  "console.log('OCR text preview:', r.multimedia_txt.substring(0, 100));",
+                  "console.log('Category hint:', r.category_hint, '| Urgency hint:', r.urgency_hint);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "OCR \u2014 attach to existing need (creates NeedSource)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/needs/ocr-extract",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "needs",
+                "ocr-extract"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"image_url\": \"http://localhost:8000/samples/water_crisis_notice.png\",\n  \"need_id\": {{need_id}}\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.collectionVariables.set('source_id', String(r.source_id));",
+                  "pm.test('source_id created', () => pm.expect(r.source_id).to.be.a('number'));",
+                  "pm.test('need_id matches', () => pm.expect(String(r.need_id)).to.eql(pm.collectionVariables.get('need_id')));",
+                  "console.log('OCR source created:', r.source_id);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "07 \u00b7 Need Sources",
+      "item": [
+        {
+          "name": "Add Need Source (manual)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/needs/{{need_id}}/sources",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "needs",
+                "{{need_id}}",
+                "sources"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"source_type\": \"web_form\",\n  \"location\": \"Block 7, Sector 4, New Delhi\",\n  \"multimedia_txt\": \"Water crisis reported via community web form. 300 families affected.\",\n  \"ai_extraction\": \"{\\\"category\\\": \\\"water_access\\\", \\\"urgency\\\": \\\"critical\\\"}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('source created', () => pm.expect(pm.response.json().id).to.be.a('number'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Need Sources",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/needs/{{need_id}}/sources",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "needs",
+                "{{need_id}}",
+                "sources"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('has sources', () => pm.expect(pm.response.json()).to.be.an('array').with.length.above(0));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "08 \u00b7 Volunteers + auto skill extraction",
+      "item": [
+        {
+          "name": "Create Volunteer \u2014 medical bio (uses volunteer token)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{volunteer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/volunteers",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "volunteers"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organization_id\": {{org_id}},\n  \"availability\": true,\n  \"bio\": \"I am a certified nurse with 5 years of experience in first aid, emergency medical care and trauma counseling. I have also worked in logistics coordination during flood relief operations.\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const r = pm.response.json();",
+                  "pm.collectionVariables.set('volunteer_id', String(r.id));",
+                  "pm.test('volunteer_id captured', () => pm.expect(r.id).to.be.a('number'));",
+                  "pm.test('skills auto-extracted from bio', () => {",
+                  "  pm.expect(r.skills).to.be.an('array').with.length.above(0);",
+                  "  console.log('\u2705 Auto-extracted skills:', r.skills.map(s => s.skill_name).join(', '));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Volunteers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/volunteers?availability=true",
+              "query": [
+                {
+                  "key": "availability",
+                  "value": "true"
+                }
+              ],
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "volunteers"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('array', () => pm.expect(pm.response.json()).to.be.an('array'));",
+                  "console.log('\u2705 Found', pm.response.json().length, 'volunteers');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Volunteer (check skills)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/volunteers/{{volunteer_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "volunteers",
+                "{{volunteer_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test('skills array present', () => pm.expect(r.skills).to.be.an('array'));",
+                  "console.log('Skills:', r.skills.map(s => s.skill_name));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Add Skill Manually (expert logistics)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/volunteers/{{volunteer_id}}/skills",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "volunteers",
+                "{{volunteer_id}}",
+                "skills"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"skill_name\": \"logistics\",\n  \"proficiency\": \"expert\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('proficiency = expert', () => pm.expect(pm.response.json().proficiency).to.eql('expert'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "09 \u00b7 ML \u2014 Volunteer Matching",
+      "item": [
+        {
+          "name": "Suggest Volunteers for Need",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/needs/{{need_id}}/suggest-volunteers?limit=10",
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ],
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "needs",
+                "{{need_id}}",
+                "suggest-volunteers"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test('scored_volunteers array', () => pm.expect(r.scored_volunteers).to.be.an('array'));",
+                  "if (r.scored_volunteers.length > 0) {",
+                  "  const top = r.scored_volunteers[0];",
+                  "  pm.test('composite_score 0-100', () => pm.expect(top.composite_score).to.be.within(0, 100));",
+                  "  pm.test('all sub-scores present', () => {",
+                  "    pm.expect(top.skill_score).to.be.a('number');",
+                  "    pm.expect(top.geo_score).to.be.a('number');",
+                  "    pm.expect(top.reliability_score).to.be.a('number');",
+                  "    pm.expect(top.availability_score).to.be.a('number');",
+                  "  });",
+                  "  console.log('\u2705 Top match:', top.volunteer_id, '| score:', top.composite_score);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Suggest Volunteers \u2014 verified only",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/needs/{{need_id}}/suggest-volunteers?verified_only=true&limit=5",
+              "query": [
+                {
+                  "key": "verified_only",
+                  "value": "true"
+                },
+                {
+                  "key": "limit",
+                  "value": "5"
+                }
+              ],
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "needs",
+                "{{need_id}}",
+                "suggest-volunteers"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "console.log('\u2705 Verified-only matches:', pm.response.json().scored_volunteers.length);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "10 \u00b7 Assignments + auto match_score",
+      "item": [
+        {
+          "name": "Create Assignment \u2014 auto match_score computed",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/assignments",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "assignments"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"need_id\": {{need_id}},\n  \"volunteer_id\": {{volunteer_id}},\n  \"organization_id\": {{org_id}}\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const r = pm.response.json();",
+                  "pm.collectionVariables.set('assignment_id', String(r.id));",
+                  "pm.test('match_score auto-computed', () => {",
+                  "  pm.expect(r.match_score).to.not.be.null;",
+                  "  pm.expect(r.match_score).to.be.a('number');",
+                  "  console.log('\u2705 Auto match_score =', r.match_score);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Assignment",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/assignments/{{assignment_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "assignments",
+                "{{assignment_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('match_score persisted', () => pm.expect(pm.response.json().match_score).to.be.a('number'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Assignment Status \u2014 accepted",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/assignments/{{assignment_id}}/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "assignments",
+                "{{assignment_id}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"accepted\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('status = accepted', () => pm.expect(pm.response.json().status).to.eql('accepted'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Submit Feedback + Rating",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/assignments/{{assignment_id}}/feedback",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "assignments",
+                "{{assignment_id}}",
+                "feedback"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"feedback\": \"Volunteer responded quickly and resolved the water crisis within 6 hours.\",\n  \"rating\": 5.0\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('rating saved', () => pm.expect(pm.response.json().rating).to.eql(5));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Assignments for Need",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/assignments?need_id={{need_id}}",
+              "query": [
+                {
+                  "key": "need_id",
+                  "value": "{{need_id}}"
+                }
+              ],
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "assignments"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('has assignments', () => pm.expect(pm.response.json()).to.be.an('array').with.length.above(0));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "11 \u00b7 Teardown (optional)",
+      "item": [
+        {
+          "name": "Close Need",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/needs/{{need_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "needs",
+                "{{need_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('closed message', () => pm.expect(pm.response.json().message).to.include('closed'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Deactivate Organisation",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/organizations/{{org_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "organizations",
+                "{{org_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
