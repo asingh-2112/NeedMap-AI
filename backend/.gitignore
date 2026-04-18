@@ -82,4 +82,3 @@ htmlcov/
 
 *.ini
 *.env
-*.env.example
