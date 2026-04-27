@@ -2,10 +2,9 @@ import enum
 
 
 class UserRole(str, enum.Enum):
+    OWNER = "owner"
     ADMIN = "admin"
-    NGO_COORDINATOR = "ngo_coordinator"
     VOLUNTEER = "volunteer"
-    FIELD_REPORTER = "field_reporter"
 
 
 class NeedCategory(str, enum.Enum):

@@ -19,3 +19,8 @@ venv/
 .env
 
 command.md
+
+.vscode/
+
+# Local utility scripts
+backend/scripts/
