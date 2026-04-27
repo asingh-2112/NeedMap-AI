@@ -1,7 +1,10 @@
 import logging
+import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
 from app.core.database import Base, get_engine, get_session_local
 from app.api.auth import router as auth_router
 from app.api.assignments import router as assignments_router
@@ -33,6 +36,12 @@ app.include_router(organizations_router)
 app.include_router(needs_router)
 app.include_router(volunteers_router)
 app.include_router(assignments_router)
+
+# Serve sample files at /samples/* (for local OCR testing)
+_samples_dir = Path(__file__).parent.parent / "samples"
+if _samples_dir.exists():
+    app.mount("/samples", StaticFiles(directory=str(_samples_dir)), name="samples")
+
 
 @app.get("/")
 def root():

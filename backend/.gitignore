@@ -1,0 +1,84 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+ENV/
+env/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+postgres_data/
+
+# Logs
+*.log
+logs/
+
+# Demo & Local-only files
+demo_pipeline.py
+samples/
+
+# Temporary files
+*.tmp
+temp/
+tmp/
+
+# OCR/ML models (large files)
+*.pth
+*.pt
+*.pkl
+*.joblib
+models/
+
+# Audio/Media (local testing)
+*.mp3
+*.wav
+*.m4a
+*.ogg
+*.webm
+
+# Coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+*.ini
+*.env

@@ -2,23 +2,23 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Branch: feature/backend-initial-work
+## Branch: ml-model-integration
 
-The most complete backend implementation — full REST API with JWT authentication, Pydantic schemas, a service layer, and comprehensive docs. This is the reference implementation for the NeedMap-AI backend.
+Adds an `app/ml/` module to the NeedMap-AI FastAPI backend for rule-based ML features: volunteer–need matching, need priority scoring, and OCR-based paper survey extraction. Branched from `feature/backend-initial-work`.
 
 ## Stack
 
-Python 3.11+, FastAPI, SQLAlchemy 2.0, PostgreSQL (Supabase), JWT (python-jose), bcrypt (passlib)
+Python 3.11+, FastAPI, SQLAlchemy 2.0, PostgreSQL (Supabase), geopy, EasyOCR, numpy, pillow
 
 ## Setup & Run
 
 ```bash
 cd backend
 python3 -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env   # fill in DATABASE_URL and JWT_SECRET_KEY
+pip install -r requirements.txt   # includes easyocr — large first install (~500 MB PyTorch)
+cp .env.example .env              # fill in DATABASE_URL, JWT_SECRET_KEY, OCR_USE_GPU
 uvicorn app.main:app --reload
-# Interactive API docs: http://localhost:8000/docs
+# Docs: http://localhost:8000/docs
 ```
 
 ## Environment Variables
@@ -26,71 +26,97 @@ uvicorn app.main:app --reload
 | Variable | Purpose |
 |---|---|
 | `DATABASE_URL` | PostgreSQL connection string (Supabase) |
-| `JWT_SECRET_KEY` | Secret for signing JWT tokens |
+| `JWT_SECRET_KEY` | JWT signing secret |
 | `JWT_EXPIRE_MINUTES` | Token expiry (default 60) |
-| `SQLALCHEMY_ECHO` | `true` to log SQL queries |
-| `RUN_MIGRATIONS` | `true` to run `create_all` on startup |
+| `SQLALCHEMY_ECHO` | `true` to log SQL |
+| `RUN_MIGRATIONS` | `true` to create tables on startup |
+| `OCR_USE_GPU` | `true` (default) for GPU, `false` for CPU-only hosts |
 
 ## Architecture
 
 ```
 backend/app/
-├── main.py              # App factory, router registration, lifespan
-├── core/
-│   ├── config.py        # Settings loaded from .env via pydantic-settings
-│   ├── database.py      # SQLAlchemy engine + session dependency
-│   ├── security.py      # JWT encode/decode, password hashing
-│   └── dependencies.py  # get_current_user FastAPI dependency
-├── models/              # SQLAlchemy ORM (8 tables)
-├── schemas/             # Pydantic request/response models
-│   ├── user.py / organization.py / need.py
-│   ├── volunteer.py / assignment.py
-├── api/                 # FastAPI routers (one per resource)
-│   ├── auth.py / users.py / organizations.py
-│   ├── needs.py / volunteers.py / assignments.py
-└── services/            # Business logic (called by routers)
-    ├── auth_service.py / user_service.py / organization_service.py
-    ├── need_service.py / volunteer_service.py / assignment_service.py
+├── ml/                          ← NEW — all ML logic, no DB I/O
+│   ├── __init__.py              # re-exports 4 public functions
+│   ├── priority.py              # Need priority scorer
+│   ├── matching.py              # Volunteer–Need scorer + skill extraction from text
+│   └── ocr.py                   # OCR pipeline (URL-based, EasyOCR singleton)
+├── api/
+│   ├── needs.py                 # +3 new ML endpoints + auto-triggers in existing routes
+│   ├── assignments.py           # auto-populates match_score on create
+│   └── volunteers.py            # auto-extracts skills from user description on create
+├── schemas/need.py              # +4 new schemas
+└── services/
+    └── volunteer_service.py     # +list_volunteers_with_relations (with joinedload)
 ```
 
-### Request Flow
+### ML Modules
 
-`Request → Router (api/) → Service (services/) → ORM (models/) → PostgreSQL`
+**`app/ml/priority.py`** — `compute_priority_score(urgency, category, source_count, description, nearby_open_needs_count, days_since_created) -> float`
+- Weights: urgency 35%, category 25%, source count 10%, keyword density 10%, geo-density 10%, age decay 10%
+- Named constants: `MAX_SOURCES_FOR_FULL_SCORE = 5`, `KEYWORD_SATURATION_THRESHOLD = 3`
 
-Routers handle HTTP, services handle business logic — keep them separate.
+**`app/ml/matching.py`** — two public functions:
+- `score_volunteers_for_need(volunteers, need) -> list[dict]` — composite score 0–100; weights: skill 40%, geo proximity 30%, reliability 20%, availability 10%
+- `extract_skills_from_text(description: str) -> list[str]` — keyword scan against `SKILL_TAXONOMY`; returns canonical skill names
 
-### Key API Surface
+**`app/ml/ocr.py`** — `run_ocr_pipeline(image_url: str) -> dict`
+- EasyOCR lazy singleton, GPU toggled by `OCR_USE_GPU` env var
+- Accepts a public image URL (Supabase Storage / S3) — not raw bytes
+- Returns `multimedia_txt` (raw text ≤500 chars) and `ai_extraction` (JSON ≤500 chars)
 
-| Group | Notable Endpoints |
+### New API Endpoints (all in `app/api/needs.py`)
+
+| Method | Path | What |
+|---|---|---|
+| `GET` | `/needs/{id}/suggest-volunteers` | Ranked volunteer list with per-dimension scores |
+| `POST` | `/needs/{id}/compute-priority` | Compute + save priority_score, returns NeedResponse |
+| `POST` | `/needs/ocr-extract` | Image URL → OCR → structured extraction, optionally creates NeedSource |
+
+**Route ordering:** `/needs/ocr-extract` is registered before `/{need_id}` — same pattern as the existing `/needs/heatmap` — to prevent FastAPI treating the static segment as an integer param.
+
+### Auto-triggers (wired into existing routes, no new endpoints)
+
+| Trigger | Action |
 |---|---|
-| Auth | `POST /auth/register`, `POST /auth/login`, `GET /auth/me` |
-| Users | `PATCH /users/me`, `PATCH /users/me/location` |
-| Organizations | `POST /organizations/register`, `POST /organizations/{id}/members` |
-| Needs | `POST /needs`, `GET /needs/heatmap`, `PATCH /needs/{id}` |
-| Need Sources | `POST /needs/{id}/sources`, `GET /needs/{id}/sources` |
-| Volunteers | `POST /volunteers`, `PATCH /volunteers/{id}/skills/{sid}` |
-| Assignments | `POST /assignments`, `PATCH /assignments/{id}/status`, `PATCH /assignments/{id}/feedback` |
+| `POST /needs` | Auto-computes `priority_score` |
+| `PATCH /needs/{id}` | Recomputes `priority_score` if `urgency`, `category`, or `description` changed |
+| `POST /volunteers` | Auto-extracts skills from user description via `extract_skills_from_text` |
+| `POST /assignments` | Auto-computes `match_score` if not provided by caller |
 
-### Auth Pattern
+### Existing ML hooks in schema (no migrations needed)
 
-All protected routes use the `get_current_user` dependency from `core/dependencies.py`. Pass `Authorization: Bearer <token>` header. Tokens are issued at `/auth/login`.
+- `Need.priority_score` — populated by priority scorer
+- `Assignment.match_score` — populated by matching scorer
+- `NeedSource.multimedia_txt` — raw OCR text
+- `NeedSource.ai_extraction` — structured JSON from OCR
 
-### Domain Model
+## New Schemas (in `app/schemas/need.py`)
 
-- **User** → roles: `owner`, `admin`, `volunteer`
-- **Need** → categories: water, food, shelter, health, education, etc. + geolocation
-- **Assignment** → status workflow: `proposed → accepted → in_progress → completed`
+```python
+VolunteerMatchResult        # per-volunteer score breakdown
+SuggestVolunteersResponse   # need_id + scored_volunteers list
+OCRExtractRequest           # image_url + optional need_id
+OCRExtractionResponse       # source_id, structured fields, raw text
+```
 
-Full API reference is in [backend/docs/](backend/docs/).
+## Base Architecture (inherited from feature/backend-initial-work)
+
+`Request → Router (api/) → ML (app/ml/, pure) → Service (services/) → ORM (models/) → PostgreSQL`
+
+Auth: all protected routes use `get_current_user` from `core/dependencies.py`. Pass `Authorization: Bearer <token>`.
+
+Full base API reference: [backend/docs/](backend/docs/)
 
 ## Worktree Layout
 
 | Path | Branch |
 |---|---|
-| `../master` | master — base branch |
-| `../dev` | dev — backend skeleton |
+| `../master` | master |
+| `../dev` | dev |
 | `../feat-adding-frontend` | feat-adding-frontend |
-| `../feature-backend-initial-work` | feature/backend-initial-work — this branch (most complete) |
+| `../feature-backend-initial-work` | feature/backend-initial-work (base for this branch) |
 | `../feature-create-database0304` | feature/create-database0304 |
 | `../ocr-benchmark` | ocr-benchmark |
 | `../ocr-dataset-updates` | ocr-dataset-updates |
+| `../ml-model-integration` | ml-model-integration (this branch) |

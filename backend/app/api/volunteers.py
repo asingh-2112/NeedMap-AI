@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
+from app.ml.matching import extract_skills_from_text
+from app.models.enums import Proficiency
 from app.models.user import User
 from app.schemas.volunteer import (
     VolunteerCreateRequest,
@@ -20,7 +22,7 @@ from app.services.volunteer_service import (
     list_volunteers,
     update_volunteer,
     update_volunteer_skill,
-)
+)  # get_volunteer_by_id used for re-fetch after skill extraction
 
 router = APIRouter(prefix="/volunteers", tags=["Volunteers"])
 
@@ -34,7 +36,27 @@ def create_volunteer_route(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return create_volunteer(db=db, current_user=current_user, payload=payload)
+    volunteer = create_volunteer(db=db, current_user=current_user, payload=payload)
+
+    # Auto-extract skills from bio if provided
+    if payload.bio:
+        extracted = extract_skills_from_text(payload.bio)
+        for skill_name in extracted:
+            try:
+                add_volunteer_skill(
+                    db=db,
+                    volunteer_id=volunteer.id,
+                    payload=VolunteerSkillCreateRequest(
+                        skill_name=skill_name,
+                        proficiency=Proficiency.BEGINNER,
+                    ),
+                )
+            except HTTPException:
+                pass  # skill already exists — skip silently
+        # Re-fetch with eager-loaded skills so the response includes them
+        return get_volunteer_by_id(db=db, volunteer_id=volunteer.id)
+
+    return volunteer
 
 
 @router.get("", response_model=list[VolunteerResponse])

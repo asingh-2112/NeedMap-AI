@@ -11,6 +11,11 @@ from app.models.enums import Proficiency
 class VolunteerCreateRequest(BaseModel):
     organization_id: int | None = None
     availability: bool = True
+    bio: str | None = Field(
+        default=None,
+        max_length=1000,
+        description="Optional bio used to auto-extract skills on profile creation. Not stored in DB.",
+    )
 
 
 class VolunteerUpdateRequest(BaseModel):
@@ -35,6 +40,7 @@ class VolunteerResponse(BaseModel):
     active_tasks: int
     is_active: bool
     verified: bool
+    skills: list["VolunteerSkillResponse"] = []
     created_at: datetime
 
     model_config = {"from_attributes": True}
