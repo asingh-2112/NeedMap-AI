@@ -65,15 +65,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const loginBypass = (email = "murli12@gmail.com", _password = "murli123") => {
+  const loginBypass = (email = "murli12@gmail.com", _password = "murli123", role: "volunteer" | "admin" = "volunteer") => {
     const safeName = email.split("@")[0] || "murli12";
     const localUser: AuthUser = {
-      id: 9999,
+      id: role === "admin" ? 1000 : 9999,
       user_name: safeName,
       email,
-      role: "volunteer",
+      role,
       phone: null,
-      organization_id: null,
+      organization_id: role === "admin" ? 1 : null,
     };
     setToken("dev-bypass-token");
     setUser(localUser);

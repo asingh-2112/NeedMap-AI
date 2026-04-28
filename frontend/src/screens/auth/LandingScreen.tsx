@@ -73,8 +73,14 @@ export const LandingScreen = ({ onLogin, onVolunteerSignup, onOrganizationSignup
           <Text style={styles.heroText}>Track needs, add sources, assign volunteers, and close response loops faster.</Text>
         </View>
 
-        <Pressable style={styles.primary} onPress={() => loginBypass()}>
-          <Text style={styles.primaryText}>Welcome to NeedMap-AI</Text>
+        <Text style={styles.welcomeTitle}>Welcome to NeedMap-AI</Text>
+
+        <Pressable style={styles.primary} onPress={() => loginBypass("volunteer@needmap.ai", "vol123", "volunteer")}>
+          <Text style={styles.primaryText}>Continue as Volunteer</Text>
+        </Pressable>
+
+        <Pressable style={styles.secondary} onPress={() => loginBypass("admin@needmap.ai", "admin123", "admin")}>
+          <Text style={styles.secondaryText}>Continue as Admin</Text>
         </Pressable>
       </View>
     </View>
@@ -117,6 +123,20 @@ const styles = StyleSheet.create({
   heroOverlay: { width: "100%", height: "100%", position: "absolute", top: 0, left: 0, backgroundColor: "rgba(5,14,20,0.56)" },
   heroTitle: { color: colors.textStrong, fontSize: 16, fontWeight: "900", marginBottom: 3, fontFamily: fonts.heading },
   heroText: { color: colors.muted, fontSize: 12, lineHeight: 18, fontFamily: fonts.body },
+
+  welcomeTitle: { color: colors.text, fontSize: 22, fontWeight: "900", textAlign: "center", marginBottom: 14, fontFamily: fonts.heading },
+
+  secondary: {
+    height: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.cardSoft,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 10,
+  },
+  secondaryText: { color: colors.textStrong, fontWeight: "800", fontFamily: fonts.body },
 
   label: { color: colors.textStrong, fontWeight: "800", marginBottom: 6, fontFamily: fonts.body },
   input: {
