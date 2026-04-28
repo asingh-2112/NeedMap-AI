@@ -423,30 +423,8 @@ def extract_need_from_image(image_url: str) -> dict:
             "(GPT-4o, Claude 3.5+, Gemini 1.5+)"
         )
 
-    try:
-        # Try sending URL directly (works for public URLs with most providers)
-        image_content = {"type": "image_url", "image_url": {"url": image_url}}
-
-        messages = [
-            {"role": "system", "content": _SYSTEM_PROMPT},
-            {
-                "role": "user",
-                "content": [
-                    image_content,
-                    {"type": "text", "text": _IMAGE_SUFFIX},
-                ],
-            },
-        ]
-
-        result = _call_llm(messages)
-        result["model_used"] = f"llm_vision:{os.getenv('LLM_MODEL', 'claude-sonnet-4-6')}"
-        result["multimedia_txt"] = result.get("description", "")[:500]
-        return result
-
-    except Exception as exc:
-        logger.warning("Direct URL failed (%s), trying base64…", exc)
-
-    # Retry with base64 encoding
+    # Always use base64 with explicit media type to avoid Vertex AI/Gemini
+    # mimeType errors (direct URLs fail on Gemini without a mimeType param)
     try:
         media_type = _guess_image_media_type(image_url)
         data_uri = _url_to_base64(image_url, media_type)
@@ -468,11 +446,11 @@ def extract_need_from_image(image_url: str) -> dict:
         result["multimedia_txt"] = result.get("description", "")[:500]
         return result
 
-    except Exception as inner_exc:
+    except Exception as exc:
         raise ValueError(
-            f"Image extraction failed: {inner_exc}. "
+            f"Image extraction failed: {exc}. "
             "Ensure PORTKEY_API_KEY routes to a vision-capable model."
-        ) from inner_exc
+        ) from exc
 
 
 def extract_need_from_audio(
