@@ -112,6 +112,11 @@ def _sanitise(extracted: dict) -> dict:
     confidence = float(extracted.get("confidence") or 0.7)
     confidence = max(0.0, min(1.0, confidence))
 
+    # Auto-fill skills from category if LLM returned none
+    if not skills:
+        from app.ml.matching import CATEGORY_SKILL_MAP
+        skills = CATEGORY_SKILL_MAP.get(category, ["management"])
+
     return {
         "category": category,
         "urgency": urgency,
