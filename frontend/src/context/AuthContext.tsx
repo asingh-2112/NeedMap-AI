@@ -20,6 +20,7 @@ type AuthContextShape = {
     ownerPassword: string;
   }) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
+  loginBypass: (email?: string, password?: string) => void;
   refreshMe: () => Promise<void>;
   logout: () => void;
 };
@@ -59,6 +60,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const loginBypass = (email = "murli12@gmail.com", _password = "murli123") => {
+    const safeName = email.split("@")[0] || "murli12";
+    const localUser: AuthUser = {
+      id: 9999,
+      user_name: safeName,
+      email,
+      role: "volunteer",
+      phone: null,
+      organization_id: null,
+    };
+    setToken("dev-bypass-token");
+    setUser(localUser);
   };
 
   const signup = async (name: string, email: string, password: string) => {
@@ -117,7 +132,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const value = useMemo(
-    () => ({ baseUrl, setBaseUrl, user, token, loading, signup, registerOrganization, login, refreshMe, logout }),
+    () => ({ baseUrl, setBaseUrl, user, token, loading, signup, registerOrganization, login, loginBypass, refreshMe, logout }),
     [baseUrl, user, token, loading],
   );
 

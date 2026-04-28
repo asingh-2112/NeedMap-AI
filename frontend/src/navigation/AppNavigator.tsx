@@ -3,7 +3,7 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import { colors } from "../theme";
+import { colors, fonts } from "../theme";
 import { LandingScreen } from "../screens/auth/LandingScreen";
 import { LoginScreen } from "../screens/auth/LoginScreen";
 import { SignupScreen } from "../screens/auth/SignupScreen";
@@ -40,17 +40,19 @@ const MainTabs = () => (
     screenOptions={{
       headerStyle: { backgroundColor: colors.card },
       headerTintColor: colors.textStrong,
+      headerTitleStyle: { fontFamily: fonts.heading, fontWeight: "900", fontSize: 20 },
       headerShadowVisible: false,
       tabBarStyle: {
         backgroundColor: colors.card,
         borderTopColor: colors.border,
         borderTopWidth: 1,
-        height: 62,
+        height: 64,
         paddingBottom: 6,
         paddingTop: 6,
       },
       tabBarActiveTintColor: colors.accent,
       tabBarInactiveTintColor: colors.muted,
+      tabBarLabelStyle: { fontFamily: fonts.body, fontWeight: "800", fontSize: 11 },
     }}
   >
     <Tabs.Screen name="Home" component={HomeScreen} />
@@ -62,7 +64,12 @@ const MainTabs = () => (
 );
 
 const AuthFlow = () => {
+  const { loginBypass } = useAuth();
   const [screen, setScreen] = useState<"landing" | "login" | "signup" | "orgSignup">("landing");
+
+  const loginAsDefaultVolunteer = async () => {
+    loginBypass("murli1234@gmail.com", "murli123");
+  };
 
   if (screen === "login") {
     return <LoginScreen onBack={() => setScreen("landing")} />;
@@ -78,7 +85,7 @@ const AuthFlow = () => {
 
   return (
     <LandingScreen
-      onLogin={() => setScreen("login")}
+      onLogin={loginAsDefaultVolunteer}
       onVolunteerSignup={() => setScreen("signup")}
       onOrganizationSignup={() => setScreen("orgSignup")}
     />
