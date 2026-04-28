@@ -1,6 +1,4 @@
 import { useEffect, useRef } from "react";
-
-import { useNavigation, CommonActions } from '@react-navigation/native';
 import {
   Animated,
   Image,
@@ -28,16 +26,7 @@ export const LandingScreen = ({ onLogin, onVolunteerSignup, onOrganizationSignup
   const y1 = useRef(new Animated.Value(0)).current;
   const y2 = useRef(new Animated.Value(0)).current;
   const glow = useRef(new Animated.Value(0)).current;
-const navigation = useNavigation();
-const handleLogin = () => {
-    // 2. Now .dispatch will exist on this object
-    navigation.dispatch(
-      CommonActions.reset({
-        index: 0,
-        routes: [{ name: 'HomeScreen' }],
-      })
-    );
-  };
+
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
@@ -97,9 +86,9 @@ const handleLogin = () => {
         />
         <Text style={styles.hint}>Current: {baseUrl}</Text>
 
-<Pressable style={styles.primary} onPress={handleLogin}>
-      <Text style={styles.primaryText}>Login</Text>
-    </Pressable>
+        <Pressable style={styles.primary} onPress={onLogin}>
+          <Text style={styles.primaryText}>Login</Text>
+        </Pressable>
 
         <Pressable style={styles.secondary} onPress={onVolunteerSignup}>
           <Text style={styles.secondaryText}>Volunteer Signup</Text>

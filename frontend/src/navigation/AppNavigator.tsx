@@ -3,7 +3,7 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import { colors, fonts } from "../theme";
+import { colors } from "../theme";
 import { LandingScreen } from "../screens/auth/LandingScreen";
 import { LoginScreen } from "../screens/auth/LoginScreen";
 import { SignupScreen } from "../screens/auth/SignupScreen";
@@ -40,19 +40,17 @@ const MainTabs = () => (
     screenOptions={{
       headerStyle: { backgroundColor: colors.card },
       headerTintColor: colors.textStrong,
-      headerTitleStyle: { fontFamily: fonts.heading, fontWeight: "900", fontSize: 20 },
       headerShadowVisible: false,
       tabBarStyle: {
         backgroundColor: colors.card,
         borderTopColor: colors.border,
         borderTopWidth: 1,
-        height: 64,
+        height: 62,
         paddingBottom: 6,
         paddingTop: 6,
       },
       tabBarActiveTintColor: colors.accent,
       tabBarInactiveTintColor: colors.muted,
-      tabBarLabelStyle: { fontFamily: fonts.body, fontWeight: "800", fontSize: 11 },
     }}
   >
     <Tabs.Screen name="Home" component={HomeScreen} />
