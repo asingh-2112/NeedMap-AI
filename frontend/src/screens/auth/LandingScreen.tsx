@@ -5,7 +5,6 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -22,7 +21,7 @@ type Props = {
 const HERO_GIF = "https://kokanngo.org/public/website/images/great_place/walking.gif";
 
 export const LandingScreen = ({ onLogin, onVolunteerSignup, onOrganizationSignup }: Props) => {
-  const { baseUrl, setBaseUrl } = useAuth();
+  const { loginBypass } = useAuth();
   const y1 = useRef(new Animated.Value(0)).current;
   const y2 = useRef(new Animated.Value(0)).current;
   const glow = useRef(new Animated.Value(0)).current;
@@ -74,28 +73,8 @@ export const LandingScreen = ({ onLogin, onVolunteerSignup, onOrganizationSignup
           <Text style={styles.heroText}>Track needs, add sources, assign volunteers, and close response loops faster.</Text>
         </View>
 
-        <Text style={styles.label}>Backend URL</Text>
-        <TextInput
-          value={baseUrl}
-          onChangeText={setBaseUrl}
-          style={styles.input}
-          placeholder="http://<your-laptop-ip>:8000"
-          placeholderTextColor={colors.muted}
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-        <Text style={styles.hint}>Current: {baseUrl}</Text>
-
-        <Pressable style={styles.primary} onPress={onLogin}>
-          <Text style={styles.primaryText}>Login</Text>
-        </Pressable>
-
-        <Pressable style={styles.secondary} onPress={onVolunteerSignup}>
-          <Text style={styles.secondaryText}>Volunteer Signup</Text>
-        </Pressable>
-
-        <Pressable style={styles.secondary} onPress={onOrganizationSignup}>
-          <Text style={styles.secondaryText}>Register Organization</Text>
+        <Pressable style={styles.primary} onPress={() => loginBypass()}>
+          <Text style={styles.primaryText}>Welcome to NeedMap-AI</Text>
         </Pressable>
       </View>
     </View>

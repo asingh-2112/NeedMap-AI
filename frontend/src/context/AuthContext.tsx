@@ -26,6 +26,9 @@ type AuthContextShape = {
 };
 
 const getDefaultUrl = () => {
+  const envUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
+  if (envUrl) return envUrl;
+
   if (Platform.OS === "web") {
     return "http://localhost:8000";
   }
