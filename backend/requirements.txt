@@ -9,3 +9,10 @@ bcrypt==4.0.1
 python-multipart==0.0.9
 pydantic[email]>=2.0.0
 httpx==0.28.1
+numpy
+geopy
+easyocr
+pillow
+portkey-ai
+openai
+pypdf

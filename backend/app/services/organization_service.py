@@ -35,52 +35,72 @@ def _can_manage_organization(user: User, organization: Organization) -> bool:
 
 def register_organization(db: Session, payload: OrganizationRegisterRequest) -> OrganizationRegisterResponse:
     """Create an organization and its first owner user in one transaction."""
-    # Check email uniqueness
-    existing = db.query(User).filter(User.email == payload.owner_email).first()
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Email already registered",
+    try:
+        # Check email uniqueness
+        existing = db.query(User).filter(User.email == payload.owner_email).first()
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Email already registered",
+            )
+
+        # Create owner user
+        owner_user = User(
+            user_name=payload.owner_name,
+            email=payload.owner_email,
+            password_hash=hash_password(payload.owner_password),
+            role=UserRole.OWNER,
+            is_active=True,
         )
+        db.add(owner_user)
+        db.flush()
+        print(f"✓ Created owner user: {owner_user.id}")
 
-    # Create owner user
-    owner_user = User(
-        user_name=payload.owner_name,
-        email=payload.owner_email,
-        password_hash=hash_password(payload.owner_password),
-        role=UserRole.OWNER,
-        is_active=True,
-    )
-    db.add(owner_user)
-    db.flush()
+        # Create organization owned by owner
+        organization = Organization(
+            user_id=owner_user.id,
+            organization_name=payload.organization_name,
+            address=payload.address,
+            phone=payload.phone,
+            is_active=True,
+        )
+        db.add(organization)
+        db.flush()
+        print(f"✓ Created organization: {organization.id}")
 
-    # Create organization owned by owner
-    organization = Organization(
-        user_id=owner_user.id,
-        organization_name=payload.organization_name,
-        address=payload.address,
-        phone=payload.phone,
-        is_active=True,
-    )
-    db.add(organization)
-    db.flush()
+        # Link owner to the org
+        owner_user.organization_id = organization.id
+        db.add(owner_user)
 
-    # Link owner to the org
-    owner_user.organization_id = organization.id
-    db.add(owner_user)
+        db.commit()
+        print(f"✓ Transaction committed")
+        
+        db.refresh(organization)
+        db.refresh(owner_user)
+        print(f"✓ Refreshed objects from database")
 
-    db.commit()
-    db.refresh(organization)
-    db.refresh(owner_user)
+        # Generate JWT so the owner is logged in immediately
+        token = create_access_token(owner_user.id)
+        print(f"✓ Generated JWT token")
 
-    # Generate JWT so the owner is logged in immediately
-    token = create_access_token(owner_user.id)
-
-    return OrganizationRegisterResponse(
-        organization=OrganizationResponse.model_validate(organization),
-        access_token=token,
-        expires_in=settings.jwt_expire_seconds,
-    )
+        response = OrganizationRegisterResponse(
+            organization=OrganizationResponse.model_validate(organization),
+            access_token=token,
+            expires_in=settings.jwt_expire_seconds,
+        )
+        print(f"✓ Built response: {response}")
+        return response
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"✗ Error in register_organization: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Registration failed: {str(e)}",
+        )
 
 
 # ── Add member to organization ───────────────────────────────────────────────

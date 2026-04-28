@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
+from app.ml.matching import score_volunteers_for_need
 from app.models.enums import AssignmentStatus
 from app.models.user import User
 from app.schemas.assignment import (
@@ -18,6 +19,8 @@ from app.services.assignment_service import (
     submit_assignment_feedback,
     update_assignment_status,
 )
+from app.services.need_service import get_need_by_id
+from app.services.volunteer_service import list_volunteers_with_relations
 
 router = APIRouter(prefix="/assignments", tags=["Assignments"])
 
@@ -31,6 +34,15 @@ def create_assignment_route(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # Auto-compute match_score if caller didn't provide one
+    if payload.match_score is None:
+        need = get_need_by_id(db=db, need_id=payload.need_id)
+        volunteers = list_volunteers_with_relations(db, organization_id=None, verified=None)
+        scores = score_volunteers_for_need(volunteers, need)
+        match = next((s for s in scores if s["volunteer_id"] == payload.volunteer_id), None)
+        if match is not None:
+            payload = payload.model_copy(update={"match_score": match["composite_score"]})
+
     return create_assignment(db=db, current_user=current_user, payload=payload)
 
 
