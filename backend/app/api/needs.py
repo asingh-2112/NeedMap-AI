@@ -5,7 +5,12 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
-from app.ml.llm_extraction import extract_need_from_text, transcribe_audio_url
+from app.ml.llm_extraction import (
+    extract_need_from_audio,
+    extract_need_from_image,
+    extract_need_from_pdf,
+    extract_need_from_text,
+)
 from app.ml.matching import score_volunteers_for_need
 from app.ml.ocr import run_ocr_pipeline
 from app.ml.priority import compute_priority_score
@@ -21,6 +26,7 @@ from app.schemas.need import (
     NeedUpdateRequest,
     OCRExtractRequest,
     OCRExtractionResponse,
+    PDFIngestRequest,
     SuggestVolunteersResponse,
     TextIngestRequest,
     VolunteerMatchResult,
@@ -268,19 +274,17 @@ def ingest_voice_route(
       3. LLM extracts structured need record from the transcription.
       4. If `create_need=true`, Need + NeedSource persisted.
     """
-    # Step 1: obtain transcription
-    if payload.transcription:
-        raw_text = payload.transcription
-    else:
-        try:
-            raw_text = transcribe_audio_url(payload.audio_url)
-        except ValueError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
-            )
-
-    # Step 2: LLM extraction
-    extracted = extract_need_from_text(raw_text)
+    # Single-stage: audio → LLM extraction (Whisper transcription if needed)
+    try:
+        extracted = extract_need_from_audio(
+            audio_url=payload.audio_url,
+            transcription=payload.transcription,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        )
+    raw_text = extracted.pop("raw_text", payload.transcription or "")
 
     # Step 3: persist
     need_id = source_id = None
@@ -294,6 +298,59 @@ def ingest_voice_route(
             payload_lng=payload.longitude,
             payload_address=payload.address,
             source_type=SourceType.VOICE_NOTE,
+            raw_text=raw_text,
+        )
+
+    return IngestResponse(
+        category=extracted["category"],
+        urgency=extracted["urgency"],
+        location=extracted.get("location"),
+        description=extracted["description"],
+        skills_required=extracted["skills_required"],
+        affected_count=extracted.get("affected_count"),
+        confidence=extracted["confidence"],
+        model_used=extracted["model_used"],
+        need_id=need_id,
+        source_id=source_id,
+        raw_text=raw_text[:500],
+    )
+
+
+@router.post(
+    "/ingest/pdf",
+    response_model=IngestResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Ingest PDF document → LLM vision extraction → structured Need",
+)
+def ingest_pdf_route(
+    payload: PDFIngestRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Accept a PDF document URL.  Pages are rendered to images and sent
+    directly to the LLM vision model — no PyPDF text-extraction stage.
+    """
+    try:
+        extracted = extract_need_from_pdf(pdf_url=payload.pdf_url)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        )
+
+    raw_text = extracted.pop("multimedia_txt", "")
+
+    need_id = source_id = None
+    if payload.create_need:
+        need_id, source_id = _create_need_from_extraction(
+            db=db,
+            current_user=current_user,
+            extracted=extracted,
+            payload_org_id=payload.organization_id,
+            payload_lat=payload.latitude,
+            payload_lng=payload.longitude,
+            payload_address=payload.address,
+            source_type=SourceType.DOCUMENT,
             raw_text=raw_text,
         )
 

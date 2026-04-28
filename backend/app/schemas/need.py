@@ -205,8 +205,24 @@ class VoiceIngestRequest(BaseModel):
         return self
 
 
+class PDFIngestRequest(BaseModel):
+    """
+    Ingest a PDF document (field report, official form, scanned complaint).
+
+    PDF pages are sent directly to the LLM vision model — no PyPDF
+    pre-processing. Provide either pdf_url (public URL) or upload via
+    the /ingest/pdf-upload endpoint.
+    """
+    pdf_url: str = Field(..., description="Public URL to a PDF document")
+    organization_id: int
+    latitude: float = Field(default=0.0, ge=-90, le=90)
+    longitude: float = Field(default=0.0, ge=-180, le=180)
+    address: str = Field(default="", max_length=500)
+    create_need: bool = True
+
+
 class IngestResponse(BaseModel):
-    """Response from POST /needs/ingest/text or /needs/ingest/voice."""
+    """Response from POST /needs/ingest/text, /voice, or /pdf."""
     # What the LLM extracted
     category: str
     urgency: str

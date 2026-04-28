@@ -1,4 +1,10 @@
-from app.ml.llm_extraction import extract_need_from_text, transcribe_audio_url
+from app.ml.llm_extraction import (
+    extract_need_from_audio,
+    extract_need_from_image,
+    extract_need_from_pdf,
+    extract_need_from_text,
+    transcribe_audio_url,
+)
 from app.ml.matching import extract_skills_from_text, score_volunteers_for_need
 from app.ml.ocr import run_ocr_pipeline
 from app.ml.priority import compute_priority_score
@@ -9,5 +15,8 @@ __all__ = [
     "extract_skills_from_text",
     "run_ocr_pipeline",
     "extract_need_from_text",
+    "extract_need_from_image",
+    "extract_need_from_audio",
+    "extract_need_from_pdf",
     "transcribe_audio_url",
 ]

@@ -11,8 +11,7 @@ pydantic[email]>=2.0.0
 httpx==0.28.1
 numpy
 geopy
-easyocr
-pillow
+pymupdf
 portkey-ai
 openai
 pypdf
