@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: needmap-api
+    runtime: python
+    region: singapore  # Change to your preferred region
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        sync: false  # Set manually in Render dashboard
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_EXPIRE_SECONDS
+        value: "3600"
+      - key: APP_NAME
+        value: "NeedMap AI"
+      - key: RUN_MIGRATIONS
+        value: "true"
