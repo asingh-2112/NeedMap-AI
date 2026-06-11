@@ -28,17 +28,12 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title=settings.app_name, version=settings.app_version, lifespan=lifespan)
 
-# Dev CORS for Expo web / local testing
-DEV_ALLOWED_ORIGINS = [
-    "http://localhost:8081",
-    "http://127.0.0.1:8081",
-    "http://localhost:19006",
-    "http://127.0.0.1:19006",
-]
+# CORS — restrict origins via ALLOWED_ORIGINS env var; default to all for dev
+ALLOWED_ORIGINS = settings.allowed_origins or ["*"]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=DEV_ALLOWED_ORIGINS,
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
