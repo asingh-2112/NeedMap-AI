@@ -16,7 +16,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useAuth } from "../../context/AuthContext";
 import { moduleApi } from "../../services/api";
 import type { RootStackParamList } from "../../navigation/types";
-import type { Assignment, Need } from "../../types/api";
+import type { Assignment, Need, Volunteer } from "../../types/api";
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type Route = any;
@@ -29,6 +29,7 @@ export const NeedDetailScreen = () => {
 
   const [need, setNeed] = useState<Need | null>(null);
   const [needAssignments, setNeedAssignments] = useState<Assignment[]>([]);
+  const [assignedVolunteers, setAssignedVolunteers] = useState<Map<number, Volunteer>>(new Map());
   const [loading, setLoading] = useState(true);
   const [deletingNeed, setDeletingNeed] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,14 +50,23 @@ export const NeedDetailScreen = () => {
 
       try {
         setLoading(true);
-        const [data, assignments] = await Promise.all([
+        const [data, assignments, volunteers] = await Promise.all([
           moduleApi.needs(baseUrl, token),
           moduleApi.assignments(baseUrl, token, { need_id: needId }),
+          moduleApi.volunteers(baseUrl, token),
         ]);
         const foundNeed = data.find((n: Need) => n.id === needId);
         if (foundNeed) {
+          const assignedVolunteerIds = new Set(assignments.map((assignment) => assignment.volunteer_id));
+          const volunteerById = new Map<number, Volunteer>();
+          volunteers.forEach((volunteer) => {
+            if (assignedVolunteerIds.has(volunteer.id)) {
+              volunteerById.set(volunteer.id, volunteer);
+            }
+          });
           setNeed(foundNeed);
           setNeedAssignments(assignments);
+          setAssignedVolunteers(volunteerById);
         } else {
           setError("Need not found");
         }
@@ -73,8 +83,20 @@ export const NeedDetailScreen = () => {
   const sortedAssignments = [...needAssignments].sort(
     (a, b) => new Date(b.assigned_at).getTime() - new Date(a.assigned_at).getTime(),
   );
-  const activeAssignment = sortedAssignments.find((a) => ["in_progress", "accepted", "assigned", "proposed"].includes(a.status));
-  const completedAssignment = sortedAssignments.find((a) => a.status === "completed");
+  const activeAssignments = sortedAssignments.filter((a) => ["in_progress", "accepted", "assigned", "proposed"].includes(a.status));
+  const completedAssignments = sortedAssignments.filter((a) => a.status === "completed");
+  const assignedVolunteerAssignments = sortedAssignments.filter((a) => !["declined", "cancelled"].includes(a.status));
+
+  const assignmentStatusColor = (status: Assignment["status"]) => {
+    switch (status) {
+      case "in_progress": return "#FFA502";
+      case "accepted": return "#43E97B";
+      case "completed": return "#2ED573";
+      case "declined":
+      case "cancelled": return "#FF6B6B";
+      default: return "#667EEA";
+    }
+  };
 
   const confirmDeleteNeed = () => {
     if (!need) return;
@@ -212,44 +234,82 @@ export const NeedDetailScreen = () => {
             {/* Assignment Details */}
             <View style={styles.infoCard}>
               <Text style={styles.cardTitle}>Assignment Details</Text>
-
-              {activeAssignment ? (
-                <View style={styles.refRow}>
-                  <Text style={styles.refLabel}>Currently Assigned To:</Text>
-                  <Text style={styles.refValue}>Volunteer #{activeAssignment.volunteer_id}</Text>
-                </View>
-              ) : (
-                <View style={styles.refRow}>
-                  <Text style={styles.refLabel}>Currently Assigned To:</Text>
-                  <Text style={styles.refValue}>Not assigned yet</Text>
-                </View>
-              )}
-
-              {completedAssignment ? (
-                <View style={styles.refRow}>
-                  <Text style={styles.refLabel}>Completed By:</Text>
-                  <Text style={styles.refValue}>Volunteer #{completedAssignment.volunteer_id}</Text>
-                </View>
-              ) : null}
-
               <View style={styles.refRow}>
-                <Text style={styles.refLabel}>Total Assignment Attempts:</Text>
-                <Text style={styles.refValue}>{needAssignments.length}</Text>
+                <Text style={styles.refLabel}>Active Assigned Volunteers:</Text>
+                <Text style={styles.refValue}>{activeAssignments.length}</Text>
               </View>
 
-              {activeAssignment?.assigned_at ? (
-                <View style={styles.refRow}>
-                  <Text style={styles.refLabel}>Assigned On:</Text>
-                  <Text style={styles.refValue}>{new Date(activeAssignment.assigned_at).toLocaleString()}</Text>
-                </View>
-              ) : null}
+              <View style={styles.refRow}>
+                <Text style={styles.refLabel}>Completed Assignments:</Text>
+                <Text style={styles.refValue}>{completedAssignments.length}</Text>
+              </View>
 
-              {completedAssignment?.completed_at ? (
-                <View style={styles.refRow}>
-                  <Text style={styles.refLabel}>Completed On:</Text>
-                  <Text style={styles.refValue}>{new Date(completedAssignment.completed_at).toLocaleString()}</Text>
+              <View style={styles.refRow}>
+                <Text style={styles.refLabel}>Total Assignment Records:</Text>
+                <Text style={styles.refValue}>{needAssignments.length}</Text>
+              </View>
+            </View>
+
+            {/* Assigned Volunteers */}
+            <View style={styles.infoCard}>
+              <Text style={styles.cardTitle}>Assigned Volunteers</Text>
+
+              {assignedVolunteerAssignments.length > 0 ? (
+                <View style={styles.volunteerList}>
+                  {assignedVolunteerAssignments.map((assignment) => {
+                    const volunteer = assignedVolunteers.get(assignment.volunteer_id);
+                    const volunteerName = volunteer?.user_name || `Volunteer #${assignment.volunteer_id}`;
+                    const volunteerLocation = [volunteer?.colony, volunteer?.city].filter(Boolean).join(", ");
+                    return (
+                      <View key={assignment.id} style={styles.volunteerCard}>
+                        <View style={styles.volunteerHeader}>
+                          <View style={styles.volunteerTitleWrap}>
+                            <Text style={styles.volunteerName}>{volunteerName}</Text>
+                            <Text style={styles.volunteerSubline}>Volunteer ID #{assignment.volunteer_id}</Text>
+                          </View>
+                          <View style={[styles.assignmentStatusBadge, { borderColor: assignmentStatusColor(assignment.status), backgroundColor: `${assignmentStatusColor(assignment.status)}20` }]}>
+                            <Text style={[styles.assignmentStatusText, { color: assignmentStatusColor(assignment.status) }]}>{assignment.status.replace("_", " ")}</Text>
+                          </View>
+                        </View>
+
+                        <View style={styles.volunteerDetailGrid}>
+                          <View style={styles.volunteerDetailItem}>
+                            <Text style={styles.volunteerDetailLabel}>Phone</Text>
+                            <Text style={styles.volunteerDetailValue}>{volunteer?.phone || "Not available"}</Text>
+                          </View>
+                          <View style={styles.volunteerDetailItem}>
+                            <Text style={styles.volunteerDetailLabel}>Email</Text>
+                            <Text style={styles.volunteerDetailValue}>{volunteer?.email || "Not available"}</Text>
+                          </View>
+                          <View style={styles.volunteerDetailItem}>
+                            <Text style={styles.volunteerDetailLabel}>Location</Text>
+                            <Text style={styles.volunteerDetailValue}>{volunteerLocation || "Not available"}</Text>
+                          </View>
+                          <View style={styles.volunteerDetailItem}>
+                            <Text style={styles.volunteerDetailLabel}>Availability</Text>
+                            <Text style={styles.volunteerDetailValue}>{volunteer ? (volunteer.availability ? "Available" : "Busy") : "Not available"}</Text>
+                          </View>
+                          <View style={styles.volunteerDetailItem}>
+                            <Text style={styles.volunteerDetailLabel}>Tasks</Text>
+                            <Text style={styles.volunteerDetailValue}>{volunteer ? `${volunteer.tasks_completed} completed · ${volunteer.active_tasks} active` : "Not available"}</Text>
+                          </View>
+                          <View style={styles.volunteerDetailItem}>
+                            <Text style={styles.volunteerDetailLabel}>Verified</Text>
+                            <Text style={styles.volunteerDetailValue}>{volunteer ? (volunteer.verified ? "Yes" : "No") : "Not available"}</Text>
+                          </View>
+                        </View>
+
+                        <View style={styles.assignmentMetaRow}>
+                          <Text style={styles.assignmentMetaText}>Assigned: {new Date(assignment.assigned_at).toLocaleString()}</Text>
+                          {assignment.match_score != null ? <Text style={styles.assignmentMetaText}>Match: {assignment.match_score.toFixed(2)}</Text> : null}
+                        </View>
+                      </View>
+                    );
+                  })}
                 </View>
-              ) : null}
+              ) : (
+                <Text style={styles.emptyAssignmentText}>No volunteers assigned yet.</Text>
+              )}
             </View>
 
             {/* Description */}
@@ -488,6 +548,54 @@ const styles = StyleSheet.create({
   },
   closeNeedBtnDisabled: { opacity: 0.6 },
   closeNeedBtnText: { color: "#FF7D7D", fontSize: 12, fontWeight: "700" },
+
+  volunteerList: { gap: 10 },
+  volunteerCard: {
+    backgroundColor: "rgba(255,255,255,0.045)",
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  volunteerHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 10,
+    marginBottom: 10,
+  },
+  volunteerTitleWrap: { flex: 1, minWidth: 0 },
+  volunteerName: { color: "#FFFFFF", fontSize: 14, fontWeight: "800" },
+  volunteerSubline: { color: "#8B8DA3", fontSize: 11, fontWeight: "600", marginTop: 2 },
+  assignmentStatusBadge: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+  },
+  assignmentStatusText: { fontSize: 10, fontWeight: "800", textTransform: "capitalize" },
+  volunteerDetailGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  volunteerDetailItem: {
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 8,
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+    minWidth: 130,
+    flexGrow: 1,
+  },
+  volunteerDetailLabel: { color: "#8B8DA3", fontSize: 10, fontWeight: "800", marginBottom: 3, textTransform: "uppercase" },
+  volunteerDetailValue: { color: "#FFFFFF", fontSize: 12, fontWeight: "700" },
+  assignmentMetaRow: {
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.08)",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 10,
+    paddingTop: 8,
+  },
+  assignmentMetaText: { color: "#B8B8D0", fontSize: 11, fontWeight: "600" },
+  emptyAssignmentText: { color: "#8B8DA3", fontSize: 13, fontWeight: "600" },
 
   // Description
   descriptionText: {

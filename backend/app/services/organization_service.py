@@ -60,7 +60,7 @@ def get_accessible_organization_ids(db: Session, current_user: User) -> list[int
     if current_user.role == UserRole.ADMIN:
         if current_user.managed_branch_id is not None:
             return [current_user.managed_branch_id]
-        return [current_user.organization_id]
+        return []
 
     return [current_user.organization_id]
 

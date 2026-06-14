@@ -32,10 +32,17 @@ export type Need = {
   latitude: number;
   longitude: number;
   address: string;
+  house_number?: string | null;
+  street?: string | null;
+  colony?: string | null;
   city?: string | null;
   state?: string | null;
+  pincode?: string | null;
   country?: string | null;
+  affected_count?: number | null;
+  priority_score?: number | null;
   created_at: string;
+  updated_at?: string | null;
 };
 
 export type NeedSource = {
@@ -53,10 +60,26 @@ export type Volunteer = {
   id: number;
   user_id: number;
   organization_id: number | null;
+  user_name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  colony?: string | null;
+  city?: string | null;
   availability: boolean;
   verified: boolean;
+  rating: number | null;
   tasks_completed: number;
   active_tasks: number;
+  skills?: VolunteerSkill[];
+};
+
+export type VolunteerSkill = {
+  id: number;
+  volunteer_id: number;
+  skill_name: string;
+  proficiency: "beginner" | "intermediate" | "expert";
 };
 
 export type Organization = {
@@ -68,6 +91,8 @@ export type Organization = {
   address: string | null;
   phone: string | null;
   user_id: number;
+  branch_admin_name?: string | null;
+  branch_admin_email?: string | null;
   is_active: boolean;
   created_at: string;
 };

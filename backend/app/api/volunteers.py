@@ -18,11 +18,13 @@ from app.services.volunteer_service import (
     add_volunteer_skill,
     create_volunteer,
     delete_volunteer_skill,
+    get_my_volunteer_profile,
     get_volunteer_by_id,
     list_volunteers,
     update_volunteer,
     update_volunteer_skill,
 )  # get_volunteer_by_id used for re-fetch after skill extraction
+from app.services.realtime_event_service import publish_volunteer_rating_updated
 
 router = APIRouter(prefix="/volunteers", tags=["Volunteers"])
 
@@ -75,6 +77,14 @@ def list_volunteers_route(
     )
 
 
+@router.get("/me", response_model=VolunteerResponse)
+def get_my_volunteer_route(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return get_my_volunteer_profile(db=db, current_user=current_user)
+
+
 @router.get("/{volunteer_id}", response_model=VolunteerResponse)
 def get_volunteer_route(
     volunteer_id: int,
@@ -85,13 +95,16 @@ def get_volunteer_route(
 
 
 @router.patch("/{volunteer_id}", response_model=VolunteerResponse)
-def update_volunteer_route(
+async def update_volunteer_route(
     volunteer_id: int,
     payload: VolunteerUpdateRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return update_volunteer(db=db, current_user=current_user, volunteer_id=volunteer_id, payload=payload)
+    volunteer = update_volunteer(db=db, current_user=current_user, volunteer_id=volunteer_id, payload=payload)
+    if payload.rating is not None:
+        await publish_volunteer_rating_updated(db=db, volunteer=volunteer)
+    return volunteer
 
 
 # ── Volunteer Skills ─────────────────────────────────────────────────────────
@@ -106,9 +119,9 @@ def add_skill_route(
     volunteer_id: int,
     payload: VolunteerSkillCreateRequest,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
-    return add_volunteer_skill(db=db, volunteer_id=volunteer_id, payload=payload)
+    return add_volunteer_skill(db=db, volunteer_id=volunteer_id, payload=payload, current_user=current_user)
 
 
 @router.patch(
@@ -120,9 +133,15 @@ def update_skill_route(
     skill_id: int,
     payload: VolunteerSkillUpdateRequest,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
-    return update_volunteer_skill(db=db, volunteer_id=volunteer_id, skill_id=skill_id, payload=payload)
+    return update_volunteer_skill(
+        db=db,
+        volunteer_id=volunteer_id,
+        skill_id=skill_id,
+        payload=payload,
+        current_user=current_user,
+    )
 
 
 @router.delete("/{volunteer_id}/skills/{skill_id}", status_code=status.HTTP_200_OK)
@@ -130,7 +149,7 @@ def delete_skill_route(
     volunteer_id: int,
     skill_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
-    delete_volunteer_skill(db=db, volunteer_id=volunteer_id, skill_id=skill_id)
+    delete_volunteer_skill(db=db, volunteer_id=volunteer_id, skill_id=skill_id, current_user=current_user)
     return {"message": "Skill removed successfully"}

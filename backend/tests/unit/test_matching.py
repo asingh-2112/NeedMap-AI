@@ -65,11 +65,14 @@ def make_volunteer(
     )
 
 
-def make_need(category="health", lat=28.6139, lng=77.2090):
+def make_need(category="health", lat=28.6139, lng=77.2090, title="", description="", address=""):
     return SimpleNamespace(
         category=SimpleNamespace(value=category),
         latitude=lat,
         longitude=lng,
+        title=title,
+        description=description,
+        address=address,
     )
 
 
@@ -112,6 +115,10 @@ class TestSkillScore:
         # "medic" is a keyword for medical
         v = make_volunteer(skills=[make_skill("medic", "intermediate")])
         assert _skill_score(v, "health") > 0.0
+
+    def test_need_text_requirement_match(self):
+        v = make_volunteer(skills=[make_skill("logistics", "expert")])
+        assert _skill_score(v, "other", "Need logistics support for supply delivery") == pytest.approx(PROFICIENCY_WEIGHT["expert"])
 
 
 # ── _geo_score ────────────────────────────────────────────────────────────────
@@ -247,6 +254,15 @@ class TestScoreVolunteersForNeed:
         without_skill = make_volunteer(id=2, skills=[], **base)
         need = make_need(category="health", lat=28.61, lng=77.21)
         results = {r["volunteer_id"]: r for r in score_volunteers_for_need([with_skill, without_skill], need)}
+        assert results[1]["composite_score"] > results[2]["composite_score"]
+
+    def test_need_text_skill_match_raises_composite(self):
+        base = dict(lat=28.6, lng=77.2, radius_km=50, rating=3.0, tasks_completed=5, verified=False)
+        with_skill = make_volunteer(id=1, skills=[make_skill("logistics", "expert")], **base)
+        without_skill = make_volunteer(id=2, skills=[make_skill("tailoring", "expert")], **base)
+        need = make_need(category="other", lat=28.61, lng=77.21, description="Need logistics support for supply delivery")
+        results = {r["volunteer_id"]: r for r in score_volunteers_for_need([with_skill, without_skill], need)}
+        assert results[1]["skill_score"] > results[2]["skill_score"]
         assert results[1]["composite_score"] > results[2]["composite_score"]
 
     def test_unavailable_volunteer_scores_lower(self):

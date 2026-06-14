@@ -72,16 +72,16 @@ export const FeedsScreen = () => {
       const [storyData, campaignData] = await Promise.all([
         apiRequest<Story[]>(
           baseUrl,
-          `/api/stories${
-            scopedOrganizationId ? `?org_id=${scopedOrganizationId}` : ""
+          `/api/stories/${
+            scopedOrganizationId ? `?org_id=${scopedOrganizationId}&limit=20` : "?limit=20"
           }`,
           { method: "GET" },
           token
         ),
         apiRequest<Campaign[]>(
           baseUrl,
-          `/api/campaigns${
-            scopedOrganizationId ? `?org_id=${scopedOrganizationId}` : ""
+          `/api/campaigns/${
+            scopedOrganizationId ? `?org_id=${scopedOrganizationId}&limit=20` : "?limit=20"
           }`,
           { method: "GET" },
           token
@@ -259,10 +259,10 @@ export const FeedsScreen = () => {
       const endpoint =
         tab === "articles"
           ? modalType === "create"
-            ? "/api/stories"
+            ? "/api/stories/"
             : `/api/stories/${editingId}`
           : modalType === "create"
-            ? "/api/campaigns"
+            ? "/api/campaigns/"
             : `/api/campaigns/${editingId}`;
 
       const method = modalType === "create" ? "POST" : "PUT";

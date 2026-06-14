@@ -15,10 +15,14 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useAuth } from "../../context/AuthContext";
 import { useThemeMode } from "../../context/ThemeModeContext";
 import { moduleApi } from "../../services/api";
+import type { Volunteer, VolunteerSkill } from "../../types/api";
+
+const proficiencyOptions: VolunteerSkill["proficiency"][] = ["beginner", "intermediate", "expert"];
 
 export const ProfileScreen = () => {
   const { user, baseUrl, token, refreshMe, logout } = useAuth();
   const { theme } = useThemeMode();
+  const isVolunteer = user?.role === "volunteer";
   const isLight = theme.mode === "light";
   const lightPrimary = isLight ? { color: "#0B1220", fontWeight: "900" as const } : null;
   const lightSecondary = isLight ? { color: "#111827", fontWeight: "700" as const } : null;
@@ -34,6 +38,10 @@ export const ProfileScreen = () => {
   const [newPassword, setNewPassword] = useState("");
   const [message, setMessage] = useState("");
   const [profileImage, setProfileImage] = useState<string>("");
+  const [volunteerProfile, setVolunteerProfile] = useState<Volunteer | null>(null);
+  const [skillName, setSkillName] = useState("");
+  const [skillProficiency, setSkillProficiency] = useState<VolunteerSkill["proficiency"]>("beginner");
+  const [skillsLoading, setSkillsLoading] = useState(false);
 
   const pulse = useRef(new Animated.Value(0)).current;
   const floatA = useRef(new Animated.Value(0)).current;
@@ -44,6 +52,37 @@ export const ProfileScreen = () => {
     setName(user?.user_name || "");
     setPhone(user?.phone || "");
   }, [user?.user_name, user?.phone]);
+
+  useEffect(() => {
+    if (!isVolunteer || !token) {
+      setVolunteerProfile(null);
+      return;
+    }
+
+    let mounted = true;
+    const loadVolunteerProfile = async () => {
+      try {
+        setSkillsLoading(true);
+        const profile = await moduleApi.myVolunteerProfile(baseUrl, token);
+        if (mounted) {
+          setVolunteerProfile(profile);
+        }
+      } catch (err) {
+        if (mounted) {
+          setMessage(err instanceof Error ? err.message : "Unable to load volunteer skills");
+        }
+      } finally {
+        if (mounted) {
+          setSkillsLoading(false);
+        }
+      }
+    };
+
+    void loadVolunteerProfile();
+    return () => {
+      mounted = false;
+    };
+  }, [baseUrl, isVolunteer, token]);
 
   useEffect(() => {
     if (Platform.OS !== "web" || typeof window === "undefined") return;
@@ -116,6 +155,73 @@ export const ProfileScreen = () => {
       await refreshMe();
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Unable to update location");
+    }
+  };
+
+  const reloadVolunteerProfile = async () => {
+    if (!isVolunteer || !token) return;
+    const profile = await moduleApi.myVolunteerProfile(baseUrl, token);
+    setVolunteerProfile(profile);
+  };
+
+  const addSkill = async () => {
+    if (!volunteerProfile) return;
+    const normalizedSkill = skillName.trim().toLowerCase();
+    if (!normalizedSkill) {
+      setMessage("Enter a skill before saving.");
+      return;
+    }
+
+    try {
+      setSkillsLoading(true);
+      await moduleApi.addVolunteerSkill(baseUrl, token, volunteerProfile.id, {
+        skill_name: normalizedSkill,
+        proficiency: skillProficiency,
+      });
+      setSkillName("");
+      setSkillProficiency("beginner");
+      await reloadVolunteerProfile();
+      setMessage("Skill saved for volunteer matching.");
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Unable to save skill");
+    } finally {
+      setSkillsLoading(false);
+    }
+  };
+
+  const updateSkillProficiency = async (skill: VolunteerSkill, proficiency: VolunteerSkill["proficiency"]) => {
+    if (!volunteerProfile || skill.proficiency === proficiency) return;
+
+    try {
+      setSkillsLoading(true);
+      const updated = await moduleApi.updateVolunteerSkill(baseUrl, token, volunteerProfile.id, skill.id, { proficiency });
+      setVolunteerProfile({
+        ...volunteerProfile,
+        skills: (volunteerProfile.skills ?? []).map((item) => (item.id === updated.id ? updated : item)),
+      });
+      setMessage("Skill proficiency updated.");
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Unable to update skill");
+    } finally {
+      setSkillsLoading(false);
+    }
+  };
+
+  const removeSkill = async (skill: VolunteerSkill) => {
+    if (!volunteerProfile) return;
+
+    try {
+      setSkillsLoading(true);
+      await moduleApi.deleteVolunteerSkill(baseUrl, token, volunteerProfile.id, skill.id);
+      setVolunteerProfile({
+        ...volunteerProfile,
+        skills: (volunteerProfile.skills ?? []).filter((item) => item.id !== skill.id),
+      });
+      setMessage("Skill removed.");
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Unable to remove skill");
+    } finally {
+      setSkillsLoading(false);
     }
   };
 
@@ -262,9 +368,9 @@ export const ProfileScreen = () => {
 
         <View style={[styles.panelCard, lightCard]}>
           <Text style={[styles.panelTitle, lightPrimary]}>Update Location</Text>
-          <View style={styles.row}>
-            <TextInput style={[styles.input, styles.col, lightInput]} value={latitude} onChangeText={setLatitude} placeholder="Latitude" keyboardType="numeric" placeholderTextColor={isLight ? "#374151" : "#BFC0CF"} />
-            <TextInput style={[styles.input, styles.col, lightInput]} value={longitude} onChangeText={setLongitude} placeholder="Longitude" keyboardType="numeric" placeholderTextColor={isLight ? "#374151" : "#BFC0CF"} />
+          <View style={styles.locationRow}>
+            <TextInput style={[styles.input, styles.col, styles.coordinateInput, lightInput]} value={latitude} onChangeText={setLatitude} placeholder="Latitude" keyboardType="numeric" placeholderTextColor={isLight ? "#374151" : "#BFC0CF"} />
+            <TextInput style={[styles.input, styles.col, styles.coordinateInput, lightInput]} value={longitude} onChangeText={setLongitude} placeholder="Longitude" keyboardType="numeric" placeholderTextColor={isLight ? "#374151" : "#BFC0CF"} />
           </View>
           <TextInput style={[styles.input, lightInput]} value={radius} onChangeText={setRadius} placeholder="Radius km" keyboardType="numeric" placeholderTextColor={isLight ? "#374151" : "#BFC0CF"} />
           <View style={styles.row}>
@@ -276,6 +382,73 @@ export const ProfileScreen = () => {
             </Pressable>
           </View>
         </View>
+
+        {isVolunteer ? (
+          <View style={[styles.panelCard, lightCard]}>
+            <Text style={[styles.panelTitle, lightPrimary]}>Volunteer Skills</Text>
+            <Text style={[styles.skillHint, lightSecondary]}>These skills are saved to your volunteer profile and used for need match scores.</Text>
+            <TextInput
+              style={[styles.input, lightInput]}
+              value={skillName}
+              onChangeText={setSkillName}
+              placeholder="Skill, for example medical, cooking, logistics"
+              placeholderTextColor={isLight ? "#374151" : "#BFC0CF"}
+            />
+            <View style={styles.proficiencyRow}>
+              {proficiencyOptions.map((option) => {
+                const selected = skillProficiency === option;
+                return (
+                  <Pressable
+                    key={option}
+                    style={[styles.proficiencyBtn, selected && styles.proficiencyBtnActive, isLight ? { borderColor: "#000", borderWidth: 2 } : null]}
+                    onPress={() => setSkillProficiency(option)}
+                  >
+                    <Text style={[styles.proficiencyText, selected && styles.proficiencyTextActive, lightPrimary]}>{option}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Pressable
+              style={[styles.primaryBtn, skillsLoading ? styles.disabledBtn : null, isLight ? { borderColor: "#000", borderWidth: 2 } : null]}
+              onPress={addSkill}
+              disabled={skillsLoading}
+            >
+              <Text style={[styles.primaryBtnText, lightPrimary]}>{skillsLoading ? "Saving..." : "Add Skill"}</Text>
+            </Pressable>
+
+            <View style={styles.skillList}>
+              {(volunteerProfile?.skills ?? []).length === 0 ? (
+                <Text style={[styles.emptySkillsText, lightSecondary]}>No skills added yet.</Text>
+              ) : (
+                (volunteerProfile?.skills ?? []).map((skill) => (
+                  <View key={skill.id} style={[styles.skillCard, isLight ? { borderColor: "#000", borderWidth: 1 } : null]}>
+                    <View style={styles.skillCardHeader}>
+                      <Text style={[styles.skillNameText, lightPrimary]} numberOfLines={2}>{skill.skill_name.replace(/_/g, " ")}</Text>
+                      <Pressable style={styles.removeSkillBtn} onPress={() => removeSkill(skill)} disabled={skillsLoading}>
+                        <Text style={styles.removeSkillText}>Remove</Text>
+                      </Pressable>
+                    </View>
+                    <View style={styles.proficiencyRowCompact}>
+                      {proficiencyOptions.map((option) => {
+                        const selected = skill.proficiency === option;
+                        return (
+                          <Pressable
+                            key={`${skill.id}-${option}`}
+                            style={[styles.proficiencyChip, selected && styles.proficiencyChipActive]}
+                            onPress={() => updateSkillProficiency(skill, option)}
+                            disabled={skillsLoading}
+                          >
+                            <Text style={[styles.proficiencyChipText, selected && styles.proficiencyChipTextActive]}>{option}</Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+                ))
+              )}
+            </View>
+          </View>
+        ) : null}
 
         <View style={[styles.panelCard, lightCard]}>
           <Text style={[styles.panelTitle, lightPrimary]}>Change Password</Text>
@@ -403,8 +576,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   panelTitle: { color: "#FFFFFF", fontSize: 16, fontWeight: "900", marginBottom: 10 },
+  skillHint: { color: "#BFC0CF", fontSize: 12, fontWeight: "700", marginBottom: 10 },
 
   row: { flexDirection: "row", gap: 8 },
+  locationRow: { flexDirection: "row", alignItems: "stretch", gap: 8 },
   col: { flex: 1 },
 
   input: {
@@ -417,6 +592,14 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     marginBottom: 8,
   },
+  coordinateInput: {
+    height: 44,
+    marginBottom: 8,
+    minWidth: 0,
+    paddingVertical: 0,
+    textAlign: "left",
+    textAlignVertical: "center",
+  },
 
   primaryBtn: {
     backgroundColor: "#667EEA",
@@ -425,6 +608,58 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   primaryBtnText: { color: "#FFFFFF", fontWeight: "900", fontSize: 13 },
+  disabledBtn: { opacity: 0.65 },
+
+  proficiencyRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 10 },
+  proficiencyBtn: {
+    flexGrow: 1,
+    minWidth: 96,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(255,255,255,0.12)",
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 9,
+    paddingHorizontal: 10,
+    alignItems: "center",
+  },
+  proficiencyBtnActive: { backgroundColor: "#FFD7C2", borderColor: "#FF8A5B" },
+  proficiencyText: { color: "#D0D2E4", fontWeight: "900", fontSize: 12, textTransform: "capitalize" },
+  proficiencyTextActive: { color: "#5A3525" },
+  skillList: { marginTop: 12, gap: 8 },
+  emptySkillsText: { color: "#BFC0CF", fontWeight: "700", fontSize: 12 },
+  skillCard: {
+    backgroundColor: "rgba(255,255,255,0.07)",
+    borderColor: "rgba(255,255,255,0.12)",
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 10,
+  },
+  skillCardHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  skillNameText: { color: "#FFFFFF", fontSize: 14, fontWeight: "900", textTransform: "capitalize", flex: 1, minWidth: 0, lineHeight: 18 },
+  removeSkillBtn: {
+    backgroundColor: "rgba(227,108,106,0.18)",
+    borderColor: "rgba(227,108,106,0.42)",
+    borderWidth: 1,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 34,
+    width: 82,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  removeSkillText: { color: "#FFB5B4", fontWeight: "900", fontSize: 12 },
+  proficiencyRowCompact: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10 },
+  proficiencyChip: {
+    borderColor: "rgba(255,255,255,0.14)",
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  proficiencyChipActive: { backgroundColor: "#667EEA", borderColor: "#667EEA" },
+  proficiencyChipText: { color: "#D0D2E4", fontWeight: "800", fontSize: 11, textTransform: "capitalize" },
+  proficiencyChipTextActive: { color: "#FFFFFF" },
 
   secondaryBtn: {
     backgroundColor: "rgba(255,255,255,0.08)",

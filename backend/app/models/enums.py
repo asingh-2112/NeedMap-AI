@@ -65,8 +65,12 @@ class AssignmentStatus(str, enum.Enum):
 
 
 class NotificationType(str, enum.Enum):
+    NEED_CREATED = "need_created"
+    ASSIGNMENT_PROPOSED = "assignment_proposed"
     ASSIGNMENT_CREATED = "assignment_created"
     ASSIGNMENT_STATUS_CHANGED = "assignment_status_changed"
+    ASSIGNMENT_COMPLETED = "assignment_completed"
+    VOLUNTEER_RATING_UPDATED = "volunteer_rating_updated"
     URGENT_NEED_NEARBY = "urgent_need_nearby"
     NEED_RESOLVED = "need_resolved"
     NOMINATION_RECEIVED = "nomination_received"

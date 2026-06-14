@@ -15,11 +15,12 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useAuth } from "../../context/AuthContext";
+import { useRealtime } from "../../context/RealtimeContext";
 import { useThemeMode } from "../../context/ThemeModeContext";
 import { apiRequest, moduleApi } from "../../services/api";
 import { getLiveLocation } from "../../services/location";
 import type { RootStackParamList } from "../../navigation/types";
-import type { Need, Organization } from "../../types/api";
+import type { Need, Organization, Volunteer } from "../../types/api";
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type MainTabRoute = "Needs" | "Statistics" | "Feeds" | "Assignments";
@@ -39,14 +40,29 @@ type HomeStory = {
   created_at: string;
 };
 
+type AreaPreview = {
+  key: string;
+  area: string;
+  city: string;
+  total: number;
+  active: number;
+  inProgress: number;
+  completed: number;
+  dominantStatus: "active" | "in_progress" | "completed";
+};
+
 export const HomeScreen = () => {
   const nav = useNavigation<Nav>();
   const { baseUrl, token, user } = useAuth();
+  const { realtimeVersion } = useRealtime();
   const { theme } = useThemeMode();
-  const scopedOrganizationId = user?.role === "admin" ? user?.managed_branch_id ?? user?.organization_id : user?.organization_id;
+  const adminBranchId = user?.role === "admin" ? user?.managed_branch_id ?? null : null;
+  const scopedOrganizationId = user?.role === "admin" ? adminBranchId ?? user?.organization_id : user?.organization_id;
 
   const isOrgOwner = user?.role === "owner" && !!user?.organization_id;
   const isAdmin = user?.role === "admin";
+  const isVolunteer = user?.role === "volunteer";
+  const showNeedsOrganizationMap = isAdmin || isVolunteer;
   const isOrgManager = user?.role === "owner" || user?.role === "admin";
   const isLight = theme.mode === "light";
   const lightPrimary = isLight ? { color: "#0B1220", fontWeight: "800" as const } : null;
@@ -74,6 +90,9 @@ export const HomeScreen = () => {
   const [homeStories, setHomeStories] = useState<HomeStory[]>([]);
   const [storiesLoading, setStoriesLoading] = useState(false);
   const [mapNeeds, setMapNeeds] = useState<Need[]>([]);
+  const [mapOrganizations, setMapOrganizations] = useState<Organization[]>([]);
+  const [mapVolunteers, setMapVolunteers] = useState<Volunteer[]>([]);
+  const [volunteerProfile, setVolunteerProfile] = useState<Volunteer | null>(null);
 
   const fadeIn = useRef(new Animated.Value(0)).current;
   const slideUp = useRef(new Animated.Value(30)).current;
@@ -139,6 +158,9 @@ export const HomeScreen = () => {
             setNearbyNeeds(activeNeeds.slice(0, 5));
             // Keep owner map behavior marker-based (no heat overlay change for owner).
             setMapNeeds([]);
+            setMapOrganizations([]);
+            setMapVolunteers([]);
+            setVolunteerProfile(null);
 
             const active = scopedAssignments.filter((a) =>
               ["accepted", "in_progress", "proposed", "assigned"].includes(a.status)
@@ -146,45 +168,57 @@ export const HomeScreen = () => {
             setActiveAssignments(active.length);
             setCompletedAssignments(scopedAssignments.filter((a) => a.status === "completed").length);
           } else {
-            // Admin scope should stay within managed branch.
-            const [org, needs, assignments, volunteers] = await Promise.all([
+            const branchNeedsFilter = adminBranchId ? { organization_id: adminBranchId } : undefined;
+            const [org, needs, assignments, volunteers, organizations] = await Promise.all([
               moduleApi.getOrganization(baseUrl, token, scopedOrganizationId),
-              moduleApi.needs(baseUrl, token, { organization_id: scopedOrganizationId }),
-              moduleApi.assignments(baseUrl, token, { organization_id: scopedOrganizationId }),
+              branchNeedsFilter ? moduleApi.needs(baseUrl, token, branchNeedsFilter) : Promise.resolve([]),
+              branchNeedsFilter ? moduleApi.assignments(baseUrl, token, branchNeedsFilter) : Promise.resolve([]),
               moduleApi.volunteers(baseUrl, token),
+              moduleApi.organizations(baseUrl, token),
             ]);
+            const branchNeeds = adminBranchId ? needs.filter((need) => need.organization_id === adminBranchId) : [];
+            const branchAssignments = adminBranchId ? assignments.filter((assignment) => assignment.organization_id === adminBranchId) : [];
 
             setOrgInfo(org);
-            setOrgNeedsCount(needs.length);
+            setOrgNeedsCount(branchNeeds.length);
             setOrgVolunteersCount(volunteers.filter((v) => v.organization_id === scopedOrganizationId).length);
-            setOrgAssignmentsCount(assignments.length);
+            setOrgAssignmentsCount(branchAssignments.length);
 
-            const activeNeeds = needs.filter((n) => !["resolved", "closed"].includes(n.status));
-            const completedNeeds = needs.filter((n) => ["resolved", "closed"].includes(n.status));
+            const inProgressNeeds = branchNeeds.filter((n) => n.status === "in_progress");
+            const activeNeeds = branchNeeds.filter((n) => ["new", "verified", "assigned"].includes(n.status));
+            const completedNeeds = branchNeeds.filter((n) => ["resolved", "closed"].includes(n.status));
             setOrgActiveNeedsCount(activeNeeds.length);
             setOrgCompletedNeedsCount(completedNeeds.length);
-            setNeedsCount(activeNeeds.length);
-            setNearbyNeeds(activeNeeds.slice(0, 5));
-            setMapNeeds(needs);
+            setNeedsCount(activeNeeds.length + inProgressNeeds.length);
+            setNearbyNeeds([...activeNeeds, ...inProgressNeeds].slice(0, 5));
+            setMapNeeds(branchNeeds);
+            setMapOrganizations(organizations.filter((organization) => Boolean(organization.branch_location)));
+            setMapVolunteers(volunteers.filter((volunteer) => typeof volunteer.latitude === "number" && typeof volunteer.longitude === "number"));
+            setVolunteerProfile(null);
 
-            const active = assignments.filter((a) =>
+            const active = branchAssignments.filter((a) =>
               ["accepted", "in_progress", "proposed", "assigned"].includes(a.status)
             );
             setActiveAssignments(active.length);
-            setCompletedAssignments(assignments.filter((a) => a.status === "completed").length);
+            setCompletedAssignments(branchAssignments.filter((a) => a.status === "completed").length);
           }
         } else {
-          // Volunteer: fetch all needs + assignments
-          const [needs, assignments] = await Promise.all([
+          // Volunteer: fetch accessible needs, assignments, and organization pointers for the home map.
+          const [needs, assignments, organizations] = await Promise.all([
             moduleApi.needs(baseUrl, token),
             moduleApi.assignments(baseUrl, token),
+            moduleApi.organizations(baseUrl, token),
           ]);
+          const profile = await moduleApi.myVolunteerProfile(baseUrl, token).catch(() => null);
 
           const activeNeeds = needs.filter((n) => !["resolved", "closed"].includes(n.status));
           setNeedsCount(activeNeeds.length);
           setNearbyNeeds(activeNeeds.slice(0, 5));
-          // Volunteer map can use broader heat visualization across accessible needs.
+          // Volunteer map uses needs + organization pointers only. Do not expose volunteer locations/details here.
           setMapNeeds(needs);
+          setMapOrganizations(organizations.filter((organization) => Boolean(organization.branch_location)));
+          setMapVolunteers([]);
+          setVolunteerProfile(profile);
 
           const active = assignments.filter((a) =>
             ["accepted", "in_progress", "proposed", "assigned"].includes(a.status)
@@ -198,7 +232,7 @@ export const HomeScreen = () => {
     };
 
     loadData();
-  }, [baseUrl, token]);
+  }, [adminBranchId, baseUrl, isOrgOwner, realtimeVersion, scopedOrganizationId, token, user?.role]);
 
   useEffect(() => {
     if (!token) {
@@ -209,11 +243,11 @@ export const HomeScreen = () => {
       setStoriesLoading(true);
       try {
         const query = scopedOrganizationId
-          ? `?org_id=${scopedOrganizationId}`
-          : "";
+          ? `?org_id=${scopedOrganizationId}&limit=3`
+          : "?limit=3";
         const data = await apiRequest<HomeStory[]>(
           baseUrl,
-          `/api/stories${query}`,
+          `/api/stories/${query}`,
           { method: "GET" },
           token
         );
@@ -231,6 +265,83 @@ export const HomeScreen = () => {
   const goToMainTab = (screen: MainTabRoute) => {
     nav.navigate("MainTabs", { screen });
   };
+
+  const volunteerAverageRating = typeof volunteerProfile?.rating === "number" ? volunteerProfile.rating : null;
+
+  const volunteerRatingStars = useMemo(() => {
+    const roundedRating = Math.round(volunteerAverageRating ?? 0);
+    return Array.from({ length: 5 }, (_, index) => index < roundedRating);
+  }, [volunteerAverageRating]);
+
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+
+    const handleMapMessage = (event: MessageEvent) => {
+      const data = event.data;
+      if (!data || data.source !== "needmap-admin-map" || data.type !== "openNeed") return;
+
+      const needId = Number(data.needId);
+      if (Number.isFinite(needId)) {
+        nav.navigate("NeedDetail", { needId });
+      }
+    };
+
+    window.addEventListener("message", handleMapMessage);
+    return () => window.removeEventListener("message", handleMapMessage);
+  }, [nav]);
+
+  const needAreaPreview = useMemo<AreaPreview[]>(() => {
+    if (!showNeedsOrganizationMap) return [];
+
+    const parseAreaFromAddress = (address: string | null | undefined) => {
+      const parts = (address || "").split(",").map((part) => part.trim()).filter(Boolean);
+      return parts[0] || "Unknown Area";
+    };
+
+    const parseCityFromAddress = (address: string | null | undefined) => {
+      const parts = (address || "").split(",").map((part) => part.trim()).filter(Boolean);
+      if (parts.length >= 3) return parts[parts.length - 3];
+      if (parts.length >= 2) return parts[parts.length - 2];
+      return "Unknown City";
+    };
+
+    const buckets = new Map<string, AreaPreview>();
+    mapNeeds.forEach((need) => {
+      if (!Number.isFinite(need.latitude) || !Number.isFinite(need.longitude)) return;
+      const area = (need.colony || need.street || "").trim() || parseAreaFromAddress(need.address);
+      const city = (need.city || "").trim() || parseCityFromAddress(need.address);
+      const key = `${city.toLowerCase()}|${area.toLowerCase()}`;
+      const existing = buckets.get(key) ?? {
+        key,
+        area,
+        city,
+        total: 0,
+        active: 0,
+        inProgress: 0,
+        completed: 0,
+        dominantStatus: "active" as const,
+      };
+
+      existing.total += 1;
+      if (["resolved", "closed"].includes(need.status)) {
+        existing.completed += 1;
+      } else if (need.status === "in_progress") {
+        existing.inProgress += 1;
+      } else {
+        existing.active += 1;
+      }
+
+      const ranked = [
+        ["active", existing.active],
+        ["in_progress", existing.inProgress],
+        ["completed", existing.completed],
+      ] as const;
+      existing.dominantStatus = [...ranked].sort((a, b) => b[1] - a[1])[0][0];
+      buckets.set(key, existing);
+    });
+
+    return [...buckets.values()].sort((a, b) => b.total - a.total).slice(0, 4);
+  }, [mapNeeds, showNeedsOrganizationMap]);
 
   const validBranchMarkers = useMemo(
     () =>
@@ -254,20 +365,60 @@ export const HomeScreen = () => {
   );
 
   const webMapHtml = useMemo(() => {
-    if (!location) return null;
+    if (!location && !(showNeedsOrganizationMap && mapNeeds.length > 0)) return null;
     const markers = [
-      { lat: location.latitude, lng: location.longitude, label: "Headquarter / Current Location" },
+      ...(location ? [{ lat: location.latitude, lng: location.longitude, label: "Headquarter / Current Location" }] : []),
       ...(isOrgOwner ? validBranchMarkers : []),
     ];
     const needsForMap = mapNeeds
       .filter((n) => Number.isFinite(n.latitude) && Number.isFinite(n.longitude))
       .map((n) => ({
+        id: n.id,
         lat: n.latitude,
         lng: n.longitude,
         status: n.status,
         title: n.title,
+        description: n.description || "",
+        category: n.category,
+        urgency: n.urgency,
+        affected_count: n.affected_count ?? null,
+        priority_score: n.priority_score ?? null,
+        created_at: n.created_at,
+        area: (n.colony || n.street || "").trim(),
         city: (n.city || "").trim(),
         address: n.address || "",
+      }));
+    const organizationsForMap = mapOrganizations
+      .map((organization) => {
+        const [latText, lngText] = (organization.branch_location || "").split(",").map((part) => part.trim());
+        const lat = Number(latText);
+        const lng = Number(lngText);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+        return {
+          id: organization.id,
+          lat,
+          lng,
+          name: organization.organization_name,
+          address: organization.address || "",
+          phone: organization.phone || "",
+          is_branch: Boolean(organization.is_branch),
+        };
+      })
+      .filter((organization): organization is { id: number; lat: number; lng: number; name: string; address: string; phone: string; is_branch: boolean } => organization !== null);
+    const volunteersForMap = mapVolunteers
+      .filter((volunteer) => typeof volunteer.latitude === "number" && typeof volunteer.longitude === "number")
+      .map((volunteer) => ({
+        id: volunteer.id,
+        lat: volunteer.latitude as number,
+        lng: volunteer.longitude as number,
+        name: volunteer.user_name || `Volunteer #${volunteer.id}`,
+        phone: volunteer.phone || "",
+        area: volunteer.colony || "",
+        city: volunteer.city || "",
+        availability: volunteer.availability,
+        verified: volunteer.verified,
+        tasks_completed: volunteer.tasks_completed,
+        active_tasks: volunteer.active_tasks,
       }));
 
     return `<!doctype html>
@@ -275,53 +426,101 @@ export const HomeScreen = () => {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link
-      rel="stylesheet"
-      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-      crossorigin=""
-    />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
     <style>
       html, body, #map { margin: 0; padding: 0; width: 100%; height: 100%; }
-      body { background: #0b1020; }
+      body { background: #fff; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; overflow: hidden; }
+      #map { background: #fff; }
+      .leaflet-control-zoom a { color: #111827; }
+      .current-location-label { background: rgba(37,99,235,0.95); border: 1px solid rgba(255,255,255,0.55); border-radius: 999px; box-shadow: 0 10px 22px rgba(37,99,235,0.3); color: #fff; font: 800 11px system-ui, sans-serif; padding: 4px 8px; }
+      .area-label { background: rgba(0,0,0,0.72); border: 1px solid rgba(255,255,255,0.34); border-radius: 999px; box-shadow: 0 10px 22px rgba(0,0,0,0.28); color: #fff; font: 800 11px system-ui, sans-serif; padding: 4px 8px; }
+      .area-popup .leaflet-popup-content-wrapper { border-radius: 14px; box-shadow: 0 18px 40px rgba(15,23,42,0.28); }
+      .area-popup .leaflet-popup-content { margin: 0; min-width: 190px; }
+      .popup-card { padding: 12px; color: #111827; }
+      .popup-title { font-size: 14px; font-weight: 800; margin-bottom: 2px; }
+      .popup-city { color: #64748B; font-size: 11px; font-weight: 700; margin-bottom: 10px; text-transform: uppercase; }
+      .popup-total { align-items: baseline; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; display: flex; justify-content: space-between; margin-bottom: 10px; padding: 8px 10px; }
+      .popup-total strong { font-size: 22px; }
+      .popup-grid { display: grid; gap: 6px; grid-template-columns: repeat(3, 1fr); }
+      .popup-stat { border-radius: 10px; padding: 7px 6px; text-align: center; }
+      .popup-stat strong { display: block; font-size: 16px; }
+      .popup-stat span { display: block; font-size: 10px; font-weight: 800; margin-top: 2px; text-transform: uppercase; }
+      .legend { background: rgba(255,255,255,0.96); border: 1px solid rgba(15,23,42,0.1); border-radius: 12px; box-shadow: 0 16px 36px rgba(15,23,42,0.22); color: #111827; font: 12px system-ui, sans-serif; padding: 10px 12px; }
+      .heat-toolbar { background: rgba(255,255,255,0.96); border: 1px solid rgba(15,23,42,0.12); border-radius: 14px; box-shadow: 0 16px 36px rgba(15,23,42,0.22); color: #111827; font: 12px system-ui, sans-serif; max-width: 330px; padding: 10px; }
+      .toolbar-title { font-size: 12px; font-weight: 900; letter-spacing: 0.2px; margin-bottom: 8px; }
+      .toolbar-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+      .filter-btn { background: #F8FAFC; border: 1px solid #CBD5E1; border-radius: 999px; color: #334155; cursor: pointer; font: 800 11px system-ui, sans-serif; padding: 6px 9px; }
+      .filter-btn.active { background: #111827; border-color: #111827; color: #fff; }
+      .toolbar-select { background: #fff; border: 1px solid #CBD5E1; border-radius: 9px; color: #111827; font: 800 11px system-ui, sans-serif; min-width: 104px; padding: 6px 8px; }
+      .info-panel { background: rgba(255,255,255,0.96); border: 1px solid rgba(15,23,42,0.12); border-radius: 14px; box-shadow: 0 16px 36px rgba(15,23,42,0.22); color: #111827; font: 12px system-ui, sans-serif; min-width: 230px; padding: 12px; }
+      .info-title { font-size: 14px; font-weight: 900; margin-bottom: 2px; }
+      .info-city { color: #64748B; font-size: 10px; font-weight: 800; margin-bottom: 10px; text-transform: uppercase; }
+      .info-row { align-items: center; display: grid; gap: 8px; grid-template-columns: 82px 28px 1fr; margin: 6px 0; }
+      .info-bar { background: #E2E8F0; border-radius: 999px; height: 7px; overflow: hidden; }
+      .info-fill { border-radius: 999px; height: 100%; }
+      .cluster-bubble { align-items: center; border: 2px solid #fff; border-radius: 999px; box-shadow: 0 8px 20px rgba(15,23,42,0.32); color: #fff; display: flex; font: 900 12px system-ui, sans-serif; height: 30px; justify-content: center; width: 30px; }
+      .entity-pin { align-items: center; border: 2px solid #fff; border-radius: 999px 999px 999px 4px; box-shadow: 0 12px 24px rgba(15,23,42,0.32); color: #fff; display: flex; font: 900 14px system-ui, sans-serif; height: 30px; justify-content: center; transform: rotate(-45deg); width: 30px; }
+      .entity-pin span { transform: rotate(45deg); }
+      .org-pin { background: #7C3AED; }
+      .volunteer-pin { background: #0891B2; }
+      .entity-popup { color: #111827; min-width: 210px; padding: 10px; }
+      .entity-title { font-size: 14px; font-weight: 900; margin-bottom: 3px; }
+      .entity-kind { color: #64748B; font-size: 10px; font-weight: 900; margin-bottom: 8px; text-transform: uppercase; }
+      .entity-meta { color: #334155; font-size: 12px; font-weight: 700; line-height: 1.45; }
+      .area-bubble { align-items: center; border: 2px solid rgba(15,23,42,0.82); border-radius: 999px; box-shadow: 0 16px 34px rgba(15,23,42,0.28); color: #fff; cursor: pointer; display: flex; font: 900 12px system-ui, sans-serif; justify-content: center; text-shadow: 0 1px 2px rgba(0,0,0,0.45); }
+      .area-bubble.nearby { border-color: #0F766E; box-shadow: 0 0 0 8px rgba(64,224,208,0.28), 0 16px 34px rgba(15,23,42,0.28); }
+      .current-dot { align-items: center; background: #2563EB; border: 3px solid #FFFFFF; border-radius: 999px; box-shadow: 0 0 0 9px rgba(37,99,235,0.16), 0 10px 22px rgba(37,99,235,0.32); color: #fff; display: flex; font: 900 11px system-ui, sans-serif; height: 22px; justify-content: center; width: 22px; }
+      .need-dot { align-items: center; border: 2px solid #FFFFFF; border-radius: 999px; box-shadow: 0 8px 18px rgba(15,23,42,0.32); color: #fff; cursor: pointer; display: flex; font: 900 9px system-ui, sans-serif; height: 18px; justify-content: center; width: 18px; }
+      .need-dot.active { background: #E63B2E; }
+      .need-dot.in_progress { background: #F5A623; }
+      .need-dot.completed { background: #4CAF50; }
+      .need-popup { color: #111827; min-width: 230px; padding: 10px; }
+      .need-popup-title { color: #111827; font-size: 13px; font-weight: 900; line-height: 1.25; margin-bottom: 6px; }
+      .need-popup-meta { color: #475569; font-size: 11px; font-weight: 700; line-height: 1.45; }
+      .area-needs-list { border-top: 1px solid #E2E8F0; display: grid; gap: 8px; margin-top: 10px; max-height: 280px; overflow-y: auto; padding-top: 10px; }
+      .area-need-item { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 8px; }
+      .area-need-title { color: #111827; font-size: 12px; font-weight: 900; line-height: 1.3; margin-bottom: 5px; }
+      .area-need-meta { color: #475569; font-size: 11px; font-weight: 700; line-height: 1.4; }
+      .need-detail-btn { background: #111827; border: 0; border-radius: 8px; color: #fff; cursor: pointer; font: 900 11px system-ui, sans-serif; margin-top: 7px; padding: 7px 8px; width: 100%; }
     </style>
   </head>
   <body>
     <div id="map"></div>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-      crossorigin=""></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
     <script>
       const markers = ${JSON.stringify(markers)};
       const needs = ${JSON.stringify(needsForMap)};
-      const map = L.map('map', { zoomControl: true });
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '&copy; OpenStreetMap contributors'
-      }).addTo(map);
+      const organizations = ${JSON.stringify(organizationsForMap)};
+      const volunteers = ${JSON.stringify(volunteersForMap)};
+      const showAdminHeatmap = ${JSON.stringify(showNeedsOrganizationMap)};
+      const currentLocation = ${JSON.stringify(location ? { lat: location.latitude, lng: location.longitude } : null)};
+      const openFullMapView = false;
 
       const normalizeStatus = (status) => {
         const value = (status || '').toLowerCase();
         if (value === 'resolved' || value === 'closed') return 'completed';
-        if (value === 'in_progress' || value === 'assigned') return 'in_progress';
+        if (value === 'in_progress') return 'in_progress';
         return 'active';
       };
 
       const parseCityFromAddress = (address) => {
         if (!address) return 'Unknown City';
         const parts = String(address).split(',').map((p) => p.trim()).filter(Boolean);
+        if (parts.length >= 3) return parts[parts.length - 3];
         if (parts.length >= 2) return parts[parts.length - 2];
         return parts[0] || 'Unknown City';
       };
 
+      const parseAreaFromAddress = (address) => {
+        if (!address) return 'Unknown Area';
+        const parts = String(address).split(',').map((p) => p.trim()).filter(Boolean);
+        return parts[0] || 'Unknown Area';
+      };
+
       const hexToRgb = (hex) => {
-        const clean = hex.replace('#', '');
-        const value = parseInt(clean, 16);
-        return {
-          r: (value >> 16) & 255,
-          g: (value >> 8) & 255,
-          b: value & 255,
-        };
+        const value = parseInt(hex.replace('#', ''), 16);
+        return { r: (value >> 16) & 255, g: (value >> 8) & 255, b: value & 255 };
       };
 
       const rgbToHex = (r, g, b) => {
@@ -334,153 +533,442 @@ export const HomeScreen = () => {
         return rgbToHex(rgb.r * (1 - factor), rgb.g * (1 - factor), rgb.b * (1 - factor));
       };
 
-      const cityBuckets = {};
-      needs.forEach((n) => {
-        const cityName = (n.city && String(n.city).trim()) || parseCityFromAddress(n.address);
-        if (!cityBuckets[cityName]) {
-          cityBuckets[cityName] = {
-            city: cityName,
-            points: [],
-            total: 0,
-            active: 0,
-            in_progress: 0,
-            completed: 0,
-          };
+      const statusConfig = {
+        active: { label: 'Active', color: '#EF4444', soft: '#FEE2E2', text: '#991B1B' },
+        in_progress: { label: 'In Progress', color: '#F59E0B', soft: '#FEF3C7', text: '#92400E' },
+        completed: { label: 'Completed', color: '#22C55E', soft: '#DCFCE7', text: '#166534' },
+      };
+
+      const distanceKm = (a, b) => {
+        const toRad = (value) => value * Math.PI / 180;
+        const earthKm = 6371;
+        const dLat = toRad(b[0] - a[0]);
+        const dLng = toRad(b[1] - a[1]);
+        const lat1 = toRad(a[0]);
+        const lat2 = toRad(b[0]);
+        const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+        return earthKm * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+      };
+
+      const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
+      const formatText = (value) => String(value || 'Not available').replace(/_/g, ' ');
+      const openNeedDetail = (needId) => {
+        const message = { source: 'needmap-admin-map', type: 'openNeed', needId };
+        let openedInAppWindow = false;
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage(message, '*');
+          openedInAppWindow = true;
         }
-        const statusKey = normalizeStatus(n.status);
-        cityBuckets[cityName].points.push([n.lat, n.lng]);
-        cityBuckets[cityName].total += 1;
-        cityBuckets[cityName][statusKey] += 1;
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage(message, '*');
+          openedInAppWindow = true;
+          try { window.opener.focus(); } catch (error) {}
+        }
+        if (openFullMapView && openedInAppWindow) {
+          window.setTimeout(() => window.close(), 80);
+        }
+      };
+
+      document.addEventListener('click', (event) => {
+        const target = event.target && event.target.closest ? event.target.closest('[data-need-id]') : null;
+        if (!target) return;
+        const needId = Number(target.getAttribute('data-need-id'));
+        if (Number.isFinite(needId)) openNeedDetail(needId);
       });
 
-      const cityList = Object.values(cityBuckets);
-      const maxCityTotal = cityList.reduce((max, city) => Math.max(max, city.total), 1);
+      const dominantStatus = (area) => {
+        const ranked = [['active', area.active], ['in_progress', area.in_progress], ['completed', area.completed]];
+        ranked.sort((a, b) => b[1] - a[1]);
+        return ranked[0][0];
+      };
 
-      // Weather-style heat color ramp for city areas.
-      const heatStops = [
-        { t: 0, color: '#FFF4BF' },
-        { t: 0.35, color: '#FDBA74' },
-        { t: 0.7, color: '#F97316' },
-        { t: 1, color: '#B91C1C' },
-      ];
-
-      const lerp = (a, b, t) => a + (b - a) * t;
-
-      const colorAt = (t) => {
-        const clamped = Math.max(0, Math.min(1, t));
-        let left = heatStops[0];
-        let right = heatStops[heatStops.length - 1];
-        for (let i = 0; i < heatStops.length - 1; i += 1) {
-          if (clamped >= heatStops[i].t && clamped <= heatStops[i + 1].t) {
-            left = heatStops[i];
-            right = heatStops[i + 1];
-            break;
+      const buildAreaList = (sourceNeeds) => {
+        const areaBuckets = {};
+        sourceNeeds.forEach((need) => {
+          const cityName = (need.city && String(need.city).trim()) || parseCityFromAddress(need.address);
+          const areaName = (need.area && String(need.area).trim()) || parseAreaFromAddress(need.address);
+          const bucketKey = cityName.toLowerCase() + '|' + areaName.toLowerCase();
+          if (!areaBuckets[bucketKey]) {
+            areaBuckets[bucketKey] = { area: areaName, city: cityName, points: [], needs: [], total: 0, active: 0, in_progress: 0, completed: 0 };
           }
+          const statusKey = normalizeStatus(need.status);
+          areaBuckets[bucketKey].points.push([need.lat, need.lng]);
+          areaBuckets[bucketKey].needs.push(need);
+          areaBuckets[bucketKey].total += 1;
+          areaBuckets[bucketKey][statusKey] += 1;
+        });
+        return Object.values(areaBuckets);
+      };
+
+      const cross = (origin, a, b) =>
+        (a[1] - origin[1]) * (b[0] - origin[0]) - (a[0] - origin[0]) * (b[1] - origin[1]);
+
+      const convexHull = (points) => {
+        const unique = Array.from(new Map(points.map((point) => [point.join(','), point])).values())
+          .sort((a, b) => a[1] === b[1] ? a[0] - b[0] : a[1] - b[1]);
+        if (unique.length <= 2) return unique;
+        const lower = [];
+        unique.forEach((point) => {
+          while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], point) <= 0) lower.pop();
+          lower.push(point);
+        });
+        const upper = [];
+        [...unique].reverse().forEach((point) => {
+          while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], point) <= 0) upper.pop();
+          upper.push(point);
+        });
+        upper.pop();
+        lower.pop();
+        return lower.concat(upper);
+      };
+
+      const buildAreaPolygon = (points, intensity) => {
+        const hull = convexHull(points);
+        const center = points.reduce((acc, point) => [acc[0] + point[0], acc[1] + point[1]], [0, 0]).map((value) => value / points.length);
+        const pad = 0.004 + intensity * 0.008;
+        if (hull.length === 1) {
+          const point = hull[0];
+          return [[point[0] + pad, point[1]], [point[0], point[1] + pad * 1.25], [point[0] - pad, point[1]], [point[0], point[1] - pad * 1.25]];
         }
-        const span = Math.max(0.0001, right.t - left.t);
-        const localT = (clamped - left.t) / span;
-        const l = hexToRgb(left.color);
-        const r = hexToRgb(right.color);
-        return rgbToHex(lerp(l.r, r.r, localT), lerp(l.g, r.g, localT), lerp(l.b, r.b, localT));
+        if (hull.length === 2) {
+          const [a, b] = hull;
+          const dx = b[1] - a[1];
+          const dy = b[0] - a[0];
+          const length = Math.max(Math.sqrt(dx * dx + dy * dy), 0.0001);
+          const offsetLat = (dx / length) * pad;
+          const offsetLng = (-dy / length) * pad;
+          return [[a[0] + offsetLat, a[1] + offsetLng], [b[0] + offsetLat, b[1] + offsetLng], [b[0] - offsetLat, b[1] - offsetLng], [a[0] - offsetLat, a[1] - offsetLng]];
+        }
+        return hull.map((point) => {
+          const vectorLat = point[0] - center[0];
+          const vectorLng = point[1] - center[1];
+          const length = Math.max(Math.sqrt(vectorLat * vectorLat + vectorLng * vectorLng), 0.0001);
+          return [point[0] + (vectorLat / length) * pad, point[1] + (vectorLng / length) * pad];
+        });
       };
 
-      const buildCityPolygon = (points, count) => {
-        const lats = points.map((p) => p[0]);
-        const lngs = points.map((p) => p[1]);
-        const minLat = Math.min(...lats);
-        const maxLat = Math.max(...lats);
-        const minLng = Math.min(...lngs);
-        const maxLng = Math.max(...lngs);
-        const pad = 0.06 + Math.min(0.12, count * 0.004);
-        return [
-          [minLat - pad, minLng - pad],
-          [minLat - pad, maxLng + pad],
-          [maxLat + pad, maxLng + pad],
-          [maxLat + pad, minLng - pad],
-        ];
+      const areaCenter = (points) =>
+        points.reduce((acc, point) => [acc[0] + point[0], acc[1] + point[1]], [0, 0]).map((value) => value / points.length);
+
+      const getNearbyAreaKeys = (areaList) => {
+        const nearbyAreaKeys = new Set();
+        if (!showAdminHeatmap || !currentLocation || areaList.length === 0) return nearbyAreaKeys;
+        areaList
+          .map((area) => ({ area, distance: distanceKm([currentLocation.lat, currentLocation.lng], areaCenter(area.points)) }))
+          .sort((a, b) => a.distance - b.distance)
+          .slice(0, 3)
+          .forEach((item) => nearbyAreaKeys.add(item.area.city.toLowerCase() + '|' + item.area.area.toLowerCase()));
+        return nearbyAreaKeys;
       };
 
-      if (!${JSON.stringify(isOrgOwner)}) {
-        cityList.forEach((city) => {
-          const intensity = Math.min(1, city.total / maxCityTotal);
-          const fill = colorAt(intensity);
-          const border = darken(fill, 0.35);
-          const polygon = buildCityPolygon(city.points, city.total);
+      const map = L.map('map', { zoomControl: true });
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        opacity: showAdminHeatmap ? 0.82 : 1,
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(map);
 
-          L.polygon(polygon, {
-            color: border,
-            weight: 3,
-            fillColor: fill,
-            fillOpacity: 0.48,
-          })
-            .addTo(map)
+      const bounds = [];
+      const interpolate = (from, to, value) => {
+        const fromRgb = hexToRgb(from);
+        const toRgb = hexToRgb(to);
+        return rgbToHex(
+          fromRgb.r + (toRgb.r - fromRgb.r) * value,
+          fromRgb.g + (toRgb.g - fromRgb.g) * value,
+          fromRgb.b + (toRgb.b - fromRgb.b) * value,
+        );
+      };
+      const statusColors = { active: '#E63B2E', in_progress: '#F5A623', completed: '#4CAF50' };
+      const statusLabels = { active: 'Active', in_progress: 'In Progress', completed: 'Completed' };
+      const intensityColor = (status, intensity) => {
+        const base = statusColors[status] || '#E63B2E';
+        return interpolate('#F8FAFC', base, Math.max(0.35, intensity));
+      };
+      const priorityWeight = (need) => {
+        const urgency = String(need.urgency || '').toLowerCase();
+        if (urgency === 'critical') return 1;
+        if (urgency === 'high') return 0.85;
+        if (urgency === 'medium') return 0.62;
+        return 0.42;
+      };
+      const inTimeRange = (need, range) => {
+        if (range === 'all') return true;
+        if (!need.created_at) return true;
+        const created = new Date(need.created_at).getTime();
+        if (!Number.isFinite(created)) return true;
+        const now = Date.now();
+        const day = 24 * 60 * 60 * 1000;
+        if (range === 'today') return now - created <= day;
+        if (range === 'week') return now - created <= day * 7;
+        if (range === 'month') return now - created <= day * 31;
+        return true;
+      };
+      let selectedStatus = 'all';
+      let selectedMode = 'heat';
+      let selectedTime = 'all';
+      let selectedCategory = 'all';
+      let zonesLayer = L.layerGroup().addTo(map);
+      let markerLayer = L.layerGroup().addTo(map);
+      let needLayer = L.layerGroup().addTo(map);
+      let heatLayer = null;
+      let firstRender = true;
+
+      const entityIcon = (kind) => L.divIcon({
+        className: '',
+        html: '<div class="entity-pin ' + kind + '-pin"><span>' + (kind === 'org' ? 'O' : 'V') + '</span></div>',
+        iconSize: [34, 34],
+        iconAnchor: [8, 28],
+        popupAnchor: [8, -28],
+      });
+
+      const areaBubbleIcon = (area, status, intensity, isNearby) => {
+        const size = Math.round(58 + Math.min(1, intensity) * 62);
+        const color = intensityColor(status, intensity);
+        return L.divIcon({
+          className: '',
+          html: '<div class="area-bubble ' + (isNearby ? 'nearby' : '') + '" style="width:' + size + 'px;height:' + size + 'px;background:' + color + ';">' + area.total + '</div>',
+          iconSize: [size, size],
+          iconAnchor: [size / 2, size / 2],
+          popupAnchor: [0, -size / 2],
+        });
+      };
+
+      const currentLocationIcon = () => L.divIcon({
+        className: '',
+        html: '<div class="current-dot">•</div>',
+        iconSize: [28, 28],
+        iconAnchor: [14, 14],
+        popupAnchor: [0, -14],
+      });
+
+      const needDotIcon = (status) => L.divIcon({
+        className: '',
+        html: '<div class="need-dot ' + status + '">N</div>',
+        iconSize: [22, 22],
+        iconAnchor: [11, 11],
+        popupAnchor: [0, -12],
+      });
+
+      const needPopupHtml = (need) => {
+        const status = normalizeStatus(need.status);
+        const affected = typeof need.affected_count === 'number' ? need.affected_count : 'Not available';
+        const score = typeof need.priority_score === 'number' ? need.priority_score.toFixed(2) : 'Not available';
+        return '<div class="need-popup">' +
+          '<div class="need-popup-title">' + escapeHtml(need.title || 'Need #' + need.id) + '</div>' +
+          '<div class="need-popup-meta">' +
+            '<b>Status:</b> ' + escapeHtml(statusLabels[status] || formatText(need.status)) + '<br/>' +
+            '<b>Category:</b> ' + escapeHtml(formatText(need.category)) + '<br/>' +
+            '<b>Urgency:</b> ' + escapeHtml(formatText(need.urgency)) + '<br/>' +
+            '<b>Affected:</b> ' + escapeHtml(affected) + ' · <b>Priority:</b> ' + escapeHtml(score) + '<br/>' +
+            '<b>Address:</b> ' + escapeHtml(need.address || 'Unknown location') +
+          '</div>' +
+          '<button class="need-detail-btn" type="button" data-need-id="' + need.id + '" onclick="openNeedDetail(' + need.id + '); return false;">Open need details</button>' +
+        '</div>';
+      };
+
+      const renderNeedDots = (sourceNeeds) => {
+        needLayer.clearLayers();
+        const zoom = map.getZoom();
+        if (!Number.isFinite(zoom) || zoom < 16) return;
+
+        sourceNeeds.forEach((need) => {
+          const status = normalizeStatus(need.status);
+          L.marker([need.lat, need.lng], { icon: needDotIcon(status), zIndexOffset: 760 })
+            .addTo(needLayer)
+            .bindTooltip(need.title || 'Need', { direction: 'top', offset: [0, -8], opacity: 0.9 })
+            .bindPopup(needPopupHtml(need));
+        });
+      };
+
+      const renderEntityMarkers = () => {
+        organizations.forEach((organization) => {
+          L.marker([organization.lat, organization.lng], { icon: entityIcon('org'), zIndexOffset: 650 })
+            .addTo(markerLayer)
             .bindPopup(
-              '<b>City:</b> ' + city.city +
-              '<br/><b>Total needs:</b> ' + city.total +
-              '<br/><b>Active:</b> ' + city.active +
-              '<br/><b>In Progress:</b> ' + city.in_progress +
-              '<br/><b>Completed:</b> ' + city.completed
+              '<div class="entity-popup">' +
+                '<div class="entity-title">' + escapeHtml(organization.name) + '</div>' +
+                '<div class="entity-kind">Organization pointer</div>' +
+                '<div class="entity-meta">' +
+                  '<b>Type:</b> ' + (organization.is_branch ? 'Branch organization' : 'Partner organization') + '<br/>' +
+                  '<b>Address:</b> ' + escapeHtml(organization.address || 'Area organization') + '<br/>' +
+                  '<b>Phone:</b> ' + escapeHtml(organization.phone || 'Not available') +
+                '</div>' +
+              '</div>'
             );
         });
+
+        volunteers.forEach((volunteer) => {
+          L.marker([volunteer.lat, volunteer.lng], { icon: entityIcon('volunteer'), zIndexOffset: 700 })
+            .addTo(markerLayer)
+            .bindPopup(
+              '<div class="entity-popup">' +
+                '<div class="entity-title">' + escapeHtml(volunteer.name) + '</div>' +
+                '<div class="entity-kind">Volunteer pointer</div>' +
+                '<div class="entity-meta">' +
+                  '<b>Status:</b> ' + (volunteer.availability ? 'Available' : 'Busy') + (volunteer.verified ? ' · Verified' : '') + '<br/>' +
+                  '<b>Area:</b> ' + escapeHtml([volunteer.area, volunteer.city].filter(Boolean).join(', ') || 'Nearby area') + '<br/>' +
+                  '<b>Tasks:</b> ' + volunteer.tasks_completed + ' completed · ' + volunteer.active_tasks + ' active<br/>' +
+                  '<b>Phone:</b> ' + escapeHtml(volunteer.phone || 'Not available') +
+                '</div>' +
+              '</div>'
+            );
+        });
+      };
+
+      const areaNeedsHtml = (area) => {
+        const sortedNeeds = [...area.needs].sort((a, b) => priorityWeight(b) - priorityWeight(a)).slice(0, 8);
+        const rows = sortedNeeds.map((need) => {
+          const status = normalizeStatus(need.status);
+          const affected = typeof need.affected_count === 'number' ? need.affected_count : 'Not available';
+          const score = typeof need.priority_score === 'number' ? need.priority_score.toFixed(2) : 'Not available';
+          const description = need.description ? '<div class="area-need-meta">' + escapeHtml(need.description) + '</div>' : '';
+          return '<div class="area-need-item">' +
+            '<div class="area-need-title">' + escapeHtml(need.title || 'Need #' + need.id) + '</div>' +
+            '<div class="area-need-meta">' +
+              '<b>Status:</b> ' + escapeHtml(statusLabels[status] || formatText(need.status)) + '<br/>' +
+              '<b>Category:</b> ' + escapeHtml(formatText(need.category)) + ' · <b>Urgency:</b> ' + escapeHtml(formatText(need.urgency)) + '<br/>' +
+              '<b>Affected:</b> ' + escapeHtml(affected) + ' · <b>Priority:</b> ' + escapeHtml(score) + '<br/>' +
+              '<b>Address:</b> ' + escapeHtml(need.address || 'Unknown location') +
+            '</div>' +
+            description +
+            '<button class="need-detail-btn" type="button" data-need-id="' + need.id + '" onclick="openNeedDetail(' + need.id + '); return false;">Open need details</button>' +
+          '</div>';
+        }).join('');
+
+        const remaining = area.needs.length > sortedNeeds.length
+          ? '<div class="area-need-meta">+' + (area.needs.length - sortedNeeds.length) + ' more needs in this area.</div>'
+          : '';
+        return '<div class="area-needs-list">' + rows + remaining + '</div>';
+      };
+
+      const filteredNeeds = () => needs;
+
+      const updateInfoPanel = (area) => {
+        const max = Math.max(area.active, area.in_progress, area.completed, 1);
+        const row = (label, value, color) =>
+          '<div class="info-row"><span>' + label + '</span><strong>' + value + '</strong><div class="info-bar"><div class="info-fill" style="width:' + Math.round((value / max) * 100) + '%;background:' + color + '"></div></div></div>';
+        const panel = document.getElementById('areaInfoPanel');
+        if (!panel) return;
+        panel.innerHTML =
+          '<div class="info-title">Colony: ' + escapeHtml(area.area) + '</div>' +
+          '<div class="info-city">' + escapeHtml(area.city) + '</div>' +
+          row('Active', area.active, statusColors.active) +
+          row('Progress', area.in_progress, statusColors.in_progress) +
+          row('Done', area.completed, statusColors.completed) +
+          '<div style="border-top:1px solid #E2E8F0;margin-top:10px;padding-top:9px;font-weight:900;">Total: ' + area.total + '</div>' +
+          '<div style="color:#64748B;font-size:10px;font-weight:800;margin-top:5px;">Top Category: API filtered needs</div>';
+      };
+
+      const updateLegend = (sourceNeeds) => {
+        const summary = sourceNeeds.reduce((acc, need) => {
+          acc[normalizeStatus(need.status)] += 1;
+          return acc;
+        }, { active: 0, in_progress: 0, completed: 0 });
+        const legend = document.getElementById('heatLegend');
+        if (!legend) return;
+        legend.innerHTML =
+          '<div style="font-weight:900;margin-bottom:9px;">NEEDS HEAT MAP</div>' +
+          '<div style="display:grid;gap:7px;">' +
+            '<div><span style="background:' + statusColors.active + ';display:inline-block;height:12px;margin-right:7px;width:12px;"></span>Active Needs <strong>(' + summary.active + ')</strong></div>' +
+            '<div><span style="background:' + statusColors.in_progress + ';display:inline-block;height:12px;margin-right:7px;width:12px;"></span>In Progress <strong>(' + summary.in_progress + ')</strong></div>' +
+            '<div><span style="background:' + statusColors.completed + ';display:inline-block;height:12px;margin-right:7px;width:12px;"></span>Completed <strong>(' + summary.completed + ')</strong></div>' +
+          '</div>' +
+          '<div style="margin-top:10px;font-size:11px;font-weight:800;">Intensity: Low ░░▒▒▓▓ High</div>';
+      };
+
+      const renderAdminMap = () => {
+        const sourceNeeds = filteredNeeds();
+        const areaList = buildAreaList(sourceNeeds);
+        zonesLayer.clearLayers();
+        markerLayer.clearLayers();
+        needLayer.clearLayers();
+        if (heatLayer) {
+          map.removeLayer(heatLayer);
+          heatLayer = null;
+        }
+        updateLegend(sourceNeeds);
+
+        if (L.heatLayer) {
+          heatLayer = L.heatLayer(sourceNeeds.map((need) => [need.lat, need.lng, priorityWeight(need)]), {
+            radius: 54,
+            blur: 30,
+            maxZoom: 16,
+            minOpacity: 0.42,
+            gradient: { 0.12: '#166534', 0.38: '#B45309', 0.68: '#C2410C', 1: '#7F1D1D' },
+          }).addTo(map);
+        }
+
+        if (firstRender) sourceNeeds.forEach((need) => bounds.push([need.lat, need.lng]));
+        renderEntityMarkers();
+        map.off('zoomend');
+        map.on('zoomend', () => renderNeedDots(sourceNeeds));
+
+        if (areaList[0]) updateInfoPanel([...areaList].sort((a, b) => b.total - a.total)[0]);
+        firstRender = false;
+      };
+
+      if (showAdminHeatmap && needs.length > 0) {
+        if (currentLocation) {
+          L.marker([currentLocation.lat, currentLocation.lng], { icon: currentLocationIcon(), zIndexOffset: 900 })
+            .addTo(map)
+            .bindTooltip('Current location', { className: 'current-location-label', direction: 'top', offset: [0, -10], permanent: true, opacity: 0.95 })
+            .bindPopup('<b>Current location</b><br/>Nearby highlighted areas are outlined in cyan.');
+          bounds.push([currentLocation.lat, currentLocation.lng]);
+        }
 
         const legend = L.control({ position: 'bottomright' });
         legend.onAdd = function () {
           const div = L.DomUtil.create('div', 'legend');
-          div.style.background = 'rgba(255,255,255,0.95)';
-          div.style.padding = '8px 10px';
-          div.style.borderRadius = '8px';
-          div.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
-          div.style.font = '12px system-ui, sans-serif';
-          div.innerHTML =
-            '<div style="font-weight:700; margin-bottom:6px; color:#111827;">City Need Heatmap</div>' +
-            '<div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;"><span style="width:10px; height:10px; border-radius:999px; background:#FFF4BF; border:1px solid #9A3412; display:inline-block;"></span> Low needs</div>' +
-            '<div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;"><span style="width:10px; height:10px; border-radius:999px; background:#F97316; border:1px solid #9A3412; display:inline-block;"></span> Medium needs</div>' +
-            '<div style="display:flex; align-items:center; gap:6px;"><span style="width:10px; height:10px; border-radius:999px; background:#B91C1C; border:1px solid #7F1D1D; display:inline-block;"></span> High needs</div>' +
-            '<div style="margin-top:6px; color:#374151;">Each bordered area is a city</div>';
+          div.id = 'heatLegend';
           return div;
         };
         legend.addTo(map);
-      }
 
-      const bounds = [];
-      markers.forEach((m) => {
-        const marker = L.marker([m.lat, m.lng]).addTo(map);
-        if (m.label) marker.bindPopup(m.label);
-        bounds.push([m.lat, m.lng]);
-      });
-
-      if (!${JSON.stringify(isOrgOwner)}) {
-        needs.forEach((n) => {
-          bounds.push([n.lat, n.lng]);
+        renderAdminMap();
+      } else {
+        markers.forEach((m) => {
+          const marker = L.marker([m.lat, m.lng]).addTo(map);
+          if (m.label) marker.bindPopup(m.label);
+          bounds.push([m.lat, m.lng]);
         });
       }
 
-      if (bounds.length > 1) {
-        map.fitBounds(bounds, { padding: [24, 24] });
+      if (showAdminHeatmap && openFullMapView && currentLocation) {
+        map.setView([currentLocation.lat, currentLocation.lng], 16);
+      } else if (bounds.length > 1) {
+        map.fitBounds(bounds, { padding: [18, 18], maxZoom: showAdminHeatmap ? 15 : 19 });
       } else if (bounds.length === 1) {
-        map.setView(bounds[0], 14);
+        map.setView(bounds[0], showAdminHeatmap ? 15 : 14);
       } else {
         map.setView([20.5937, 78.9629], 4);
       }
+
+      if (showAdminHeatmap) renderNeedDots(needs);
     </script>
   </body>
 </html>`;
-  }, [location, isOrgOwner, isAdmin, validBranchMarkers, mapNeeds]);
+  }, [location, isOrgOwner, showNeedsOrganizationMap, validBranchMarkers, mapNeeds, mapOrganizations, mapVolunteers]);
 
   const openMap = () => {
-    if (!location) return;
+    if (!location && !(showNeedsOrganizationMap && webMapHtml)) return;
 
     if (Platform.OS === "web" && webMapHtml) {
-      const blob = new Blob([webMapHtml], { type: "text/html" });
+      const fullMapHtml = webMapHtml.replace(
+        "const openFullMapView = false;",
+        "const openFullMapView = true;",
+      );
+      const blob = new Blob([fullMapHtml], { type: "text/html" });
       const blobUrl = URL.createObjectURL(blob);
-      window.open(blobUrl, "_blank", "noopener,noreferrer");
+      window.open(blobUrl, "_blank");
       // Delay revocation so the new tab has time to load the map content.
       window.setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
       return;
     }
 
     // Mobile fallback when web map HTML is unavailable.
-    const osmUrl = `https://www.openstreetmap.org/?mlat=${location.latitude}&mlon=${location.longitude}#map=14/${location.latitude}/${location.longitude}`;
+    const fallbackLat = location?.latitude ?? 20.5937;
+    const fallbackLng = location?.longitude ?? 78.9629;
+    const osmUrl = `https://www.openstreetmap.org/?mlat=${fallbackLat}&mlon=${fallbackLng}#map=14/${fallbackLat}/${fallbackLng}`;
     Linking.openURL(osmUrl);
   };
 
@@ -642,6 +1130,53 @@ export const HomeScreen = () => {
             </View>
           ) : null}
 
+          {/* Volunteer Rating */}
+          {isVolunteer ? (
+            <View style={[styles.section, lightCard]}>
+              <View style={styles.sectionHeader}>
+                <Text style={[styles.sectionTitle, lightPrimary]}>Your Volunteer Rating</Text>
+                <Pressable onPress={() => goToMainTab("Assignments")}>
+                  <Text style={[styles.seeAll, lightPrimary]}>Details</Text>
+                </Pressable>
+              </View>
+              {volunteerAverageRating === null ? (
+                <Text style={[styles.emptyText, lightSecondary]}>
+                  Organization or branch rating for your volunteer work will appear here.
+                </Text>
+              ) : (
+                <View style={styles.volunteerRatingCard}>
+                  <View style={styles.volunteerRatingTopRow}>
+                    <View>
+                      <Text style={[styles.volunteerRatingLabel, lightSecondary]}>Organization rating</Text>
+                      <View style={styles.volunteerRatingScoreRow}>
+                        <Text style={[styles.volunteerRatingScore, lightPrimary]}>
+                          {volunteerAverageRating.toFixed(1)}
+                        </Text>
+                        <Text style={[styles.volunteerRatingOutOf, lightSecondary]}>/ 5</Text>
+                      </View>
+                    </View>
+                    <View style={styles.volunteerRatingBadge}>
+                      <Text style={styles.volunteerRatingBadgeText}>Branch Rated</Text>
+                    </View>
+                  </View>
+                  <View style={styles.volunteerRatingStars}>
+                    {volunteerRatingStars.map((filled, index) => (
+                      <Text
+                        key={`rating-star-${index}`}
+                        style={[styles.volunteerRatingStar, filled ? styles.volunteerRatingStarFilled : null]}
+                      >
+                        ★
+                      </Text>
+                    ))}
+                  </View>
+                  <Text style={[styles.volunteerRatingMeta, lightSecondary]}>
+                    Given by the organization and its branch for your completed work
+                  </Text>
+                </View>
+              )}
+            </View>
+          ) : null}
+
           {/* Location Section */}
           <View style={[styles.section, lightCard]}>
             <Text style={[styles.sectionTitle, lightPrimary]}>Your Location</Text>
@@ -650,7 +1185,7 @@ export const HomeScreen = () => {
                 <ActivityIndicator color="#667EEA" size="small" />
                 <Text style={[styles.loadingText, lightSecondary]}>Fetching location...</Text>
               </View>
-            ) : location ? (
+            ) : location || (showNeedsOrganizationMap && webMapHtml) ? (
               <>
                 {/* Embedded Map */}
                 <View style={styles.mapSection}>
@@ -670,6 +1205,43 @@ export const HomeScreen = () => {
                         style={styles.mapImage}
                         resizeMode="cover"
                       />
+                    </View>
+                  ) : null}
+
+                  {showNeedsOrganizationMap && needAreaPreview.length > 0 ? (
+                    <View style={styles.areaPreviewWrap}>
+                      <View style={styles.areaPreviewHeader}>
+                        <Text style={[styles.areaPreviewTitle, lightPrimary]}>Area preview</Text>
+                        <Text style={[styles.areaPreviewHint, lightSecondary]}>Top need clusters</Text>
+                      </View>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.areaPreviewList}>
+                        {needAreaPreview.map((area) => (
+                          <View key={area.key} style={[styles.areaPreviewCard, isLight ? { borderColor: "#000000" } : null]}>
+                            <View style={styles.areaPreviewTopRow}>
+                              <View style={[styles.areaStatusRail, { backgroundColor: getAreaStatusColor(area.dominantStatus) }]} />
+                              <View style={styles.areaPreviewNameWrap}>
+                                <Text style={[styles.areaPreviewName, lightPrimary]} numberOfLines={1}>{area.area}</Text>
+                                <Text style={[styles.areaPreviewCity, lightSecondary]} numberOfLines={1}>{area.city}</Text>
+                              </View>
+                              <Text style={[styles.areaPreviewTotal, lightPrimary]}>{area.total}</Text>
+                            </View>
+                            <View style={styles.areaPreviewStats}>
+                              <View style={styles.areaMiniStat}>
+                                <Text style={[styles.areaMiniValue, { color: "#EF4444" }]}>{area.active}</Text>
+                                <Text style={[styles.areaMiniLabel, lightSecondary]}>Active</Text>
+                              </View>
+                              <View style={styles.areaMiniStat}>
+                                <Text style={[styles.areaMiniValue, { color: "#F59E0B" }]}>{area.inProgress}</Text>
+                                <Text style={[styles.areaMiniLabel, lightSecondary]}>Progress</Text>
+                              </View>
+                              <View style={styles.areaMiniStat}>
+                                <Text style={[styles.areaMiniValue, { color: "#22C55E" }]}>{area.completed}</Text>
+                                <Text style={[styles.areaMiniLabel, lightSecondary]}>Done</Text>
+                              </View>
+                            </View>
+                          </View>
+                        ))}
+                      </ScrollView>
                     </View>
                   ) : null}
 
@@ -808,6 +1380,15 @@ const getStatusBgColor = (status: string) => {
   }
 };
 
+const getAreaStatusColor = (status: AreaPreview["dominantStatus"]) => {
+  switch (status) {
+    case "active": return "#EF4444";
+    case "in_progress": return "#F59E0B";
+    case "completed": return "#22C55E";
+    default: return "#667EEA";
+  }
+};
+
 const styles = StyleSheet.create({
   page: { flex: 1 },
   scroll: { flex: 1 },
@@ -888,6 +1469,41 @@ const styles = StyleSheet.create({
   orgStatNum: { fontSize: 22, fontWeight: "800", color: "#667EEA" },
   orgStatLabel: { fontSize: 10, color: "#8B8DA3", marginTop: 4, fontWeight: "600" },
 
+  // Volunteer Rating
+  volunteerRatingCard: {
+    backgroundColor: "rgba(15,23,42,0.48)",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(245,158,11,0.34)",
+    padding: 14,
+  },
+  volunteerRatingTopRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  volunteerRatingLabel: { color: "#8B8DA3", fontSize: 12, fontWeight: "800", marginBottom: 2 },
+  volunteerRatingScoreRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+  },
+  volunteerRatingScore: { color: "#FFFFFF", fontSize: 34, fontWeight: "900" },
+  volunteerRatingOutOf: { color: "#8B8DA3", fontSize: 15, fontWeight: "800", marginLeft: 4 },
+  volunteerRatingBadge: {
+    backgroundColor: "rgba(245,158,11,0.14)",
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(245,158,11,0.38)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  volunteerRatingBadgeText: { color: "#FBBF24", fontSize: 11, fontWeight: "900" },
+  volunteerRatingStars: { flexDirection: "row", gap: 8, marginTop: 12, marginBottom: 10 },
+  volunteerRatingStar: { color: "rgba(255,255,255,0.22)", fontSize: 28, fontWeight: "900", lineHeight: 32 },
+  volunteerRatingStarFilled: { color: "#F59E0B" },
+  volunteerRatingMeta: { color: "#8B8DA3", fontSize: 12, fontWeight: "700" },
+
   // Sections
   section: {
     backgroundColor: "rgba(255,255,255,0.05)",
@@ -939,8 +1555,48 @@ const styles = StyleSheet.create({
     height: 200,
     borderRadius: 12,
     overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
   },
   mapImage: { width: "100%", height: "100%" },
+  areaPreviewWrap: { marginTop: 12 },
+  areaPreviewHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  areaPreviewTitle: { color: "#FFFFFF", fontSize: 13, fontWeight: "800" },
+  areaPreviewHint: { color: "#8B8DA3", fontSize: 11, fontWeight: "700" },
+  areaPreviewList: { gap: 10, paddingRight: 2 },
+  areaPreviewCard: {
+    width: 190,
+    backgroundColor: "rgba(15,23,42,0.42)",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+    padding: 10,
+  },
+  areaPreviewTopRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  areaStatusRail: { width: 5, height: 34, borderRadius: 999 },
+  areaPreviewNameWrap: { flex: 1, minWidth: 0 },
+  areaPreviewName: { color: "#FFFFFF", fontSize: 13, fontWeight: "800" },
+  areaPreviewCity: { color: "#8B8DA3", fontSize: 10, fontWeight: "700", marginTop: 2 },
+  areaPreviewTotal: { color: "#FFFFFF", fontSize: 20, fontWeight: "900" },
+  areaPreviewStats: {
+    flexDirection: "row",
+    gap: 6,
+    marginTop: 10,
+  },
+  areaMiniStat: {
+    flex: 1,
+    backgroundColor: "rgba(255,255,255,0.07)",
+    borderRadius: 9,
+    paddingVertical: 7,
+    alignItems: "center",
+  },
+  areaMiniValue: { fontSize: 15, fontWeight: "900" },
+  areaMiniLabel: { color: "#8B8DA3", fontSize: 9, fontWeight: "800", marginTop: 2 },
   mapBtn: {
     marginTop: 10,
     backgroundColor: "rgba(102,126,234,0.15)",

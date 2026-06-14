@@ -22,10 +22,11 @@ class VolunteerUpdateRequest(BaseModel):
     availability: bool | None = None
     organization_id: int | None = None
     verified: bool | None = None
+    rating: float | None = Field(default=None, ge=0.0, le=5.0)
 
     @model_validator(mode="after")
     def validate_payload(self):
-        if self.availability is None and self.organization_id is None and self.verified is None:
+        if self.availability is None and self.organization_id is None and self.verified is None and self.rating is None:
             raise ValueError("Provide at least one field to update")
         return self
 
@@ -34,6 +35,13 @@ class VolunteerResponse(BaseModel):
     id: int
     user_id: int
     organization_id: int | None
+    user_name: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    colony: str | None = None
+    city: str | None = None
     availability: bool
     rating: float | None
     tasks_completed: int

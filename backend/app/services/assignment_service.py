@@ -4,7 +4,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.models.assignment import Assignment
-from app.models.enums import AssignmentStatus, UserRole
+from app.models.enums import AssignmentStatus, NeedStatus, UserRole
 from app.models.need import Need
 from app.models.organization import Organization
 from app.models.user import User
@@ -148,10 +148,6 @@ def create_assignment(db: Session, current_user: User, payload: AssignmentCreate
     )
     db.add(assignment)
 
-    # Increment volunteer active_tasks
-    volunteer.active_tasks += 1
-    db.add(volunteer)
-
     db.commit()
     db.refresh(assignment)
     return assignment
@@ -224,6 +220,19 @@ def update_assignment_status(
     # Track timestamps on key transitions
     if target == AssignmentStatus.ACCEPTED:
         assignment.accepted_at = now
+        volunteer = db.query(Volunteer).filter(Volunteer.id == assignment.volunteer_id).first()
+        if volunteer:
+            volunteer.active_tasks += 1
+            db.add(volunteer)
+        need = db.query(Need).filter(Need.id == assignment.need_id).first()
+        if need and need.status in {NeedStatus.NEW, NeedStatus.VERIFIED}:
+            need.status = NeedStatus.ASSIGNED
+            db.add(need)
+    elif target == AssignmentStatus.IN_PROGRESS:
+        need = db.query(Need).filter(Need.id == assignment.need_id).first()
+        if need:
+            need.status = NeedStatus.IN_PROGRESS
+            db.add(need)
     elif target == AssignmentStatus.COMPLETED:
         assignment.completed_at = now
         # Update volunteer stats
@@ -232,19 +241,18 @@ def update_assignment_status(
             volunteer.tasks_completed += 1
             volunteer.active_tasks = max(0, volunteer.active_tasks - 1)
             db.add(volunteer)
+        need = db.query(Need).filter(Need.id == assignment.need_id).first()
+        if need:
+            need.status = NeedStatus.RESOLVED
+            need.resolved_at = now
+            db.add(need)
     elif target == AssignmentStatus.CANCELLED:
         # Decrement active tasks if assignment was not already completed
-        if current not in {AssignmentStatus.COMPLETED, AssignmentStatus.DECLINED}:
+        if current in {AssignmentStatus.ACCEPTED, AssignmentStatus.IN_PROGRESS}:
             volunteer = db.query(Volunteer).filter(Volunteer.id == assignment.volunteer_id).first()
             if volunteer:
                 volunteer.active_tasks = max(0, volunteer.active_tasks - 1)
                 db.add(volunteer)
-    elif target == AssignmentStatus.DECLINED:
-        # Volunteer declined, decrement active tasks
-        volunteer = db.query(Volunteer).filter(Volunteer.id == assignment.volunteer_id).first()
-        if volunteer:
-            volunteer.active_tasks = max(0, volunteer.active_tasks - 1)
-            db.add(volunteer)
 
     assignment.status = target
     db.add(assignment)
@@ -263,28 +271,16 @@ def submit_assignment_feedback(
     assignment = _get_assignment_or_404(db, assignment_id)
     _ensure_assignment_access(db=db, current_user=current_user, assignment=assignment)
 
+    if assignment.status != AssignmentStatus.COMPLETED:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Feedback and rating can only be submitted after the assignment is completed",
+        )
+
     if payload.feedback is not None:
         assignment.feedback = payload.feedback
     if payload.rating is not None:
         assignment.rating = payload.rating
-
-        # Update volunteer average rating
-        volunteer = db.query(Volunteer).filter(Volunteer.id == assignment.volunteer_id).first()
-        if volunteer:
-            # Recalculate average from all rated assignments for this volunteer
-            rated = (
-                db.query(Assignment)
-                .filter(
-                    Assignment.volunteer_id == volunteer.id,
-                    Assignment.rating.is_not(None),
-                    Assignment.id != assignment.id,  # exclude current (not yet committed)
-                )
-                .all()
-            )
-            total = sum(a.rating for a in rated) + payload.rating
-            count = len(rated) + 1
-            volunteer.rating = round(total / count, 2)
-            db.add(volunteer)
 
     db.add(assignment)
     db.commit()

@@ -16,11 +16,12 @@ import * as DocumentPicker from "expo-document-picker";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useAuth } from "../../context/AuthContext";
+import { useRealtime } from "../../context/RealtimeContext";
 import { useThemeMode } from "../../context/ThemeModeContext";
 import { apiRequest, moduleApi } from "../../services/api";
 import type { RootStackParamList } from "../../navigation/types";
 import { getLiveLocation } from "../../services/location";
-import type { Assignment, Need } from "../../types/api";
+import type { Assignment, Need, Organization } from "../../types/api";
 
 const CATEGORIES = [
   "water_access", "food", "shelter", "health", "education",
@@ -30,6 +31,7 @@ const CATEGORIES = [
 const URGENCIES = ["critical", "high", "medium", "low"] as const;
 const FILTER_URGENCIES = ["all", ...URGENCIES] as const;
 const FILTER_CATEGORIES = ["all", ...CATEGORIES] as const;
+const FILTER_ASSIGNMENTS = ["all", "assigned", "unassigned"] as const;
 
 const displayCategory = (value: string) => {
   if (value === "other") return "others";
@@ -69,19 +71,48 @@ type PickedUpload = {
   file?: Blob;
 };
 
+type VolunteerLocation = {
+  latitude: number;
+  longitude: number;
+  address: string;
+};
+
+const distanceKm = (from: { latitude: number; longitude: number }, to: { latitude: number; longitude: number }) => {
+  const toRad = (value: number) => (value * Math.PI) / 180;
+  const earthKm = 6371;
+  const dLat = toRad(to.latitude - from.latitude);
+  const dLng = toRad(to.longitude - from.longitude);
+  const lat1 = toRad(from.latitude);
+  const lat2 = toRad(to.latitude);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return earthKm * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+};
+
+const getNeedLocationLabel = (need: Need) => {
+  if (need.city?.trim()) return need.city.trim();
+  const parts = (need.address || "").split(",").map((part) => part.trim()).filter(Boolean);
+  if (parts.length >= 3) return parts[parts.length - 3];
+  if (parts.length >= 2) return parts[parts.length - 2];
+  return parts[0] || "Unknown location";
+};
+
 export const NeedsScreen = () => {
   const nav = useNavigation<Nav>();
   const { baseUrl, token, user } = useAuth();
+  const { realtimeVersion } = useRealtime();
   const { theme } = useThemeMode();
   const isLight = theme.mode === "light";
   const lightPrimary = isLight ? { color: "#0B1220", fontWeight: "800" as const } : null;
   const lightSecondary = isLight ? { color: "#111827", fontWeight: "700" as const } : null;
   const lightCard = isLight ? { borderColor: "#000000", borderWidth: 2, backgroundColor: "rgba(255,255,255,0.97)" } : null;
   const lightInput = isLight ? { borderColor: "#000000", borderWidth: 2, color: "#0B1220", fontWeight: "700" as const, backgroundColor: "#FFFFFF" } : null;
-  const scopedOrganizationId = user?.role === "admin" ? user?.managed_branch_id ?? user?.organization_id : user?.organization_id;
+  const adminBranchId = user?.role === "admin" ? user?.managed_branch_id ?? null : null;
+  const scopedOrganizationId = user?.role === "admin" ? adminBranchId : user?.organization_id;
   const isOwner = user?.role === "owner";
+  const isVolunteer = user?.role === "volunteer";
   const [items, setItems] = useState<Need[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [activeSource, setActiveSource] = useState<SourceKey>("manual");
@@ -91,8 +122,18 @@ export const NeedsScreen = () => {
   const [customCategory, setCustomCategory] = useState("");
   const [selectedUrgencyFilter, setSelectedUrgencyFilter] = useState<(typeof FILTER_URGENCIES)[number]>("all");
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<(typeof FILTER_CATEGORIES)[number]>("all");
+  const [selectedAssignmentFilter, setSelectedAssignmentFilter] = useState<(typeof FILTER_ASSIGNMENTS)[number]>("all");
+  const [selectedVolunteerLocationFilter, setSelectedVolunteerLocationFilter] = useState("all");
+  const [selectedVolunteerOrganizationFilter, setSelectedVolunteerOrganizationFilter] = useState("all");
+  const [selectedVolunteerBranchFilter, setSelectedVolunteerBranchFilter] = useState("all");
+  const [volunteerLiveLocation, setVolunteerLiveLocation] = useState<VolunteerLocation | null>(null);
+  const [volunteerNearbyOnly, setVolunteerNearbyOnly] = useState(false);
   const [showUrgencyDropdown, setShowUrgencyDropdown] = useState(false);
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [showAssignmentDropdown, setShowAssignmentDropdown] = useState(false);
+  const [showVolunteerLocationDropdown, setShowVolunteerLocationDropdown] = useState(false);
+  const [showVolunteerOrganizationDropdown, setShowVolunteerOrganizationDropdown] = useState(false);
+  const [showVolunteerBranchDropdown, setShowVolunteerBranchDropdown] = useState(false);
 
   // Manual form fields
   const [title, setTitle] = useState("");
@@ -120,6 +161,7 @@ export const NeedsScreen = () => {
   const [ingestResult, setIngestResult] = useState<IngestResponse | null>(null);
 
   const isOrgManager = user?.role === "owner" || user?.role === "admin";
+  const missingAdminBranchMessage = "Admin account is not assigned to a branch. Please ask the owner to assign a managed branch before creating needs.";
 
   const fadeIn = useRef(new Animated.Value(0)).current;
 
@@ -130,31 +172,29 @@ export const NeedsScreen = () => {
   const load = async () => {
     setRefreshing(true);
     try {
-      const needFilters = isOrgManager
-        ? (isOwner ? undefined : (scopedOrganizationId ? { organization_id: scopedOrganizationId } : undefined))
-        : undefined;
+      const branchFilters = adminBranchId ? { organization_id: adminBranchId } : null;
+      const needRequest = isOrgManager && !isOwner
+        ? branchFilters
+          ? moduleApi.needs(baseUrl, token, branchFilters)
+          : Promise.resolve([])
+        : moduleApi.needs(baseUrl, token);
+      const assignmentRequest = isOrgManager && !isOwner
+        ? branchFilters
+          ? moduleApi.assignments(baseUrl, token, branchFilters)
+          : Promise.resolve([])
+        : moduleApi.assignments(baseUrl, token);
 
-      const assignmentFilters = isOrgManager
-        ? (isOwner ? undefined : (scopedOrganizationId ? { organization_id: scopedOrganizationId } : undefined))
-        : undefined;
-
-      const [data, assignmentData] = await Promise.all([
-        moduleApi.needs(
-          baseUrl,
-          token,
-          needFilters,
-        ),
-        moduleApi.assignments(
-          baseUrl,
-          token,
-          assignmentFilters,
-        ),
-      ]);
-      setItems(data);
-      setAssignments(assignmentData);
+      const organizationRequest = isVolunteer ? moduleApi.organizations(baseUrl, token) : Promise.resolve([]);
+      const [data, assignmentData, organizationData] = await Promise.all([needRequest, assignmentRequest, organizationRequest]);
+      const branchNeeds = adminBranchId ? data.filter((need) => need.organization_id === adminBranchId) : data;
+      const branchAssignments = adminBranchId ? assignmentData.filter((assignment) => assignment.organization_id === adminBranchId) : assignmentData;
+      setItems(branchNeeds);
+      setAssignments(branchAssignments);
+      setOrganizations(organizationData);
     } catch {
       setItems([]);
       setAssignments([]);
+      setOrganizations([]);
     } finally {
       setRefreshing(false);
     }
@@ -162,12 +202,12 @@ export const NeedsScreen = () => {
 
   useEffect(() => {
     load();
-  }, [baseUrl, token]);
+  }, [adminBranchId, baseUrl, isOrgManager, isOwner, isVolunteer, realtimeVersion, token]);
 
   useFocusEffect(
     useCallback(() => {
       load();
-    }, [baseUrl, token, user?.role, scopedOrganizationId]),
+    }, [adminBranchId, baseUrl, isOrgManager, isOwner, isVolunteer, realtimeVersion, token]),
   );
 
   const fetchMyLocation = async () => {
@@ -178,6 +218,17 @@ export const NeedsScreen = () => {
       setAddress(loc.address);
     } catch {
       Alert.alert("Location Error", "Could not fetch your location.");
+    }
+  };
+
+  const useVolunteerLiveLocation = async () => {
+    try {
+      const loc = await getLiveLocation();
+      setVolunteerLiveLocation(loc);
+      setVolunteerNearbyOnly(true);
+      setSubmitMessage({ text: "Showing the top 10 nearby needs from your live location.", type: "success" });
+    } catch {
+      Alert.alert("Location Error", "Could not fetch your live location.");
     }
   };
 
@@ -260,7 +311,10 @@ export const NeedsScreen = () => {
 
   // Submit manual need creation
   const submitManualNeed = async () => {
-    if (!scopedOrganizationId) return;
+    if (!scopedOrganizationId) {
+      setSubmitMessage({ text: missingAdminBranchMessage, type: "error" });
+      return;
+    }
     if (!description.trim() || !address.trim()) {
       setSubmitMessage({ text: "Description and Address are required.", type: "error" });
       return;
@@ -311,7 +365,11 @@ export const NeedsScreen = () => {
 
   // Submit text ingest
   const submitTextIngest = async () => {
-    if (!scopedOrganizationId || !rawText.trim()) {
+    if (!scopedOrganizationId) {
+      setSubmitMessage({ text: missingAdminBranchMessage, type: "error" });
+      return;
+    }
+    if (!rawText.trim()) {
       setSubmitMessage({ text: "Please enter field notes or text.", type: "error" });
       return;
     }
@@ -344,7 +402,7 @@ export const NeedsScreen = () => {
   // Submit voice ingest
   const submitVoiceIngest = async () => {
     if (!scopedOrganizationId) {
-      setSubmitMessage({ text: "Organization context is required.", type: "error" });
+      setSubmitMessage({ text: missingAdminBranchMessage, type: "error" });
       return;
     }
     if (!voiceFile && !voiceTranscription.trim()) {
@@ -393,7 +451,7 @@ export const NeedsScreen = () => {
   // Submit image OCR
   const submitImageOCR = async () => {
     if (!scopedOrganizationId) {
-      setSubmitMessage({ text: "Organization context is required.", type: "error" });
+      setSubmitMessage({ text: missingAdminBranchMessage, type: "error" });
       return;
     }
     if (!imageFile && !imageUrl.trim()) {
@@ -435,7 +493,7 @@ export const NeedsScreen = () => {
   // Submit PDF ingest
   const submitPdfIngest = async () => {
     if (!scopedOrganizationId) {
-      setSubmitMessage({ text: "Organization context is required.", type: "error" });
+      setSubmitMessage({ text: missingAdminBranchMessage, type: "error" });
       return;
     }
     if (!pdfFile && !pdfUrl.trim()) {
@@ -484,7 +542,7 @@ export const NeedsScreen = () => {
   // Submit CSV source
   const submitCsvSource = async () => {
     if (!scopedOrganizationId) {
-      setSubmitMessage({ text: "Organization context is required.", type: "error" });
+      setSubmitMessage({ text: missingAdminBranchMessage, type: "error" });
       return;
     }
     if (!csvFile && !csvText.trim()) {
@@ -547,54 +605,6 @@ export const NeedsScreen = () => {
     }
   };
 
-  const attachSelectedSourceToNeed = async (needId: number) => {
-    setSubmitting(true);
-    setSubmitMessage(null);
-    try {
-      if (activeSource === "image" && imageFile) {
-        await moduleApi.addNeedSourceUpload(baseUrl, token, needId, {
-          source_type: "image",
-          file: imageFile,
-          location: address.trim() || undefined,
-        });
-      } else if (activeSource === "voice" && voiceFile) {
-        await moduleApi.addNeedSourceUpload(baseUrl, token, needId, {
-          source_type: "voice_note",
-          file: voiceFile,
-          location: address.trim() || undefined,
-        });
-      } else if (activeSource === "pdf" && pdfFile) {
-        await moduleApi.addNeedSourceUpload(baseUrl, token, needId, {
-          source_type: "document",
-          file: pdfFile,
-          location: address.trim() || undefined,
-        });
-      } else if (activeSource === "csv" && csvFile) {
-        await moduleApi.addNeedSourceUpload(baseUrl, token, needId, {
-          source_type: "csv_upload",
-          file: csvFile,
-          location: address.trim() || undefined,
-        });
-      } else if (activeSource === "csv" && csvText.trim()) {
-        await moduleApi.addNeedSource(baseUrl, token, needId, {
-          source_type: "csv_upload",
-          location: address.trim() || "CSV upload",
-          multimedia_txt: csvText.trim(),
-        });
-      } else {
-        setSubmitMessage({ text: "Select a file (or CSV text) in the source tabs before attaching.", type: "error" });
-        return;
-      }
-
-      setSubmitMessage({ text: `Source attached to Need #${needId}.`, type: "success" });
-      load();
-    } catch (err) {
-      setSubmitMessage({ text: err instanceof Error ? err.message : "Failed to attach source.", type: "error" });
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   const urgencyColor = (u: string) => {
     switch (u.toLowerCase()) {
       case "critical": return "#FF4757";
@@ -605,6 +615,81 @@ export const NeedsScreen = () => {
     }
   };
 
+  const assignmentCountByNeed = useMemo(() => {
+    const counts = new Map<number, number>();
+    assignments.forEach((a) => {
+      if (["cancelled", "declined"].includes(a.status)) return;
+      counts.set(a.need_id, (counts.get(a.need_id) ?? 0) + 1);
+    });
+    return counts;
+  }, [assignments]);
+
+  const organizationById = useMemo(() => {
+    const map = new Map<number, Organization>();
+    organizations.forEach((organization) => map.set(organization.id, organization));
+    return map;
+  }, [organizations]);
+
+  const volunteerLocationOptions = useMemo(() => {
+    const labels = Array.from(new Set(items.map(getNeedLocationLabel).filter((label) => label !== "Unknown location")));
+    return labels.sort((a, b) => a.localeCompare(b));
+  }, [items]);
+
+  const volunteerNeedsForSelectedLocation = useMemo(() => {
+    const activeNeeds = items.filter((need) => !["closed", "resolved"].includes(need.status?.toLowerCase?.() ?? ""));
+    if (selectedVolunteerLocationFilter === "all") return activeNeeds;
+    return activeNeeds.filter((need) => getNeedLocationLabel(need) === selectedVolunteerLocationFilter);
+  }, [items, selectedVolunteerLocationFilter]);
+
+  const volunteerOrganizationOptions = useMemo(() => {
+    const selectedCityOrgIds = new Set<number>();
+
+    volunteerNeedsForSelectedLocation.forEach((need) => {
+      const needOrg = organizationById.get(need.organization_id);
+      selectedCityOrgIds.add(needOrg?.parent_organization_id ?? need.organization_id);
+    });
+
+    return Array.from(selectedCityOrgIds)
+      .map((orgId) => organizationById.get(orgId) ?? {
+        id: orgId,
+        organization_name: `Organization #${orgId}`,
+        address: null,
+        phone: null,
+        user_id: 0,
+        is_active: true,
+        created_at: "",
+      })
+      .sort((a, b) => a.organization_name.localeCompare(b.organization_name));
+  }, [organizationById, volunteerNeedsForSelectedLocation]);
+
+  const volunteerBranchOptions = useMemo(() => {
+    const selectedOrgId = selectedVolunteerOrganizationFilter === "all" ? null : Number(selectedVolunteerOrganizationFilter);
+    const selectedBranchIds = new Set<number>();
+
+    volunteerNeedsForSelectedLocation.forEach((need) => {
+      const needOrg = organizationById.get(need.organization_id);
+      const parentOrgId = needOrg?.parent_organization_id ?? null;
+      const belongsToSelectedOrg = selectedOrgId === null || need.organization_id === selectedOrgId || parentOrgId === selectedOrgId;
+      if (!belongsToSelectedOrg) return;
+      if (parentOrgId !== null || needOrg?.is_branch === true) {
+        selectedBranchIds.add(need.organization_id);
+      }
+    });
+
+    return Array.from(selectedBranchIds)
+      .map((branchId) => organizationById.get(branchId) ?? {
+        id: branchId,
+        organization_name: `Branch #${branchId}`,
+        address: null,
+        phone: null,
+        user_id: 0,
+        is_active: true,
+        is_branch: true,
+        created_at: "",
+      })
+      .sort((a, b) => a.organization_name.localeCompare(b.organization_name));
+  }, [organizationById, selectedVolunteerOrganizationFilter, volunteerNeedsForSelectedLocation]);
+
   const displayedItems = useMemo(() => {
     const urgencyRank: Record<string, number> = {
       critical: 0,
@@ -613,49 +698,52 @@ export const NeedsScreen = () => {
       low: 3,
     };
 
-    return [...items]
+    const baseItems = [...items]
       .filter((n) => !["closed", "resolved"].includes(n.status?.toLowerCase?.() ?? ""))
       .filter((n) => selectedUrgencyFilter === "all" || n.urgency === selectedUrgencyFilter)
       .filter((n) => selectedCategoryFilter === "all" || n.category === selectedCategoryFilter)
+      .filter((n) => {
+        if (!isOrgManager || selectedAssignmentFilter === "all") return true;
+        const assignedVolunteerCount = assignmentCountByNeed.get(n.id) ?? 0;
+        return selectedAssignmentFilter === "assigned" ? assignedVolunteerCount > 0 : assignedVolunteerCount === 0;
+      })
+      .filter((n) => {
+        if (!isVolunteer) return true;
+        if (selectedVolunteerLocationFilter !== "all" && getNeedLocationLabel(n) !== selectedVolunteerLocationFilter) return false;
+        if (selectedVolunteerBranchFilter !== "all") return n.organization_id === Number(selectedVolunteerBranchFilter);
+        if (selectedVolunteerOrganizationFilter !== "all") {
+          const selectedOrgId = Number(selectedVolunteerOrganizationFilter);
+          const needOrg = organizationById.get(n.organization_id);
+          return n.organization_id === selectedOrgId || needOrg?.parent_organization_id === selectedOrgId;
+        }
+        return true;
+      })
       .sort((a, b) => {
         const urgencyDiff = (urgencyRank[a.urgency] ?? 99) - (urgencyRank[b.urgency] ?? 99);
         if (urgencyDiff !== 0) return urgencyDiff;
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       });
-  }, [items, selectedUrgencyFilter, selectedCategoryFilter]);
 
-  const assignmentByNeed = useMemo(() => {
-    const rankByStatus: Record<Assignment["status"], number> = {
-      in_progress: 0,
-      accepted: 1,
-      assigned: 2,
-      proposed: 3,
-      completed: 4,
-      declined: 5,
-      cancelled: 6,
-    };
+    if (!isVolunteer || !volunteerNearbyOnly || !volunteerLiveLocation) return baseItems;
 
-    const grouped = new Map<number, Assignment[]>();
-    assignments.forEach((a) => {
-      const list = grouped.get(a.need_id) ?? [];
-      list.push(a);
-      grouped.set(a.need_id, list);
-    });
+    return baseItems
+      .filter((need) => Number.isFinite(need.latitude) && Number.isFinite(need.longitude))
+      .map((need) => ({
+        need,
+        distance: distanceKm(volunteerLiveLocation, { latitude: need.latitude, longitude: need.longitude }),
+      }))
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, 10)
+      .map((item) => item.need);
+  }, [assignmentCountByNeed, isOrgManager, isVolunteer, items, organizationById, selectedAssignmentFilter, selectedCategoryFilter, selectedUrgencyFilter, selectedVolunteerBranchFilter, selectedVolunteerLocationFilter, selectedVolunteerOrganizationFilter, volunteerLiveLocation, volunteerNearbyOnly]);
 
-    const selected = new Map<number, Assignment>();
-    grouped.forEach((list, needId) => {
-      const sorted = [...list].sort((a, b) => {
-        const rankDiff = (rankByStatus[a.status] ?? 99) - (rankByStatus[b.status] ?? 99);
-        if (rankDiff !== 0) return rankDiff;
-        return new Date(b.assigned_at).getTime() - new Date(a.assigned_at).getTime();
-      });
-      if (sorted.length > 0) {
-        selected.set(needId, sorted[0]);
-      }
-    });
-
-    return selected;
-  }, [assignments]);
+  const selectedVolunteerOrganizationLabel = selectedVolunteerOrganizationFilter === "all"
+    ? "All organizations"
+    : organizationById.get(Number(selectedVolunteerOrganizationFilter))?.organization_name ?? "Organization";
+  const selectedVolunteerBranchLabel = selectedVolunteerBranchFilter === "all"
+    ? "All branches"
+    : organizationById.get(Number(selectedVolunteerBranchFilter))?.organization_name ?? "Branch";
+  const selectedVolunteerLocationLabel = selectedVolunteerLocationFilter === "all" ? "All locations" : selectedVolunteerLocationFilter;
 
   return (
     <View style={styles.page}>
@@ -900,6 +988,10 @@ export const NeedsScreen = () => {
                 onPress={() => {
                   setShowUrgencyDropdown((prev) => !prev);
                   setShowCategoryDropdown(false);
+                  setShowAssignmentDropdown(false);
+                  setShowVolunteerLocationDropdown(false);
+                  setShowVolunteerOrganizationDropdown(false);
+                  setShowVolunteerBranchDropdown(false);
                 }}
               >
                 <Text style={[styles.filterSelectText, lightPrimary]}>{selectedUrgencyFilter}</Text>
@@ -930,6 +1022,10 @@ export const NeedsScreen = () => {
                 onPress={() => {
                   setShowCategoryDropdown((prev) => !prev);
                   setShowUrgencyDropdown(false);
+                  setShowAssignmentDropdown(false);
+                  setShowVolunteerLocationDropdown(false);
+                  setShowVolunteerOrganizationDropdown(false);
+                  setShowVolunteerBranchDropdown(false);
                 }}
               >
                 <Text style={[styles.filterSelectText, lightPrimary]}>{selectedCategoryFilter.replace("_", " ")}</Text>
@@ -952,10 +1048,199 @@ export const NeedsScreen = () => {
                 </View>
               ) : null}
             </View>
+
+            {isOrgManager ? (
+              <View style={styles.filterCol}>
+                <Text style={[styles.filterLabel, lightSecondary]}>Assignment</Text>
+                <Pressable
+                  style={[styles.filterSelectBtn, lightInput]}
+                  onPress={() => {
+                    setShowAssignmentDropdown((prev) => !prev);
+                    setShowUrgencyDropdown(false);
+                    setShowCategoryDropdown(false);
+                    setShowVolunteerLocationDropdown(false);
+                    setShowVolunteerOrganizationDropdown(false);
+                    setShowVolunteerBranchDropdown(false);
+                  }}
+                >
+                  <Text style={[styles.filterSelectText, lightPrimary]}>{selectedAssignmentFilter}</Text>
+                  <Text style={[styles.filterChevron, lightPrimary]}>▼</Text>
+                </Pressable>
+                {showAssignmentDropdown ? (
+                  <View style={[styles.filterDropdown, lightCard]}>
+                    {FILTER_ASSIGNMENTS.map((assignmentFilter) => (
+                      <Pressable
+                        key={assignmentFilter}
+                        style={styles.filterOption}
+                        onPress={() => {
+                          setSelectedAssignmentFilter(assignmentFilter);
+                          setShowAssignmentDropdown(false);
+                        }}
+                      >
+                        <Text style={[styles.filterOptionText, lightPrimary]}>{assignmentFilter}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
           </View>
 
+          {isVolunteer ? (
+            <View style={[styles.volunteerFilterCard, lightCard]}>
+              <View style={styles.volunteerFilterHeader}>
+                <View style={styles.volunteerFilterTitleWrap}>
+                  <Text style={[styles.volunteerFilterTitle, lightPrimary]}>Volunteer Need Filters</Text>
+                  <Text style={[styles.volunteerFilterHint, lightSecondary]}>
+                    Browse needs across organizations, branches, and nearby locations.
+                  </Text>
+                </View>
+                <Pressable
+                  style={[styles.liveLocationBtn, volunteerNearbyOnly && styles.liveLocationBtnActive]}
+                  onPress={volunteerNearbyOnly ? () => setVolunteerNearbyOnly(false) : useVolunteerLiveLocation}
+                >
+                  <Text style={[styles.liveLocationBtnText, volunteerNearbyOnly ? styles.liveLocationBtnTextActive : null]}>
+                    {volunteerNearbyOnly ? "Show All" : "Use Live Location"}
+                  </Text>
+                </Pressable>
+              </View>
+
+              {volunteerNearbyOnly && volunteerLiveLocation ? (
+                <Text style={[styles.nearbyNote, lightSecondary]} numberOfLines={2}>
+                  Showing top 10 nearby needs from {volunteerLiveLocation.address || "your live location"}.
+                </Text>
+              ) : null}
+
+              <View style={styles.volunteerFilterGrid}>
+                <View style={styles.volunteerFilterCol}>
+                  <Text style={[styles.filterLabel, lightSecondary]}>Location</Text>
+                  <Pressable
+                    style={[styles.filterSelectBtn, lightInput]}
+                    onPress={() => {
+                      setShowVolunteerLocationDropdown((prev) => !prev);
+                      setShowVolunteerOrganizationDropdown(false);
+                      setShowVolunteerBranchDropdown(false);
+                      setShowUrgencyDropdown(false);
+                      setShowCategoryDropdown(false);
+                      setShowAssignmentDropdown(false);
+                    }}
+                  >
+                    <Text style={[styles.filterSelectText, lightPrimary]} numberOfLines={1}>{selectedVolunteerLocationLabel}</Text>
+                    <Text style={[styles.filterChevron, lightPrimary]}>▼</Text>
+                  </Pressable>
+                  {showVolunteerLocationDropdown ? (
+                    <View style={[styles.filterDropdown, lightCard]}>
+                      {["all", ...volunteerLocationOptions].map((locationOption) => (
+                        <Pressable
+                          key={locationOption}
+                          style={styles.filterOption}
+                          onPress={() => {
+                            setSelectedVolunteerLocationFilter(locationOption);
+                            setSelectedVolunteerOrganizationFilter("all");
+                            setSelectedVolunteerBranchFilter("all");
+                            setShowVolunteerLocationDropdown(false);
+                          }}
+                        >
+                          <Text style={[styles.filterOptionText, lightPrimary]}>{locationOption === "all" ? "All locations" : locationOption}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  ) : null}
+                </View>
+
+                <View style={styles.volunteerFilterCol}>
+                  <Text style={[styles.filterLabel, lightSecondary]}>Organization</Text>
+                  <Pressable
+                    style={[styles.filterSelectBtn, lightInput]}
+                    onPress={() => {
+                      setShowVolunteerOrganizationDropdown((prev) => !prev);
+                      setShowVolunteerLocationDropdown(false);
+                      setShowVolunteerBranchDropdown(false);
+                      setShowUrgencyDropdown(false);
+                      setShowCategoryDropdown(false);
+                      setShowAssignmentDropdown(false);
+                    }}
+                  >
+                    <Text style={[styles.filterSelectText, lightPrimary]} numberOfLines={1}>{selectedVolunteerOrganizationLabel}</Text>
+                    <Text style={[styles.filterChevron, lightPrimary]}>▼</Text>
+                  </Pressable>
+                  {showVolunteerOrganizationDropdown ? (
+                    <View style={[styles.filterDropdown, lightCard]}>
+                      <Pressable
+                        style={styles.filterOption}
+                        onPress={() => {
+                          setSelectedVolunteerOrganizationFilter("all");
+                          setSelectedVolunteerBranchFilter("all");
+                          setShowVolunteerOrganizationDropdown(false);
+                        }}
+                      >
+                        <Text style={[styles.filterOptionText, lightPrimary]}>All organizations</Text>
+                      </Pressable>
+                      {volunteerOrganizationOptions.map((organization) => (
+                        <Pressable
+                          key={organization.id}
+                          style={styles.filterOption}
+                          onPress={() => {
+                            setSelectedVolunteerOrganizationFilter(String(organization.id));
+                            setSelectedVolunteerBranchFilter("all");
+                            setShowVolunteerOrganizationDropdown(false);
+                          }}
+                        >
+                          <Text style={[styles.filterOptionText, lightPrimary]} numberOfLines={1}>{organization.organization_name}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  ) : null}
+                </View>
+
+                <View style={styles.volunteerFilterCol}>
+                  <Text style={[styles.filterLabel, lightSecondary]}>Branch</Text>
+                  <Pressable
+                    style={[styles.filterSelectBtn, lightInput]}
+                    onPress={() => {
+                      setShowVolunteerBranchDropdown((prev) => !prev);
+                      setShowVolunteerLocationDropdown(false);
+                      setShowVolunteerOrganizationDropdown(false);
+                      setShowUrgencyDropdown(false);
+                      setShowCategoryDropdown(false);
+                      setShowAssignmentDropdown(false);
+                    }}
+                  >
+                    <Text style={[styles.filterSelectText, lightPrimary]} numberOfLines={1}>{selectedVolunteerBranchLabel}</Text>
+                    <Text style={[styles.filterChevron, lightPrimary]}>▼</Text>
+                  </Pressable>
+                  {showVolunteerBranchDropdown ? (
+                    <View style={[styles.filterDropdown, lightCard]}>
+                      <Pressable
+                        style={styles.filterOption}
+                        onPress={() => {
+                          setSelectedVolunteerBranchFilter("all");
+                          setShowVolunteerBranchDropdown(false);
+                        }}
+                      >
+                        <Text style={[styles.filterOptionText, lightPrimary]}>All branches</Text>
+                      </Pressable>
+                      {volunteerBranchOptions.map((branch) => (
+                        <Pressable
+                          key={branch.id}
+                          style={styles.filterOption}
+                          onPress={() => {
+                            setSelectedVolunteerBranchFilter(String(branch.id));
+                            setShowVolunteerBranchDropdown(false);
+                          }}
+                        >
+                          <Text style={[styles.filterOptionText, lightPrimary]} numberOfLines={1}>{branch.organization_name}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  ) : null}
+                </View>
+              </View>
+            </View>
+          ) : null}
+
           {displayedItems.map((n) => {
-            const topAssignment = assignmentByNeed.get(n.id);
+            const assignedVolunteerCount = assignmentCountByNeed.get(n.id) ?? 0;
             return (
             <Pressable key={n.id} style={[styles.needCard, lightCard]} onPress={() => nav.navigate("NeedDetail", { needId: n.id })}>
               <View style={styles.needHeader}>
@@ -979,29 +1264,14 @@ export const NeedsScreen = () => {
                 </View>
               ) : null}
 
-              {topAssignment ? (
+              {assignedVolunteerCount > 0 ? (
                 <View style={styles.assigneeRow}>
-                  <Text style={styles.assigneeLabel}>Assigned Volunteer:</Text>
-                  <Text style={styles.assigneeValue}>#{topAssignment.volunteer_id}</Text>
-                  <Text style={styles.assigneeMeta}>
-                    {topAssignment.status.replace("_", " ")} · {new Date(topAssignment.assigned_at).toLocaleDateString()}
-                  </Text>
+                  <Text style={styles.assigneeLabel}>Assigned Volunteers:</Text>
+                  <Text style={styles.assigneeValue}>{assignedVolunteerCount}</Text>
+                  <Text style={styles.assigneeMeta}>{assignedVolunteerCount === 1 ? "volunteer assigned" : "volunteers assigned"}</Text>
                 </View>
               ) : null}
 
-              {isOrgManager ? (
-                <View style={styles.needActionsRow}>
-                  {!isOwner ? (
-                    <Pressable
-                      style={[styles.needActionBtn, styles.attachActionBtn]}
-                      onPress={(e) => { e.stopPropagation(); attachSelectedSourceToNeed(n.id); }}
-                      disabled={submitting}
-                    >
-                      <Text style={styles.needActionText}>Attach Selected Source</Text>
-                    </Pressable>
-                  ) : null}
-                </View>
-              ) : null}
             </Pressable>
             );
           })}
@@ -1203,6 +1473,60 @@ const styles = StyleSheet.create({
     borderBottomColor: "rgba(255,255,255,0.06)",
   },
   filterOptionText: { color: "#FFFFFF", fontSize: 13, textTransform: "capitalize" },
+  volunteerFilterCard: {
+    backgroundColor: "rgba(255,255,255,0.055)",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    padding: 12,
+    marginBottom: 12,
+    zIndex: 15,
+  },
+  volunteerFilterHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    flexWrap: "wrap",
+    gap: 12,
+    marginBottom: 10,
+  },
+  volunteerFilterTitleWrap: { flex: 1, minWidth: 190 },
+  volunteerFilterTitle: { color: "#FFFFFF", fontSize: 14, fontWeight: "800" },
+  volunteerFilterHint: { color: "#8B8DA3", fontSize: 11, fontWeight: "600", marginTop: 3 },
+  liveLocationBtn: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(102,126,234,0.35)",
+    backgroundColor: "rgba(102,126,234,0.14)",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 38,
+    minWidth: 116,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+  },
+  liveLocationBtnActive: {
+    backgroundColor: "rgba(67,233,123,0.14)",
+    borderColor: "rgba(67,233,123,0.35)",
+  },
+  liveLocationBtnText: { color: "#9BB0FF", fontSize: 11, fontWeight: "800" },
+  liveLocationBtnTextActive: { color: "#43E97B" },
+  nearbyNote: {
+    color: "#B8F8D5",
+    fontSize: 11,
+    fontWeight: "700",
+    marginBottom: 10,
+  },
+  volunteerFilterGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  volunteerFilterCol: {
+    flexGrow: 1,
+    flexBasis: 160,
+    minWidth: 0,
+  },
 
   needCard: {
     backgroundColor: "rgba(255,255,255,0.05)",
@@ -1253,23 +1577,6 @@ const styles = StyleSheet.create({
   assigneeLabel: { fontSize: 11, color: "#8B8DA3", marginBottom: 2 },
   assigneeValue: { fontSize: 12, color: "#43E97B", fontWeight: "700" },
   assigneeMeta: { fontSize: 11, color: "#B8F8D5", marginTop: 2, textTransform: "capitalize" },
-  needActionsRow: { flexDirection: "row", gap: 8, marginTop: 10 },
-  needActionBtn: {
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderWidth: 1,
-  },
-  closeActionBtn: {
-    backgroundColor: "rgba(255,75,75,0.14)",
-    borderColor: "rgba(255,75,75,0.35)",
-  },
-  attachActionBtn: {
-    backgroundColor: "rgba(102,126,234,0.16)",
-    borderColor: "rgba(102,126,234,0.35)",
-  },
-  needActionText: { color: "#FFFFFF", fontSize: 11, fontWeight: "700" },
-
   // Empty state
   emptyCard: {
     backgroundColor: "rgba(255,255,255,0.04)",

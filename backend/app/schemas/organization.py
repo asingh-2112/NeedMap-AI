@@ -58,6 +58,8 @@ class OrganizationResponse(BaseModel):
     address: str | None
     phone: str | None
     user_id: int
+    branch_admin_name: str | None = None
+    branch_admin_email: str | None = None
     is_active: bool
     created_at: datetime
 

@@ -7,6 +7,7 @@ import type {
   Organization,
   OrganizationRegisterResponse,
   Volunteer,
+  VolunteerSkill,
 } from "../types/api";
 
 const normalize = (baseUrl: string) => baseUrl.trim().replace(/\/+$/, "");
@@ -392,12 +393,63 @@ export const moduleApi = {
   volunteers: (baseUrl: string, token: string) => {
     if (isBypassToken(token)) {
       const mockVolunteers: Volunteer[] = [
-        { id: 1, user_id: 9999, organization_id: 1, availability: true, verified: true, tasks_completed: 8, active_tasks: 1 },
+        { id: 1, user_id: 9999, organization_id: 1, availability: true, verified: true, rating: 4.6, tasks_completed: 8, active_tasks: 1 },
       ];
       return Promise.resolve(mockVolunteers);
     }
     return apiRequest<Volunteer[]>(baseUrl, "/volunteers", { method: "GET" }, token);
   },
+
+  myVolunteerProfile: (baseUrl: string, token: string) =>
+    apiRequestWith404Fallback<Volunteer>(baseUrl, "/volunteers/me", { method: "GET" }, token),
+
+  updateVolunteer: (
+    baseUrl: string,
+    token: string,
+    volunteerId: number,
+    body: { organization_id?: number | null; availability?: boolean; verified?: boolean; rating?: number },
+  ) =>
+    apiRequest<Volunteer>(
+      baseUrl,
+      `/volunteers/${volunteerId}`,
+      { method: "PATCH", body: JSON.stringify(body) },
+      token,
+    ),
+
+  addVolunteerSkill: (
+    baseUrl: string,
+    token: string,
+    volunteerId: number,
+    body: { skill_name: string; proficiency: VolunteerSkill["proficiency"] },
+  ) =>
+    apiRequest<VolunteerSkill>(
+      baseUrl,
+      `/volunteers/${volunteerId}/skills`,
+      { method: "POST", body: JSON.stringify(body) },
+      token,
+    ),
+
+  updateVolunteerSkill: (
+    baseUrl: string,
+    token: string,
+    volunteerId: number,
+    skillId: number,
+    body: { proficiency: VolunteerSkill["proficiency"] },
+  ) =>
+    apiRequest<VolunteerSkill>(
+      baseUrl,
+      `/volunteers/${volunteerId}/skills/${skillId}`,
+      { method: "PATCH", body: JSON.stringify(body) },
+      token,
+    ),
+
+  deleteVolunteerSkill: (baseUrl: string, token: string, volunteerId: number, skillId: number) =>
+    apiRequest<{ message: string }>(
+      baseUrl,
+      `/volunteers/${volunteerId}/skills/${skillId}`,
+      { method: "DELETE" },
+      token,
+    ),
 
   organizations: (baseUrl: string, token: string) => {
     if (isBypassToken(token)) {

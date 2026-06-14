@@ -83,6 +83,7 @@ async def create_and_push_notification(
     # Push via WebSocket
     ws_data = {
         "id": notification.id,
+        "event": notification.type.value,
         "type": notification.type.value,
         "title": notification.title,
         "message": notification.message,

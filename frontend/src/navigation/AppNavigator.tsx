@@ -27,9 +27,39 @@ import type { RootStackParamList, TabParamList } from "./types";
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 const Tabs = createBottomTabNavigator<TabParamList>();
 
+const ThemeHeaderToggle = ({ mode, onPress, borderColor }: { mode: "dark" | "light"; onPress: () => void; borderColor: string }) => {
+  const isDark = mode === "dark";
+
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{
+        marginRight: 16,
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: isDark ? "rgba(255,255,255,0.16)" : "rgba(24,53,112,0.11)",
+        borderWidth: 1,
+        borderColor,
+        shadowColor: isDark ? "#FBBF24" : "#516DEB",
+        shadowOpacity: 0.24,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 3 },
+        elevation: 3,
+      }}
+    >
+      <Text style={{ color: isDark ? "#FBBF24" : "#516DEB", fontSize: 18, fontWeight: "900", lineHeight: 22 }}>
+        {isDark ? "☀" : "☾"}
+      </Text>
+    </Pressable>
+  );
+};
+
 const MainTabs = ({ role }: { role?: string }) => {
   const { mode, toggleMode, theme } = useThemeMode();
-  const canToggleTheme = role === "owner";
+  const canToggleTheme = role === "owner" || role === "admin" || role === "volunteer";
 
   return (
     <Tabs.Navigator
@@ -39,23 +69,7 @@ const MainTabs = ({ role }: { role?: string }) => {
         headerTitleStyle: { fontWeight: "700", fontSize: 18 },
         headerShadowVisible: false,
         headerRight: canToggleTheme
-          ? () => (
-              <Pressable
-                onPress={toggleMode}
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 17,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: mode === "dark" ? "rgba(255,255,255,0.14)" : "rgba(24,53,112,0.1)",
-                  borderWidth: 1,
-                  borderColor: theme.nav.border,
-                }}
-              >
-                <Text style={{ fontSize: 16 }}>{mode === "dark" ? "☀️" : "🌙"}</Text>
-              </Pressable>
-            )
+          ? () => <ThemeHeaderToggle mode={mode} onPress={toggleMode} borderColor={theme.nav.border} />
           : undefined,
         tabBarStyle: {
           backgroundColor: theme.nav.card,
@@ -73,7 +87,7 @@ const MainTabs = ({ role }: { role?: string }) => {
     <Tabs.Screen name="Home" component={HomeScreen} />
     <Tabs.Screen name="Needs" component={NeedsScreen} />
     {role === "volunteer" ? <Tabs.Screen name="Assignments" component={AssignmentsScreen} /> : null}
-    {role === "owner" || role === "admin" ? <Tabs.Screen name="Organizations" component={OrganizationsScreen} /> : null}
+    {role === "owner" ? <Tabs.Screen name="Organizations" component={OrganizationsScreen} /> : null}
     <Tabs.Screen name="Statistics" component={StatisticsScreen} />
     <Tabs.Screen name="Feeds" component={FeedsScreen} />
     </Tabs.Navigator>
@@ -120,24 +134,9 @@ export const AppNavigator = () => {
     },
   };
 
-  const ownerHeaderRight = user?.role === "owner"
-    ? () => (
-        <Pressable
-          onPress={toggleMode}
-          style={{
-            width: 34,
-            height: 34,
-            borderRadius: 17,
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: mode === "dark" ? "rgba(255,255,255,0.14)" : "rgba(24,53,112,0.1)",
-            borderWidth: 1,
-            borderColor: theme.nav.border,
-          }}
-        >
-          <Text style={{ fontSize: 16 }}>{mode === "dark" ? "☀️" : "🌙"}</Text>
-        </Pressable>
-      )
+  const canToggleTheme = user?.role === "owner" || user?.role === "admin" || user?.role === "volunteer";
+  const headerRight = canToggleTheme
+    ? () => <ThemeHeaderToggle mode={mode} onPress={toggleMode} borderColor={theme.nav.border} />
     : undefined;
 
   return (
@@ -148,15 +147,15 @@ export const AppNavigator = () => {
             <RootStack.Screen name="MainTabs">
               {() => <MainTabs role={user.role} />}
             </RootStack.Screen>
-            <RootStack.Screen name="Profile" component={ProfileScreen} options={{ headerShown: true, headerStyle: { backgroundColor: theme.nav.card }, headerTintColor: theme.nav.text, headerTitleStyle: { fontWeight: "700" }, headerRight: ownerHeaderRight }} />
-            <RootStack.Screen name="Organizations" component={OrganizationsScreen} options={{ headerShown: true, headerStyle: { backgroundColor: theme.nav.card }, headerTintColor: theme.nav.text, headerTitleStyle: { fontWeight: "700" }, headerRight: ownerHeaderRight }} />
-            <RootStack.Screen name="Schemes" component={SchemesScreen} options={{ headerShown: true, headerStyle: { backgroundColor: theme.nav.card }, headerTintColor: theme.nav.text, headerTitleStyle: { fontWeight: "700" }, headerRight: ownerHeaderRight }} />
-            <RootStack.Screen name="Stories" component={StoriesScreen} options={{ headerShown: true, headerStyle: { backgroundColor: theme.nav.card }, headerTintColor: theme.nav.text, headerTitleStyle: { fontWeight: "700" }, headerRight: ownerHeaderRight }} />
-            <RootStack.Screen name="Camps" component={CampsScreen} options={{ headerShown: true, headerStyle: { backgroundColor: theme.nav.card }, headerTintColor: theme.nav.text, headerTitleStyle: { fontWeight: "700" }, headerRight: ownerHeaderRight }} />
-            <RootStack.Screen name="Assignments" component={AssignmentsScreen} options={{ headerShown: true, headerStyle: { backgroundColor: theme.nav.card }, headerTintColor: theme.nav.text, headerTitleStyle: { fontWeight: "700" }, headerRight: ownerHeaderRight }} />
-            <RootStack.Screen name="StoryDetail" component={StoryDetailScreen} options={{ headerShown: true, title: "Story Detail", headerStyle: { backgroundColor: theme.nav.card }, headerTintColor: theme.nav.text, headerTitleStyle: { fontWeight: "700" }, headerRight: ownerHeaderRight }} />
+            <RootStack.Screen name="Profile" component={ProfileScreen} options={{ headerShown: true, headerStyle: { backgroundColor: theme.nav.card }, headerTintColor: theme.nav.text, headerTitleStyle: { fontWeight: "700" }, headerRight }} />
+            <RootStack.Screen name="Organizations" component={OrganizationsScreen} options={{ headerShown: true, headerStyle: { backgroundColor: theme.nav.card }, headerTintColor: theme.nav.text, headerTitleStyle: { fontWeight: "700" }, headerRight }} />
+            <RootStack.Screen name="Schemes" component={SchemesScreen} options={{ headerShown: true, headerStyle: { backgroundColor: theme.nav.card }, headerTintColor: theme.nav.text, headerTitleStyle: { fontWeight: "700" }, headerRight }} />
+            <RootStack.Screen name="Stories" component={StoriesScreen} options={{ headerShown: true, headerStyle: { backgroundColor: theme.nav.card }, headerTintColor: theme.nav.text, headerTitleStyle: { fontWeight: "700" }, headerRight }} />
+            <RootStack.Screen name="Camps" component={CampsScreen} options={{ headerShown: true, headerStyle: { backgroundColor: theme.nav.card }, headerTintColor: theme.nav.text, headerTitleStyle: { fontWeight: "700" }, headerRight }} />
+            <RootStack.Screen name="Assignments" component={AssignmentsScreen} options={{ headerShown: true, headerStyle: { backgroundColor: theme.nav.card }, headerTintColor: theme.nav.text, headerTitleStyle: { fontWeight: "700" }, headerRight }} />
+            <RootStack.Screen name="StoryDetail" component={StoryDetailScreen} options={{ headerShown: true, title: "Story Detail", headerStyle: { backgroundColor: theme.nav.card }, headerTintColor: theme.nav.text, headerTitleStyle: { fontWeight: "700" }, headerRight }} />
             <RootStack.Screen name="NeedDetail" component={NeedDetailScreen} options={{ headerShown: false }} />
-            <RootStack.Screen name="BranchDetail" component={BranchDetailScreen} options={{ headerShown: true, title: "Branch Details", headerStyle: { backgroundColor: theme.nav.card }, headerTintColor: theme.nav.text, headerTitleStyle: { fontWeight: "700" }, headerRight: ownerHeaderRight }} />
+            <RootStack.Screen name="BranchDetail" component={BranchDetailScreen} options={{ headerShown: true, title: "Branch Details", headerStyle: { backgroundColor: theme.nav.card }, headerTintColor: theme.nav.text, headerTitleStyle: { fontWeight: "700" }, headerRight }} />
           </>
         ) : (
           <RootStack.Screen name="Landing" component={AuthFlow} />

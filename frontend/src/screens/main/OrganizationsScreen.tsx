@@ -158,6 +158,7 @@ export const OrganizationsScreen = () => {
 
   const updateBranchAdmin = async () => {
     if (!user?.organization_id) return;
+    const organizationId = user.organization_id;
 
     const branchIdNum = Number(adminBranchId);
     if (!branchIdNum || !adminName.trim() || !adminEmail.trim() || adminPassword.length < 8) {
@@ -169,7 +170,7 @@ export const OrganizationsScreen = () => {
     setActionMessage("");
 
     const overwriteAdminForBranch = async () => {
-      await moduleApi.addOrganizationMember(baseUrl, token, user.organization_id, {
+      await moduleApi.addOrganizationMember(baseUrl, token, organizationId, {
         user_name: adminName.trim(),
         email: adminEmail.trim(),
         password: adminPassword,

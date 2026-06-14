@@ -48,6 +48,7 @@ from app.services.need_service import (
     set_priority_score,
     update_need,
 )
+from app.services.realtime_event_service import publish_need_created_and_proposals
 from app.services.volunteer_service import list_volunteers_with_relations
 
 router = APIRouter(prefix="/needs", tags=["Needs"])
@@ -98,20 +99,22 @@ def _tmp_file_from_upload(upload: UploadFile, suffix: str = "") -> str:
 def _safe_text_preview(raw: bytes, limit: int = 500) -> str:
     for enc in ("utf-8", "latin-1"):
         try:
-            return raw.decode(enc, errors="ignore").strip()[:limit]
+            text = raw.decode(enc, errors="ignore").replace("\x00", "")
+            return "".join(char for char in text if char.isprintable() or char in "\n\r\t").strip()[:limit]
         except Exception:
             continue
     return ""
 
 
 @router.post("", response_model=NeedResponse, status_code=status.HTTP_201_CREATED)
-def create_need_route(
+async def create_need_route(
     payload: NeedCreateRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     need = create_need(db=db, current_user=current_user, payload=payload)
     _auto_score_priority(db, need)
+    await publish_need_created_and_proposals(db, need)
     return need
 
 

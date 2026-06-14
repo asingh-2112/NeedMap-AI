@@ -148,6 +148,13 @@ def close_need(db: Session, current_user: User, need_id: int) -> None:
     db.commit()
 
 
+def _clean_text_column(value: str | None, limit: int) -> str | None:
+    if value is None:
+        return None
+    cleaned = value.replace("\x00", "")[:limit].strip()
+    return cleaned or None
+
+
 def add_need_source(
     db: Session,
     need_id: int,
@@ -159,9 +166,9 @@ def add_need_source(
     source = NeedSource(
         need_id=need_id,
         source_type=payload.source_type,
-        location=payload.location,
-        multimedia_txt=payload.multimedia_txt,
-        ai_extraction=payload.ai_extraction,
+        location=_clean_text_column(payload.location, 100),
+        multimedia_txt=_clean_text_column(payload.multimedia_txt, 500),
+        ai_extraction=_clean_text_column(payload.ai_extraction, 500),
     )
     db.add(source)
     db.commit()

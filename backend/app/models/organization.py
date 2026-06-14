@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, func
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import object_session, relationship
 from app.core.database import Base
+from app.models.enums import UserRole
 
 
 class Organization(Base):
@@ -25,6 +26,46 @@ class Organization(Base):
     needs = relationship("Need", back_populates="organization")
     volunteers = relationship("Volunteer", back_populates="organization")
     assignments = relationship("Assignment", back_populates="organization")
+
+    @property
+    def branch_admin_name(self):
+        session = object_session(self)
+        if session is None:
+            return None
+
+        from app.models.user import User
+
+        admin = (
+            session.query(User)
+            .filter(
+                User.role == UserRole.ADMIN,
+                User.managed_branch_id == self.id,
+                User.is_active.is_(True),
+            )
+            .order_by(User.created_at.asc())
+            .first()
+        )
+        return admin.user_name if admin else None
+
+    @property
+    def branch_admin_email(self):
+        session = object_session(self)
+        if session is None:
+            return None
+
+        from app.models.user import User
+
+        admin = (
+            session.query(User)
+            .filter(
+                User.role == UserRole.ADMIN,
+                User.managed_branch_id == self.id,
+                User.is_active.is_(True),
+            )
+            .order_by(User.created_at.asc())
+            .first()
+        )
+        return admin.email if admin else None
 
     def __repr__(self):
         return f"<Organization {self.organization_name}>"

@@ -20,6 +20,7 @@ from app.services.assignment_service import (
     update_assignment_status,
 )
 from app.services.need_service import get_need_by_id
+from app.services.realtime_event_service import publish_assignment_status_change
 from app.services.volunteer_service import list_volunteers_with_relations
 
 router = APIRouter(prefix="/assignments", tags=["Assignments"])
@@ -78,13 +79,17 @@ def get_assignment_route(
 
 
 @router.patch("/{assignment_id}/status", response_model=AssignmentResponse)
-def update_status_route(
+async def update_status_route(
     assignment_id: int,
     payload: AssignmentStatusUpdateRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return update_assignment_status(db=db, current_user=current_user, assignment_id=assignment_id, payload=payload)
+    existing = get_assignment_by_id(db=db, current_user=current_user, assignment_id=assignment_id)
+    previous_status = existing.status
+    assignment = update_assignment_status(db=db, current_user=current_user, assignment_id=assignment_id, payload=payload)
+    await publish_assignment_status_change(db=db, assignment=assignment, previous_status=previous_status)
+    return assignment
 
 
 @router.patch("/{assignment_id}/feedback", response_model=AssignmentResponse)

@@ -28,6 +28,17 @@ def _is_owner_or_admin(user: User) -> bool:
     return user.role in {UserRole.OWNER, UserRole.ADMIN}
 
 
+def _ensure_volunteer_skill_access(current_user: User | None, volunteer: Volunteer) -> None:
+    if current_user is None or _is_owner_or_admin(current_user):
+        return
+    if current_user.role == UserRole.VOLUNTEER and volunteer.user_id == current_user.id:
+        return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Not allowed to modify this volunteer's skills",
+    )
+
+
 # ── Volunteer CRUD ───────────────────────────────────────────────────────────
 
 
@@ -76,7 +87,11 @@ def list_volunteers(
     organization_id: int | None = None,
     verified: bool | None = None,
 ) -> list[Volunteer]:
-    query = db.query(Volunteer).filter(Volunteer.is_active.is_(True))
+    query = (
+        db.query(Volunteer)
+        .options(joinedload(Volunteer.user), joinedload(Volunteer.skills))
+        .filter(Volunteer.is_active.is_(True))
+    )
 
     if availability is not None:
         query = query.filter(Volunteer.availability == availability)
@@ -97,6 +112,27 @@ def get_volunteer_by_id(db: Session, volunteer_id: int) -> Volunteer:
     )
     if volunteer is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Volunteer not found")
+    return volunteer
+
+
+def get_my_volunteer_profile(db: Session, current_user: User) -> Volunteer:
+    if current_user.role != UserRole.VOLUNTEER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only volunteers have a volunteer profile",
+        )
+
+    volunteer = (
+        db.query(Volunteer)
+        .options(joinedload(Volunteer.skills))
+        .filter(Volunteer.user_id == current_user.id)
+        .first()
+    )
+    if volunteer is None:
+        volunteer = Volunteer(user_id=current_user.id, availability=True)
+        db.add(volunteer)
+        db.commit()
+        db.refresh(volunteer)
     return volunteer
 
 
@@ -130,6 +166,8 @@ def update_volunteer(
         volunteer.availability = payload.availability
     if payload.verified is not None:
         volunteer.verified = payload.verified
+    if payload.rating is not None:
+        volunteer.rating = payload.rating
 
     db.add(volunteer)
     db.commit()
@@ -144,9 +182,11 @@ def add_volunteer_skill(
     db: Session,
     volunteer_id: int,
     payload: VolunteerSkillCreateRequest,
+    current_user: User | None = None,
 ) -> VolunteerSkill:
     """Add a skill to a volunteer."""
     volunteer = _get_volunteer_or_404(db, volunteer_id)
+    _ensure_volunteer_skill_access(current_user, volunteer)
 
     # Check for duplicate skill name on this volunteer
     existing = (
@@ -179,9 +219,11 @@ def update_volunteer_skill(
     volunteer_id: int,
     skill_id: int,
     payload: VolunteerSkillUpdateRequest,
+    current_user: User | None = None,
 ) -> VolunteerSkill:
     """Update proficiency of a volunteer's skill."""
-    _get_volunteer_or_404(db, volunteer_id)
+    volunteer = _get_volunteer_or_404(db, volunteer_id)
+    _ensure_volunteer_skill_access(current_user, volunteer)
 
     skill = (
         db.query(VolunteerSkill)
@@ -220,9 +262,15 @@ def list_volunteers_with_relations(
     return query.order_by(Volunteer.created_at.desc()).all()
 
 
-def delete_volunteer_skill(db: Session, volunteer_id: int, skill_id: int) -> None:
+def delete_volunteer_skill(
+    db: Session,
+    volunteer_id: int,
+    skill_id: int,
+    current_user: User | None = None,
+) -> None:
     """Remove a skill from a volunteer."""
-    _get_volunteer_or_404(db, volunteer_id)
+    volunteer = _get_volunteer_or_404(db, volunteer_id)
+    _ensure_volunteer_skill_access(current_user, volunteer)
 
     skill = (
         db.query(VolunteerSkill)
