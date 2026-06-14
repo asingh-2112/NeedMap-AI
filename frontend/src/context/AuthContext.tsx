@@ -20,7 +20,7 @@ type AuthContextShape = {
     ownerPassword: string;
   }) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
-  loginBypass: (email?: string, password?: string) => void;
+  loginBypass: (email?: string, password?: string, role?: "volunteer" | "admin") => void;
   refreshMe: () => Promise<void>;
   logout: () => void;
 };

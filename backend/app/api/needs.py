@@ -451,7 +451,7 @@ def ingest_text_route(
     "/ingest/voice",
     response_model=IngestResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Ingest voice note → Whisper transcription → LLM extraction → structured Need",
+    summary="Ingest voice note → Gemini natively understands audio → LLM extraction → structured Need",
 )
 def ingest_voice_route(
     payload: VoiceIngestRequest,
@@ -462,12 +462,12 @@ def ingest_voice_route(
     Accept a voice recording URL or pre-transcribed text.
 
     Flow:
-      1. If `audio_url` provided → Whisper (via Portkey/OpenAI) transcribes it.
+      1. If `audio_url` provided → sent directly to Gemini (native audio understanding).
       2. If `transcription` provided → used directly.
-      3. LLM extracts structured need record from the transcription.
+      3. LLM extracts structured need record from the audio/transcription.
       4. If `create_need=true`, Need + NeedSource persisted.
     """
-    # Single-stage: audio → LLM extraction (Whisper transcription if needed)
+    # Single-stage: audio → Gemini (native audio understanding) → LLM extraction
     try:
         extracted = extract_need_from_audio(
             audio_url=payload.audio_url,

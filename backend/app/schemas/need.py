@@ -195,12 +195,12 @@ class VoiceIngestRequest(BaseModel):
     Ingest a voice-note or field audio recording.
 
     Provide either:
-    - audio_url: public URL to an audio file (Whisper transcribes it), OR
+    - audio_url: public URL to an audio file (Gemini natively understands audio), OR
     - transcription: pre-transcribed text (for demos or manual transcription)
     """
     audio_url: str | None = Field(
         default=None,
-        description="Public URL to MP3/WAV/M4A audio file — transcribed via Whisper",
+        description="Public URL to MP3/WAV/M4A audio file — Gemini understands audio natively",
     )
     transcription: str | None = Field(
         default=None,
@@ -225,9 +225,9 @@ class PDFIngestRequest(BaseModel):
     """
     Ingest a PDF document (field report, official form, scanned complaint).
 
-    PDF pages are sent directly to the LLM vision model — no PyPDF
-    pre-processing. Provide either pdf_url (public URL) or upload via
-    the /ingest/pdf-upload endpoint.
+    PDF pages are rendered to images and sent directly to Gemini vision.
+    Provide either pdf_url (public URL) or upload via the
+    /ingest/pdf-upload endpoint.
     """
     pdf_url: str = Field(..., description="Public URL to a PDF document")
     organization_id: int
