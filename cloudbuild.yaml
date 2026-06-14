@@ -1,0 +1,108 @@
+# ── NeedMap AI — Cloud Build CI/CD ─────────────────────────────
+# Push to phase2-ml branch → builds both backend + frontend → deploys to Cloud Run
+#
+# Prerequisites (one-time setup):
+#   - Cloud Build, Cloud Run, Artifact Registry APIs enabled ✅
+#   - Artifact Registry repo "needmap" in us-central1 ✅
+#   - Cloud Build GitHub connection (see console → Cloud Build → Triggers)
+#   - Service account with Cloud Run + Secret Manager roles
+#
+# After first deploy, the backend URL must be set as _BACKEND_URL for frontend builds.
+
+steps:
+  # ── Backend ───────────────────────────────────────────────────
+  - name: "gcr.io/cloud-builders/docker"
+    id: "backend-build"
+    args:
+      - build
+      - -t
+      - us-central1-docker.pkg.dev/$PROJECT_ID/needmap/backend:$SHORT_SHA
+      - -t
+      - us-central1-docker.pkg.dev/$PROJECT_ID/needmap/backend:latest
+      - backend/
+
+  - name: "gcr.io/cloud-builders/docker"
+    id: "backend-push"
+    args:
+      - push
+      - us-central1-docker.pkg.dev/$PROJECT_ID/needmap/backend:$SHORT_SHA
+
+  - name: "gcr.io/cloud-builders/docker"
+    id: "backend-push-latest"
+    args:
+      - push
+      - us-central1-docker.pkg.dev/$PROJECT_ID/needmap/backend:latest
+
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    id: "backend-deploy"
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - needmap-api
+      - --image=us-central1-docker.pkg.dev/$PROJECT_ID/needmap/backend:$SHORT_SHA
+      - --region=us-central1
+      - --platform=managed
+      - --allow-unauthenticated
+      - --memory=512Mi
+      - --cpu=1
+      - --min-instances=0
+      - --max-instances=3
+      - --timeout=120
+      - --set-env-vars=APP_NAME=NeedMap AI,APP_VERSION=0.1.0,LLM_MODEL=gemini-2.5-flash,RUN_MIGRATIONS=true
+      - --port=8080
+      - --service-account=vibecodersgsc-2026@big-depth-420713.iam.gserviceaccount.com
+
+  # ── Frontend ──────────────────────────────────────────────────
+  # Reads backend URL from _BACKEND_URL Cloud Build variable.
+  # Set via: gcloud builds triggers update --substitutions=_BACKEND_URL=https://needmap-api-xxx-uc.a.run.app
+  - name: "gcr.io/cloud-builders/docker"
+    id: "frontend-build"
+    args:
+      - build
+      - --build-arg
+      - BACKEND_URL=$_BACKEND_URL
+      - -t
+      - us-central1-docker.pkg.dev/$PROJECT_ID/needmap/frontend:$SHORT_SHA
+      - -t
+      - us-central1-docker.pkg.dev/$PROJECT_ID/needmap/frontend:latest
+      - frontend/
+
+  - name: "gcr.io/cloud-builders/docker"
+    id: "frontend-push"
+    args:
+      - push
+      - us-central1-docker.pkg.dev/$PROJECT_ID/needmap/frontend:$SHORT_SHA
+
+  - name: "gcr.io/cloud-builders/docker"
+    id: "frontend-push-latest"
+    args:
+      - push
+      - us-central1-docker.pkg.dev/$PROJECT_ID/needmap/frontend:latest
+
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    id: "frontend-deploy"
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - needmap-web
+      - --image=us-central1-docker.pkg.dev/$PROJECT_ID/needmap/frontend:$SHORT_SHA
+      - --region=us-central1
+      - --platform=managed
+      - --allow-unauthenticated
+      - --memory=256Mi
+      - --cpu=1
+      - --min-instances=0
+      - --max-instances=3
+      - --timeout=60
+      - --port=8080
+
+images:
+  - us-central1-docker.pkg.dev/$PROJECT_ID/needmap/backend:$SHORT_SHA
+  - us-central1-docker.pkg.dev/$PROJECT_ID/needmap/backend:latest
+  - us-central1-docker.pkg.dev/$PROJECT_ID/needmap/frontend:$SHORT_SHA
+  - us-central1-docker.pkg.dev/$PROJECT_ID/needmap/frontend:latest
+
+options:
+  logging: CLOUD_LOGGING_ONLY
