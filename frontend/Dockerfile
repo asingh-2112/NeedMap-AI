@@ -8,25 +8,44 @@ RUN npm install --legacy-peer-deps
 
 COPY . .
 
-# Build-time env: Cloud Run backend URL
 ARG BACKEND_URL
 ENV EXPO_PUBLIC_BACKEND_URL=$BACKEND_URL
 
 RUN npx expo export --platform web
 
-# ── production (static files via nginx) ─────────────────────────
+# ── production (nginx) ─────────────────────────────────────────
 FROM nginx:alpine
 
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-RUN printf 'server {\n\
-    listen 8080;\n\
-    server_name _;\n\
-    root /usr/share/nginx/html;\n\
-    location / {\n\
-        try_files $$uri $$uri/ /index.html;\n\
-    }\n\
-}\n' > /etc/nginx/conf.d/default.conf
+# Cloud Run injects PORT env var — use it
+# The 'envsubst' in the entrypoint substitutes $PORT at runtime
+COPY <<'ENTRYPOINT' /docker-entrypoint.sh
+#!/bin/sh
+set -e
 
-EXPOSE 8080
-CMD ["nginx", "-g", "daemon off;"]
+PORT="${PORT:-8080}"
+
+cat > /etc/nginx/conf.d/default.conf << NGINX
+server {
+    listen ${PORT};
+    server_name _;
+    root /usr/share/nginx/html;
+
+    location / {
+        try_files \$uri \$uri/ /index.html;
+    }
+
+    # Gzip
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml text/javascript image/svg+xml;
+    gzip_min_length 256;
+}
+NGINX
+
+exec nginx -g "daemon off;"
+ENTRYPOINT
+
+RUN chmod +x /docker-entrypoint.sh
+
+ENTRYPOINT ["/docker-entrypoint.sh"]
