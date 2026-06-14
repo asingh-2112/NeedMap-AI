@@ -53,12 +53,14 @@ class UserLocationUpdateRequest(BaseModel):
 class UserProfileUpdateRequest(BaseModel):
     user_name: str | None = Field(default=None, min_length=2, max_length=255)
     phone: str | None = Field(default=None, max_length=20)
-
-    @model_validator(mode="after")
-    def validate_at_least_one(self):
-        if self.user_name is None and self.phone is None:
-            raise ValueError("Provide at least one field to update")
-        return self
+    house_number: str | None = Field(default=None, max_length=50)
+    street: str | None = Field(default=None, max_length=255)
+    colony: str | None = Field(default=None, max_length=255)
+    city: str | None = Field(default=None, max_length=100)
+    state: str | None = Field(default=None, max_length=100)
+    pincode: str | None = Field(default=None, max_length=10)
+    country: str | None = Field(default=None, max_length=100)
+    preferred_language: str | None = Field(default=None, max_length=10)
 
 
 class AddMemberRequest(BaseModel):
@@ -67,12 +69,17 @@ class AddMemberRequest(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8)
     role: UserRole
+    managed_branch_id: int | None = None
     phone: str | None = Field(default=None, max_length=20)
 
     @model_validator(mode="after")
     def validate_role(self):
         if self.role == UserRole.OWNER:
             raise ValueError("Owner role is assigned only during organization registration")
+        if self.role == UserRole.ADMIN and self.managed_branch_id is None:
+            raise ValueError("managed_branch_id is required when role is admin")
+        if self.role != UserRole.ADMIN and self.managed_branch_id is not None:
+            raise ValueError("managed_branch_id is only valid for admin role")
         return self
 
 
@@ -96,9 +103,18 @@ class UserResponse(BaseModel):
     role: UserRole
     phone: str | None
     organization_id: int | None
+    managed_branch_id: int | None = None
     latitude: float | None
     longitude: float | None
     radius_km: float | None
+    house_number: str | None = None
+    street: str | None = None
+    colony: str | None = None
+    city: str | None = None
+    state: str | None = None
+    pincode: str | None = None
+    country: str | None = None
+    preferred_language: str = "en"
     is_active: bool
     last_seen: datetime | None
     created_at: datetime

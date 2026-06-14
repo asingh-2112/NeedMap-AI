@@ -62,3 +62,27 @@ class AssignmentStatus(str, enum.Enum):
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
     CANCELLED = "cancelled"
+
+
+class NotificationType(str, enum.Enum):
+    ASSIGNMENT_CREATED = "assignment_created"
+    ASSIGNMENT_STATUS_CHANGED = "assignment_status_changed"
+    URGENT_NEED_NEARBY = "urgent_need_nearby"
+    NEED_RESOLVED = "need_resolved"
+    NOMINATION_RECEIVED = "nomination_received"
+    NOMINATION_APPROVED = "nomination_approved"
+    NOMINATION_REJECTED = "nomination_rejected"
+    GENERAL = "general"
+
+
+class NominationStatus(str, enum.Enum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
+class CampaignStatus(str, enum.Enum):
+    UPCOMING = "upcoming"
+    ACTIVE = "active"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"

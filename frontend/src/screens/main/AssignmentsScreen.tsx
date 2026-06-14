@@ -26,6 +26,7 @@ const NEXT_TRANSITIONS: Record<Assignment["status"], Assignment["status"][]> = {
 
 export const AssignmentsScreen = () => {
   const { baseUrl, token, user } = useAuth();
+  const scopedOrganizationId = user?.role === "admin" ? user?.managed_branch_id ?? user?.organization_id : user?.organization_id;
   const [items, setItems] = useState<Assignment[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
@@ -39,7 +40,7 @@ export const AssignmentsScreen = () => {
       const data = await moduleApi.assignments(
         baseUrl,
         token,
-        user?.organization_id ? { organization_id: user.organization_id } : undefined,
+        scopedOrganizationId ? { organization_id: scopedOrganizationId } : undefined,
       );
       setItems(data);
     } catch {
@@ -51,7 +52,7 @@ export const AssignmentsScreen = () => {
 
   useEffect(() => {
     load();
-  }, [baseUrl, token, user?.organization_id]);
+  }, [baseUrl, token, scopedOrganizationId]);
 
   useEffect(() => {
     Animated.loop(

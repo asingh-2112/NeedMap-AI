@@ -1,15 +1,14 @@
 import { useEffect, useRef } from "react";
 import {
   Animated,
-  Image,
   Pressable,
   StyleSheet,
   Text,
   View,
+  ScrollView,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { useAuth } from "../../context/AuthContext";
-import { colors, fonts } from "../../theme";
+import { fonts } from "../../theme";
 
 type Props = {
   onLogin: () => void;
@@ -17,160 +16,184 @@ type Props = {
   onOrganizationSignup: () => void;
 };
 
-
-const HERO_GIF = "https://kokanngo.org/public/website/images/great_place/walking.gif";
-
-export const LandingScreen = ({ onLogin, onVolunteerSignup, onOrganizationSignup }: Props) => {
-  const { loginBypass } = useAuth();
-  const y1 = useRef(new Animated.Value(0)).current;
-  const y2 = useRef(new Animated.Value(0)).current;
-  const glow = useRef(new Animated.Value(0)).current;
+export const LandingScreen = ({ onLogin, onVolunteerSignup }: Props) => {
+  const fadeIn = useRef(new Animated.Value(0)).current;
+  const slideUp = useRef(new Animated.Value(50)).current;
 
   useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(y1, { toValue: 1, duration: 2600, useNativeDriver: true }),
-        Animated.timing(y1, { toValue: 0, duration: 2600, useNativeDriver: true }),
-      ]),
-    ).start();
-
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(y2, { toValue: 1, duration: 3200, useNativeDriver: true }),
-        Animated.timing(y2, { toValue: 0, duration: 3200, useNativeDriver: true }),
-      ]),
-    ).start();
-
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(glow, { toValue: 1, duration: 1500, useNativeDriver: true }),
-        Animated.timing(glow, { toValue: 0, duration: 1500, useNativeDriver: true }),
-      ]),
-    ).start();
-  }, [y1, y2, glow]);
-
-  const t1 = y1.interpolate({ inputRange: [0, 1], outputRange: [0, -12] });
-  const t2 = y2.interpolate({ inputRange: [0, 1], outputRange: [0, -16] });
-  const glowOpacity = glow.interpolate({ inputRange: [0, 1], outputRange: [0.15, 0.45] });
+    Animated.parallel([
+      Animated.timing(fadeIn, { toValue: 1, duration: 900, useNativeDriver: true }),
+      Animated.timing(slideUp, { toValue: 0, duration: 900, useNativeDriver: true }),
+    ]).start();
+  }, [fadeIn, slideUp]);
 
   return (
     <View style={styles.page}>
-      <LinearGradient colors={[colors.bg, colors.bgSoft, colors.bgWarm]} style={StyleSheet.absoluteFillObject} />
+      <LinearGradient
+        colors={["#4A00E0", "#6C3CE1", "#8E2DE2"]}
+        style={StyleSheet.absoluteFillObject}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      />
 
-      <Animated.View style={[styles.softLight, { opacity: glowOpacity }]} />
-      <Animated.View style={[styles.blob, styles.blobA, { transform: [{ translateY: t1 }] }]} />
-      <Animated.View style={[styles.blob, styles.blobB, { transform: [{ translateY: t2 }] }]} />
+      {/* Decorative circles */}
+      <View style={[styles.circle, styles.circleTopRight]} />
+      <View style={[styles.circle, styles.circleBottomLeft]} />
+      <View style={[styles.circle, styles.circleSmall]} />
 
-      <View style={styles.container}>
-        <Text style={styles.brand}>NeedMap AI</Text>
-        <Text style={styles.heading}>Relief Network Console</Text>
-        <Text style={styles.sub}>Coordinated response for NGOs, admins, and volunteers in one dark command center.</Text>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <Animated.View style={[styles.container, { opacity: fadeIn, transform: [{ translateY: slideUp }] }]}>
 
-        <View style={styles.heroCard}>
-          <Image source={{ uri: HERO_GIF }} style={styles.heroGif} resizeMode="cover" />
-          <View style={styles.heroOverlay} />
-          <Text style={styles.heroTitle}>Live Humanitarian Pulse</Text>
-          <Text style={styles.heroText}>Track needs, add sources, assign volunteers, and close response loops faster.</Text>
-        </View>
+          {/* Illustration area */}
+          <View style={styles.illustrationArea}>
+            <View style={styles.illustrationCircle}>
+              <Text style={styles.illustrationEmoji}>🤝</Text>
+            </View>
+            <View style={styles.floatingDot1} />
+            <View style={styles.floatingDot2} />
+            <View style={styles.floatingDot3} />
+          </View>
 
-        <Text style={styles.welcomeTitle}>Welcome to NeedMap-AI</Text>
+          {/* White card */}
+          <View style={styles.card}>
+            <Text style={styles.title}>NeedMap AI</Text>
+            <Text style={styles.subtitle}>
+              Connecting volunteers with communities in need through AI-powered matching
+            </Text>
 
-        <Pressable style={styles.primary} onPress={() => loginBypass("volunteer@needmap.ai", "vol123", "volunteer")}>
-          <Text style={styles.primaryText}>Continue as Volunteer</Text>
-        </Pressable>
+            {/* Stats Row */}
+            <View style={styles.statsRow}>
+              <View style={styles.statItem}>
+                <Text style={styles.statNumber}>500+</Text>
+                <Text style={styles.statLabel}>Volunteers</Text>
+              </View>
+              <View style={styles.statItem}>
+                <Text style={styles.statNumber}>1.2K</Text>
+                <Text style={styles.statLabel}>Needs Met</Text>
+              </View>
+              <View style={styles.statItem}>
+                <Text style={styles.statNumber}>50+</Text>
+                <Text style={styles.statLabel}>NGOs</Text>
+              </View>
+            </View>
 
-        <Pressable style={styles.secondary} onPress={() => loginBypass("admin@needmap.ai", "admin123", "admin")}>
-          <Text style={styles.secondaryText}>Continue as Admin</Text>
-        </Pressable>
-      </View>
+            {/* Buttons */}
+            <Pressable style={styles.primaryBtn} onPress={onLogin}>
+              <LinearGradient
+                colors={["#6C3CE1", "#4A00E0"]}
+                style={styles.btnGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              >
+                <Text style={styles.primaryBtnText}>Login</Text>
+              </LinearGradient>
+            </Pressable>
+
+            <Pressable style={styles.secondaryBtn} onPress={onVolunteerSignup}>
+              <Text style={styles.secondaryBtnText}>Create Account</Text>
+            </Pressable>
+
+            <Text style={styles.footerText}>
+              Making a difference, together 🌍
+            </Text>
+          </View>
+        </Animated.View>
+      </ScrollView>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   page: { flex: 1 },
-  container: { flex: 1, justifyContent: "center", padding: 24 },
+  scrollContent: { flexGrow: 1, justifyContent: "center" },
+  container: { flex: 1, justifyContent: "center", paddingHorizontal: 24, paddingVertical: 40 },
 
-  brand: { color: colors.accent, fontSize: 22, fontWeight: "900", marginBottom: 8, fontFamily: fonts.accent },
-  heading: { color: colors.text, fontSize: 36, fontWeight: "900", marginBottom: 8, fontFamily: fonts.heading },
-  sub: { color: colors.muted, fontSize: 14, lineHeight: 22, marginBottom: 14, fontFamily: fonts.body },
+  // Decorative background circles
+  circle: { position: "absolute", borderRadius: 999, backgroundColor: "rgba(255,255,255,0.08)" },
+  circleTopRight: { width: 200, height: 200, top: -50, right: -50 },
+  circleBottomLeft: { width: 260, height: 260, bottom: -80, left: -80 },
+  circleSmall: { width: 80, height: 80, top: 120, left: 30, backgroundColor: "rgba(255,255,255,0.05)" },
 
-  softLight: {
-    position: "absolute",
-    width: 340,
-    height: 210,
-    borderRadius: 180,
-    top: 90,
-    alignSelf: "center",
-    backgroundColor: colors.accent,
-  },
-
-  blob: { position: "absolute", borderRadius: 999, opacity: 0.28 },
-  blobA: { width: 230, height: 230, top: 80, left: -65, backgroundColor: colors.blobA },
-  blobB: { width: 270, height: 270, right: -85, bottom: 120, backgroundColor: colors.blobB },
-
-  heroCard: {
-    height: 160,
-    borderRadius: 16,
-    marginBottom: 16,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: colors.border,
-    justifyContent: "flex-end",
-    padding: 12,
-  },
-  heroGif: { width: "100%", height: "100%", position: "absolute", top: 0, left: 0 },
-  heroOverlay: { width: "100%", height: "100%", position: "absolute", top: 0, left: 0, backgroundColor: "rgba(5,14,20,0.56)" },
-  heroTitle: { color: colors.textStrong, fontSize: 16, fontWeight: "900", marginBottom: 3, fontFamily: fonts.heading },
-  heroText: { color: colors.muted, fontSize: 12, lineHeight: 18, fontFamily: fonts.body },
-
-  welcomeTitle: { color: colors.text, fontSize: 22, fontWeight: "900", textAlign: "center", marginBottom: 14, fontFamily: fonts.heading },
-
-  secondary: {
-    height: 48,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.cardSoft,
+  // Illustration
+  illustrationArea: { alignItems: "center", marginBottom: 30, position: "relative", height: 140 },
+  illustrationCircle: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    backgroundColor: "rgba(255,255,255,0.15)",
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 10,
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.25)",
   },
-  secondaryText: { color: colors.textStrong, fontWeight: "800", fontFamily: fonts.body },
+  illustrationEmoji: { fontSize: 48 },
+  floatingDot1: { position: "absolute", width: 12, height: 12, borderRadius: 6, backgroundColor: "#FFD166", top: 10, right: 60 },
+  floatingDot2: { position: "absolute", width: 8, height: 8, borderRadius: 4, backgroundColor: "#06D6A0", bottom: 20, left: 50 },
+  floatingDot3: { position: "absolute", width: 16, height: 16, borderRadius: 8, backgroundColor: "rgba(255,255,255,0.3)", top: 40, left: 40 },
 
-  label: { color: colors.textStrong, fontWeight: "800", marginBottom: 6, fontFamily: fonts.body },
-  input: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 14,
-    backgroundColor: colors.card,
-    color: colors.text,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 10,
-    fontFamily: fonts.body,
+  // White Card
+  card: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 28,
+    paddingVertical: 32,
+    paddingHorizontal: 28,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 30,
+    elevation: 12,
   },
-  hint: { color: colors.muted, fontSize: 12, marginBottom: 14, fontFamily: fonts.body },
-
-  primary: {
-    height: 50,
-    borderRadius: 14,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 10,
-  },
-  primaryText: { color: colors.textStrong, fontSize: 16, fontWeight: "900", fontFamily: fonts.body },
-
-  secondary: {
-    height: 48,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.cardSoft,
-    alignItems: "center",
-    justifyContent: "center",
+  title: {
+    fontSize: 28,
+    fontWeight: "900",
+    color: "#2D2B55",
+    fontFamily: fonts.heading,
+    textAlign: "center",
     marginBottom: 8,
   },
-  secondaryText: { color: colors.textStrong, fontWeight: "800", fontFamily: fonts.body },
+  subtitle: {
+    fontSize: 14,
+    color: "#7B7B9B",
+    fontFamily: fonts.body,
+    textAlign: "center",
+    lineHeight: 21,
+    marginBottom: 24,
+  },
+
+  // Stats
+  statsRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    marginBottom: 28,
+    paddingVertical: 16,
+    backgroundColor: "#F8F7FF",
+    borderRadius: 16,
+  },
+  statItem: { alignItems: "center" },
+  statNumber: { fontSize: 20, fontWeight: "900", color: "#4A00E0", fontFamily: fonts.heading },
+  statLabel: { fontSize: 11, color: "#7B7B9B", fontFamily: fonts.body, marginTop: 2 },
+
+  // Buttons
+  primaryBtn: { marginBottom: 12, borderRadius: 14, overflow: "hidden" },
+  btnGradient: { height: 52, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  primaryBtnText: { color: "#FFFFFF", fontSize: 16, fontWeight: "800", fontFamily: fonts.body, letterSpacing: 0.5 },
+
+  secondaryBtn: {
+    height: 52,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: "#E8E5F5",
+    backgroundColor: "#F8F7FF",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  secondaryBtnText: { color: "#4A00E0", fontSize: 16, fontWeight: "800", fontFamily: fonts.body },
+
+  footerText: {
+    textAlign: "center",
+    color: "#AEAEC0",
+    fontSize: 12,
+    fontFamily: fonts.body,
+  },
 });

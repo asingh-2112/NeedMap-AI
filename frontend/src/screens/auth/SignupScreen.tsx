@@ -3,168 +3,311 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  Image,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAuth } from "../../context/AuthContext";
-import { colors, fonts } from "../../theme";
+
+const SIGNUP_GIF = "https://cdn.dribbble.com/users/1162077/screenshots/4649464/media/5e5e1534f8c54799307b810dc7adff17.gif";
 
 type Props = {
   onBack: () => void;
+  onLogin?: () => void;
 };
 
-export const SignupScreen = ({ onBack }: Props) => {
-  const { signup, loading, baseUrl } = useAuth();
-  const [name, setName] = useState("");
+type FormErrors = {
+  userName?: string;
+  email?: string;
+  password?: string;
+  confirmPassword?: string;
+};
+
+export const SignupScreen = ({ onBack, onLogin }: Props) => {
+  const { signup, loading } = useAuth();
+  const [userName, setUserName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [errors, setErrors] = useState<FormErrors>({});
 
-  const pulse = useRef(new Animated.Value(0)).current;
-  const drift = useRef(new Animated.Value(0)).current;
+  const fadeIn = useRef(new Animated.Value(0)).current;
+  const slideUp = useRef(new Animated.Value(40)).current;
 
   useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 1700, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0, duration: 1700, useNativeDriver: true }),
-      ]),
-    ).start();
+    Animated.parallel([
+      Animated.timing(fadeIn, { toValue: 1, duration: 800, useNativeDriver: true }),
+      Animated.spring(slideUp, { toValue: 0, tension: 50, friction: 8, useNativeDriver: true }),
+    ]).start();
+  }, [fadeIn, slideUp]);
 
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(drift, { toValue: 1, duration: 3200, useNativeDriver: true }),
-        Animated.timing(drift, { toValue: 0, duration: 3200, useNativeDriver: true }),
-      ]),
-    ).start();
-  }, [pulse, drift]);
+  const validate = (): boolean => {
+    const newErrors: FormErrors = {};
 
-  const disabled =
-    loading || name.trim().length < 2 || !email.trim() || password.trim().length < 8;
+    if (!userName.trim()) {
+      newErrors.userName = "Full name is required";
+    } else if (userName.trim().length < 2) {
+      newErrors.userName = "Name must be at least 2 characters";
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email.trim()) {
+      newErrors.email = "Email is required";
+    } else if (!emailRegex.test(email.trim())) {
+      newErrors.email = "Please enter a valid email address";
+    }
+
+    if (!password) {
+      newErrors.password = "Password is required";
+    } else if (password.length < 8) {
+      newErrors.password = "Password must be at least 8 characters";
+    } else if (!/[A-Z]/.test(password)) {
+      newErrors.password = "Must contain at least one uppercase letter";
+    } else if (!/[0-9]/.test(password)) {
+      newErrors.password = "Must contain at least one number";
+    }
+
+    if (!confirmPassword) {
+      newErrors.confirmPassword = "Please confirm your password";
+    } else if (password !== confirmPassword) {
+      newErrors.confirmPassword = "Passwords do not match";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const onSubmit = async () => {
+    if (!validate()) return;
     try {
-      await signup(name, email, password);
+      await signup(userName.trim(), email.trim(), password, "volunteer");
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Signup failed";
-      Alert.alert("Signup failed", `${msg}\n\nBackend URL: ${baseUrl}`);
+      Alert.alert("Signup Failed", msg);
     }
   };
 
-  const glowOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.15, 0.45] });
-  const lift = drift.interpolate({ inputRange: [0, 1], outputRange: [0, -14] });
+  const clearError = (field: keyof FormErrors) => {
+    setErrors((prev) => ({ ...prev, [field]: undefined }));
+  };
 
   return (
     <View style={styles.page}>
-      <LinearGradient colors={[colors.bg, colors.bgSoft, colors.bgWarm]} style={StyleSheet.absoluteFillObject} />
+      <LinearGradient
+        colors={["#0F0C29", "#302B63", "#24243E"]}
+        style={StyleSheet.absoluteFillObject}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      />
 
-      <Animated.View style={[styles.glow, { opacity: glowOpacity }]} />
-      <Animated.View style={[styles.blob, styles.blobA, { transform: [{ translateY: lift }] }]} />
-      <Animated.View style={[styles.blob, styles.blobB, { transform: [{ translateY: lift }] }]} />
+      {/* Floating glassmorphism blobs */}
+      <View style={[styles.blob, styles.blob1]} />
+      <View style={[styles.blob, styles.blob2]} />
 
-      <View style={styles.container}>
-        <Text style={styles.title}>Volunteer Signup</Text>
-        <Text style={styles.subtitle}>Join your local response grid and start helping.</Text>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          <Animated.View style={[styles.container, { opacity: fadeIn, transform: [{ translateY: slideUp }] }]}>
 
-        <Text style={styles.label}>Full Name</Text>
-        <TextInput
-          style={styles.input}
-          value={name}
-          onChangeText={setName}
-          placeholder="Your full name"
-          placeholderTextColor={colors.muted}
-        />
+            {/* Animated GIF */}
+            <View style={styles.gifWrap}>
+              <Image source={{ uri: SIGNUP_GIF }} style={styles.gif} resizeMode="contain" />
+            </View>
 
-        <Text style={styles.label}>Email</Text>
-        <TextInput
-          style={styles.input}
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          keyboardType="email-address"
-          placeholder="you@example.com"
-          placeholderTextColor={colors.muted}
-        />
+            {/* Title */}
+            <Text style={styles.title}>Create Account</Text>
+            <Text style={styles.subtitle}>Join us and start making an impact</Text>
 
-        <Text style={styles.label}>Password</Text>
-        <TextInput
-          style={styles.input}
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          placeholder="Min 8 characters"
-          placeholderTextColor={colors.muted}
-        />
+            {/* Glass card */}
+            <View style={styles.glassCard}>
+              {/* Full Name */}
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Full Name</Text>
+                <View style={[styles.inputWrapper, errors.userName ? styles.inputError : null]}>
+                  <Text style={styles.inputIcon}>👤</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={userName}
+                    onChangeText={(t) => { setUserName(t); clearError("userName"); }}
+                    placeholder="John Doe"
+                    placeholderTextColor="#8B8DA3"
+                    autoCapitalize="words"
+                  />
+                </View>
+                {errors.userName && <Text style={styles.errorText}>{errors.userName}</Text>}
+              </View>
 
-        <Pressable style={[styles.primary, disabled && styles.disabled]} disabled={disabled} onPress={onSubmit}>
-          {loading ? <ActivityIndicator color={colors.textStrong} /> : <Text style={styles.primaryText}>Create and Continue</Text>}
-        </Pressable>
+              {/* Email */}
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Email</Text>
+                <View style={[styles.inputWrapper, errors.email ? styles.inputError : null]}>
+                  <Text style={styles.inputIcon}>✉️</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={email}
+                    onChangeText={(t) => { setEmail(t); clearError("email"); }}
+                    placeholder="you@email.com"
+                    placeholderTextColor="#8B8DA3"
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                  />
+                </View>
+                {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
+              </View>
 
-        <Pressable style={styles.secondary} onPress={onBack}>
-          <Text style={styles.secondaryText}>Back</Text>
-        </Pressable>
-      </View>
+              {/* Password */}
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Password</Text>
+                <View style={[styles.inputWrapper, errors.password ? styles.inputError : null]}>
+                  <Text style={styles.inputIcon}>🔒</Text>
+                  <TextInput
+                    style={[styles.input, { flex: 1 }]}
+                    value={password}
+                    onChangeText={(t) => { setPassword(t); clearError("password"); }}
+                    secureTextEntry={!showPassword}
+                    placeholder="Min 8 chars, uppercase + number"
+                    placeholderTextColor="#8B8DA3"
+                  />
+                  <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.toggleBtn}>
+                    <Text style={styles.toggleText}>{showPassword ? "Hide" : "Show"}</Text>
+                  </Pressable>
+                </View>
+                {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
+              </View>
+
+              {/* Confirm Password */}
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Confirm Password</Text>
+                <View style={[styles.inputWrapper, errors.confirmPassword ? styles.inputError : null]}>
+                  <Text style={styles.inputIcon}>🔐</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={confirmPassword}
+                    onChangeText={(t) => { setConfirmPassword(t); clearError("confirmPassword"); }}
+                    secureTextEntry={!showPassword}
+                    placeholder="Re-enter password"
+                    placeholderTextColor="#8B8DA3"
+                  />
+                </View>
+                {errors.confirmPassword && <Text style={styles.errorText}>{errors.confirmPassword}</Text>}
+              </View>
+
+              {/* Buttons */}
+              <View style={styles.btnRow}>
+                <Pressable style={styles.outlinedBtn} onPress={onLogin || onBack}>
+                  <Text style={styles.outlinedBtnText}>Login</Text>
+                </Pressable>
+                <Pressable style={[styles.filledBtn, loading && styles.disabled]} onPress={onSubmit} disabled={loading}>
+                  <LinearGradient
+                    colors={["#667EEA", "#764BA2"]}
+                    style={styles.btnGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                  >
+                    {loading ? (
+                      <ActivityIndicator color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.filledBtnText}>Sign Up</Text>
+                    )}
+                  </LinearGradient>
+                </Pressable>
+              </View>
+            </View>
+
+          </Animated.View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   page: { flex: 1 },
-  container: { flex: 1, justifyContent: "center", padding: 24 },
+  scrollContent: { flexGrow: 1, justifyContent: "center" },
+  container: { paddingHorizontal: 24, paddingVertical: 30 },
 
-  glow: {
-    position: "absolute",
-    width: 330,
-    height: 240,
-    borderRadius: 180,
-    top: 120,
-    alignSelf: "center",
-    backgroundColor: colors.accent,
+  // Blobs
+  blob: { position: "absolute", borderRadius: 999 },
+  blob1: { width: 180, height: 180, top: -40, left: -60, backgroundColor: "rgba(102,126,234,0.12)" },
+  blob2: { width: 140, height: 140, bottom: 60, right: -40, backgroundColor: "rgba(118,75,162,0.1)" },
+
+  // GIF
+  gifWrap: { alignItems: "center", marginBottom: 20 },
+  gif: { width: 200, height: 160, borderRadius: 16 },
+
+  // Title
+  title: {
+    fontSize: 30,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    textAlign: "center",
+    marginBottom: 6,
+    letterSpacing: -0.5,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.55)",
+    textAlign: "center",
+    marginBottom: 24,
   },
 
-  blob: { position: "absolute", borderRadius: 999, opacity: 0.3 },
-  blobA: { width: 200, height: 200, top: 70, left: -55, backgroundColor: colors.blobA },
-  blobB: { width: 240, height: 240, right: -70, bottom: 90, backgroundColor: colors.blobB },
+  // Glass card
+  glassCard: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 24,
+    padding: 22,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+  },
 
-  title: { color: colors.text, fontSize: 34, fontWeight: "900", marginBottom: 6, fontFamily: fonts.heading },
-  subtitle: { color: colors.muted, fontSize: 14, marginBottom: 16, fontFamily: fonts.body },
-
-  label: { color: colors.textStrong, fontWeight: "800", marginBottom: 6, fontFamily: fonts.body },
+  // Fields
+  fieldGroup: { marginBottom: 16 },
+  label: { fontSize: 12, fontWeight: "600", color: "rgba(255,255,255,0.6)", marginBottom: 8, marginLeft: 4 },
+  inputWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+  },
+  inputError: { borderColor: "#FF6B6B" },
+  inputIcon: { fontSize: 15, marginRight: 10 },
   input: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 14,
-    backgroundColor: colors.card,
-    color: colors.text,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 12,
-    fontFamily: fonts.body,
+    flex: 1,
+    height: 52,
+    color: "#FFFFFF",
+    fontSize: 14,
+    backgroundColor: "transparent",
   },
+  toggleBtn: { paddingVertical: 6, paddingHorizontal: 10 },
+  toggleText: { fontSize: 12, fontWeight: "600", color: "#667EEA" },
+  errorText: { color: "#FF6B6B", fontSize: 11, marginTop: 5, marginLeft: 16 },
 
-  primary: {
-    marginTop: 6,
-    height: 50,
+  // Buttons
+  btnRow: { flexDirection: "row", gap: 12, marginTop: 20 },
+  outlinedBtn: {
+    flex: 1,
+    height: 52,
     borderRadius: 14,
-    backgroundColor: colors.primary,
+    borderWidth: 1.5,
+    borderColor: "rgba(102,126,234,0.6)",
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "rgba(102,126,234,0.08)",
   },
-  disabled: { opacity: 0.55 },
-  primaryText: { color: colors.textStrong, fontSize: 16, fontWeight: "900", fontFamily: fonts.body },
-
-  secondary: {
-    marginTop: 10,
-    height: 48,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.cardSoft,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  secondaryText: { color: colors.textStrong, fontWeight: "800", fontFamily: fonts.body },
+  outlinedBtnText: { color: "#667EEA", fontSize: 15, fontWeight: "700" },
+  filledBtn: { flex: 1, borderRadius: 14, overflow: "hidden" },
+  btnGradient: { height: 52, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  filledBtnText: { color: "#FFFFFF", fontSize: 15, fontWeight: "700" },
+  disabled: { opacity: 0.6 },
 });

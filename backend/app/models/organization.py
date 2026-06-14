@@ -8,7 +8,10 @@ class Organization(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    parent_organization_id = Column(Integer, ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True)
     organization_name = Column(String(255), nullable=False)
+    branch_location = Column(String(255), nullable=True)
+    is_branch = Column(Boolean, default=False, nullable=False)
     address = Column(String(500), nullable=True)
     phone = Column(String(20), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
@@ -17,6 +20,8 @@ class Organization(Base):
 
     # Relationships
     owner = relationship("User", foreign_keys=[user_id])
+    parent = relationship("Organization", remote_side=[id], back_populates="branches")
+    branches = relationship("Organization", back_populates="parent")
     needs = relationship("Need", back_populates="organization")
     volunteers = relationship("Volunteer", back_populates="organization")
     assignments = relationship("Assignment", back_populates="organization")

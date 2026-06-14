@@ -17,6 +17,23 @@ def update_profile(db: Session, user: User, payload: UserProfileUpdateRequest) -
     if payload.phone is not None:
         user.phone = payload.phone
 
+    if payload.house_number is not None:
+        user.house_number = payload.house_number
+    if payload.street is not None:
+        user.street = payload.street
+    if payload.colony is not None:
+        user.colony = payload.colony
+    if payload.city is not None:
+        user.city = payload.city
+    if payload.state is not None:
+        user.state = payload.state
+    if payload.pincode is not None:
+        user.pincode = payload.pincode
+    if payload.country is not None:
+        user.country = payload.country
+    if payload.preferred_language is not None:
+        user.preferred_language = payload.preferred_language
+
     db.add(user)
     db.commit()
     db.refresh(user)

@@ -51,7 +51,10 @@ class OrganizationUpdateRequest(BaseModel):
 
 class OrganizationResponse(BaseModel):
     id: int
+    parent_organization_id: int | None = None
     organization_name: str
+    branch_location: str | None = None
+    is_branch: bool = False
     address: str | None
     phone: str | None
     user_id: int
@@ -63,3 +66,14 @@ class OrganizationResponse(BaseModel):
 
 # Resolve forward reference for OrganizationRegisterResponse
 OrganizationRegisterResponse.model_rebuild()
+
+
+class BranchCreateRequest(BaseModel):
+    organization_name: str = Field(..., min_length=2, max_length=255)
+    branch_location: str = Field(..., min_length=2, max_length=255)
+    address: str | None = Field(default=None, max_length=500)
+    phone: str | None = Field(default=None, max_length=20)
+
+
+class BranchResponse(OrganizationResponse):
+    pass

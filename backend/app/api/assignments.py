@@ -36,7 +36,7 @@ def create_assignment_route(
 ):
     # Auto-compute match_score if caller didn't provide one
     if payload.match_score is None:
-        need = get_need_by_id(db=db, need_id=payload.need_id)
+        need = get_need_by_id(db=db, need_id=payload.need_id, current_user=current_user)
         volunteers = list_volunteers_with_relations(db, organization_id=None, verified=None)
         scores = score_volunteers_for_need(volunteers, need)
         match = next((s for s in scores if s["volunteer_id"] == payload.volunteer_id), None)
@@ -53,10 +53,11 @@ def list_assignments_route(
     organization_id: int | None = None,
     status: AssignmentStatus | None = None,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     return list_assignments(
         db=db,
+        current_user=current_user,
         need_id=need_id,
         volunteer_id=volunteer_id,
         organization_id=organization_id,
@@ -68,9 +69,9 @@ def list_assignments_route(
 def get_assignment_route(
     assignment_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
-    return get_assignment_by_id(db=db, assignment_id=assignment_id)
+    return get_assignment_by_id(db=db, current_user=current_user, assignment_id=assignment_id)
 
 
 # ── Status & Feedback ────────────────────────────────────────────────────────
@@ -81,9 +82,9 @@ def update_status_route(
     assignment_id: int,
     payload: AssignmentStatusUpdateRequest,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
-    return update_assignment_status(db=db, assignment_id=assignment_id, payload=payload)
+    return update_assignment_status(db=db, current_user=current_user, assignment_id=assignment_id, payload=payload)
 
 
 @router.patch("/{assignment_id}/feedback", response_model=AssignmentResponse)
@@ -91,6 +92,6 @@ def submit_feedback_route(
     assignment_id: int,
     payload: AssignmentFeedbackRequest,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
-    return submit_assignment_feedback(db=db, assignment_id=assignment_id, payload=payload)
+    return submit_assignment_feedback(db=db, current_user=current_user, assignment_id=assignment_id, payload=payload)

@@ -10,7 +10,7 @@ type AuthContextShape = {
   user: AuthUser | null;
   token: string;
   loading: boolean;
-  signup: (name: string, email: string, password: string) => Promise<void>;
+  signup: (name: string, email: string, password: string, role?: string, phone?: string) => Promise<void>;
   registerOrganization: (payload: {
     organizationName: string;
     address?: string;
@@ -79,14 +79,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(localUser);
   };
 
-  const signup = async (name: string, email: string, password: string) => {
+  const signup = async (name: string, email: string, password: string, role = "volunteer", phone?: string) => {
     setLoading(true);
     try {
       await authApi.signup(baseUrl, {
         user_name: name.trim(),
         email: email.trim(),
         password,
-        role: "volunteer",
+        role,
+        ...(phone ? { phone: phone.trim() } : {}),
       });
       const auth = await authApi.login(baseUrl, email.trim(), password);
       const me = await authApi.me(baseUrl, auth.access_token);

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Animated,
@@ -12,242 +12,428 @@ import {
   View,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useAuth } from "../../context/AuthContext";
+import { useThemeMode } from "../../context/ThemeModeContext";
 import { moduleApi } from "../../services/api";
-import type { Organization } from "../../types/api";
-import { colors } from "../../theme";
+import type { RootStackParamList } from "../../navigation/types";
+import type { AuthUser, Organization } from "../../types/api";
+
+type Nav = NativeStackNavigationProp<RootStackParamList>;
+
+const STATUS_FILTERS = ["all", "active", "inactive"] as const;
+type StatusFilter = (typeof STATUS_FILTERS)[number];
 
 export const OrganizationsScreen = () => {
+  const nav = useNavigation<Nav>();
   const { baseUrl, token, user } = useAuth();
-  const [items, setItems] = useState<Organization[]>([]);
+  const { theme } = useThemeMode();
+  const isLight = theme.mode === "light";
+  const lightPrimary = isLight ? { color: "#0B1220", fontWeight: "800" as const } : null;
+  const lightSecondary = isLight ? { color: "#111827", fontWeight: "700" as const } : null;
+  const lightCard = isLight ? { borderColor: "#000000", borderWidth: 2, backgroundColor: "rgba(255,255,255,0.97)" } : null;
+  const lightInput = isLight ? { borderColor: "#000000", borderWidth: 2, color: "#0B1220", fontWeight: "700" as const, backgroundColor: "#FFFFFF" } : null;
+
+  const [branches, setBranches] = useState<Organization[]>([]);
+  const [members, setMembers] = useState<AuthUser[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [deactivatingOrgId, setDeactivatingOrgId] = useState<number | null>(null);
-  const [memberLoading, setMemberLoading] = useState(false);
-  const [memberMessage, setMemberMessage] = useState<string>("");
 
-  const [memberName, setMemberName] = useState("");
-  const [memberEmail, setMemberEmail] = useState("");
-  const [memberPassword, setMemberPassword] = useState("");
-  const [memberPhone, setMemberPhone] = useState("");
-  const [memberRole, setMemberRole] = useState<"admin" | "volunteer">("volunteer");
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [showUpdateAdminForm, setShowUpdateAdminForm] = useState(false);
+  const [showDeleteForm, setShowDeleteForm] = useState(false);
 
-  const floatA = useRef(new Animated.Value(0)).current;
-  const floatB = useRef(new Animated.Value(0)).current;
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionMessage, setActionMessage] = useState("");
+
+  const [filterText, setFilterText] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
+
+  const [newBranchName, setNewBranchName] = useState("");
+  const [newBranchLocation, setNewBranchLocation] = useState("");
+  const [newBranchAddress, setNewBranchAddress] = useState("");
+  const [newBranchPhone, setNewBranchPhone] = useState("");
+
+  const [adminBranchId, setAdminBranchId] = useState("");
+  const [adminName, setAdminName] = useState("");
+  const [adminEmail, setAdminEmail] = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
+  const [adminPhone, setAdminPhone] = useState("");
+
+  const [deleteBranchId, setDeleteBranchId] = useState("");
+
+  const fadeIn = useRef(new Animated.Value(0)).current;
+
+  const canManage = user?.role === "owner" || user?.role === "admin";
+  const canCreateOrDeleteBranch = user?.role === "owner";
+
+  useEffect(() => {
+    Animated.timing(fadeIn, { toValue: 1, duration: 500, useNativeDriver: true }).start();
+  }, [fadeIn]);
 
   const load = async () => {
+    if (!user?.organization_id) {
+      setBranches([]);
+      setMembers([]);
+      return;
+    }
+
     setRefreshing(true);
     try {
-      const data = await moduleApi.organizations(baseUrl, token);
-      setItems(data);
+      const [branchData, memberData] = await Promise.all([
+        moduleApi.organizationBranches(baseUrl, token, user.organization_id),
+        moduleApi.organizationMembers(baseUrl, token, user.organization_id),
+      ]);
+      setBranches(branchData);
+      setMembers(memberData);
+    } catch {
+      setBranches([]);
+      setMembers([]);
     } finally {
       setRefreshing(false);
     }
   };
 
   useEffect(() => {
-    load();
-  }, []);
+    void load();
+  }, [baseUrl, token, user?.organization_id]);
 
-  const myOrganization = items.find((o) => o.id === user?.organization_id) || null;
-  const canManageMyOrg = !!(myOrganization && (user?.role === "owner" || user?.role === "admin"));
-  const isMyOrgOwner = !!(myOrganization && user?.role === "owner" && user.id === myOrganization.user_id);
+  const adminByBranch = useMemo(() => {
+    const map = new Map<number, AuthUser>();
+    members.forEach((m) => {
+      if (m.role === "admin" && m.managed_branch_id) {
+        map.set(m.managed_branch_id, m);
+      }
+    });
+    return map;
+  }, [members]);
 
-  const deactivateOrganization = async (organizationId: number) => {
-    const doDeactivate = async () => {
+  const filteredBranches = useMemo(() => {
+    const q = filterText.trim().toLowerCase();
+
+    return branches
+      .filter((b) => {
+        if (statusFilter === "active") return b.is_active;
+        if (statusFilter === "inactive") return !b.is_active;
+        return true;
+      })
+      .filter((b) => {
+        if (!q) return true;
+        return [b.organization_name, b.branch_location ?? "", b.address ?? ""]
+          .join(" ")
+          .toLowerCase()
+          .includes(q);
+      });
+  }, [branches, filterText, statusFilter]);
+
+  const createBranch = async () => {
+    if (!user?.organization_id) return;
+    if (!newBranchName.trim() || !newBranchLocation.trim()) {
+      setActionMessage("Branch name and location are required");
+      return;
+    }
+
+    setActionLoading(true);
+    setActionMessage("");
+    try {
+      await moduleApi.createOrganizationBranch(baseUrl, token, user.organization_id, {
+        organization_name: newBranchName.trim(),
+        branch_location: newBranchLocation.trim(),
+        address: newBranchAddress.trim() || undefined,
+        phone: newBranchPhone.trim() || undefined,
+      });
+      setActionMessage("Branch created successfully");
+      setNewBranchName("");
+      setNewBranchLocation("");
+      setNewBranchAddress("");
+      setNewBranchPhone("");
+      await load();
+    } catch (err) {
+      setActionMessage(err instanceof Error ? err.message : "Unable to create branch");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const updateBranchAdmin = async () => {
+    if (!user?.organization_id) return;
+
+    const branchIdNum = Number(adminBranchId);
+    if (!branchIdNum || !adminName.trim() || !adminEmail.trim() || adminPassword.length < 8) {
+      setActionMessage("Branch id, admin name, email and password (min 8) are required");
+      return;
+    }
+
+    setActionLoading(true);
+    setActionMessage("");
+
+    const overwriteAdminForBranch = async () => {
+      await moduleApi.addOrganizationMember(baseUrl, token, user.organization_id, {
+        user_name: adminName.trim(),
+        email: adminEmail.trim(),
+        password: adminPassword,
+        role: "admin",
+        managed_branch_id: branchIdNum,
+        phone: adminPhone.trim() || undefined,
+      });
+    };
+
+    const clearAdminForm = () => {
+      setAdminBranchId("");
+      setAdminName("");
+      setAdminEmail("");
+      setAdminPassword("");
+      setAdminPhone("");
+    };
+
+    try {
+      await overwriteAdminForBranch();
+
+      setActionMessage(`Admin updated for branch #${branchIdNum}`);
+      clearAdminForm();
+      await load();
+    } catch (err) {
+      setActionMessage(err instanceof Error ? err.message : "Unable to update admin");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const deleteBranch = async () => {
+    const branchIdNum = Number(deleteBranchId);
+    if (!branchIdNum) {
+      setActionMessage("Enter a valid branch id");
+      return;
+    }
+
+    const doDelete = async () => {
+      setActionLoading(true);
+      setActionMessage("");
       try {
-        setDeactivatingOrgId(organizationId);
-        const result = await moduleApi.deactivateOrganization(baseUrl, token, organizationId);
+        await moduleApi.deactivateOrganization(baseUrl, token, branchIdNum);
+        setActionMessage("Branch deleted successfully");
+        setDeleteBranchId("");
         await load();
-        if (Platform.OS === "web") {
-          window.alert(result.message);
-        } else {
-          Alert.alert("Done", result.message);
-        }
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Unable to deactivate organization";
-        if (Platform.OS === "web") {
-          window.alert(msg);
-        } else {
-          Alert.alert("Action failed", msg);
-        }
+        setActionMessage(err instanceof Error ? err.message : "Unable to delete branch");
       } finally {
-        setDeactivatingOrgId(null);
+        setActionLoading(false);
       }
     };
 
     if (Platform.OS === "web") {
-      const ok = window.confirm("Are you sure you want to deactivate this organization?");
-      if (ok) {
-        await doDeactivate();
-      }
+      const ok = window.confirm(`Delete branch #${branchIdNum}?`);
+      if (ok) await doDelete();
       return;
     }
 
-    Alert.alert(
-      "Deactivate Organization",
-      "Only owner can deactivate. This will soft-disable the organization.",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Deactivate", style: "destructive", onPress: () => void doDeactivate() },
-      ],
-    );
+    Alert.alert("Delete Branch", `Delete branch #${branchIdNum}?`, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: () => void doDelete() },
+    ]);
   };
-
-  const addMember = async () => {
-    if (!myOrganization) return;
-    setMemberLoading(true);
-    setMemberMessage("");
-    try {
-      const added = await moduleApi.addOrganizationMember(baseUrl, token, myOrganization.id, {
-        user_name: memberName.trim(),
-        email: memberEmail.trim(),
-        password: memberPassword,
-        role: memberRole,
-        phone: memberPhone.trim() || undefined,
-      });
-      setMemberMessage(`Added ${added.user_name} as ${added.role}`);
-      setMemberName("");
-      setMemberEmail("");
-      setMemberPassword("");
-      setMemberPhone("");
-    } catch (err) {
-      setMemberMessage(err instanceof Error ? err.message : "Unable to add member");
-    } finally {
-      setMemberLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(floatA, { toValue: 1, duration: 2800, useNativeDriver: true }),
-        Animated.timing(floatA, { toValue: 0, duration: 2800, useNativeDriver: true }),
-      ]),
-    ).start();
-
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(floatB, { toValue: 1, duration: 3300, useNativeDriver: true }),
-        Animated.timing(floatB, { toValue: 0, duration: 3300, useNativeDriver: true }),
-      ]),
-    ).start();
-  }, [floatA, floatB]);
-
-  const yA = floatA.interpolate({ inputRange: [0, 1], outputRange: [0, -12] });
-  const yB = floatB.interpolate({ inputRange: [0, 1], outputRange: [0, -18] });
 
   return (
     <View style={styles.page}>
-      <LinearGradient colors={[colors.bg, colors.bgSoft, colors.bgWarm]} style={StyleSheet.absoluteFillObject} />
+      <LinearGradient
+        colors={theme.gradients.page}
+        style={StyleSheet.absoluteFillObject}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      />
 
-      <Animated.View style={[styles.blob, styles.blobA, { transform: [{ translateY: yA }] }]} />
-      <Animated.View style={[styles.blob, styles.blobB, { transform: [{ translateY: yB }] }]} />
-
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={load} />}
-        showsVerticalScrollIndicator={false}
-      >
-        <Text style={styles.title}>Organizations</Text>
-        <Text style={styles.subtitle}>Connected groups and partner networks</Text>
-
-        {canManageMyOrg && myOrganization ? (
-          <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Your Organization Controls</Text>
-            <Text style={styles.metaLine}>
-              <Text style={styles.metaStrong}>Organization:</Text> {myOrganization.organization_name}
-            </Text>
-            <Text style={styles.metaLine}>
-              <Text style={styles.metaStrong}>Your Role:</Text> {user?.role}
-            </Text>
-
-            <Text style={styles.formLabel}>Member Name</Text>
-            <TextInput style={styles.input} value={memberName} onChangeText={setMemberName} placeholder="Priya Sharma" placeholderTextColor={colors.muted} />
-
-            <Text style={styles.formLabel}>Member Email</Text>
-            <TextInput style={styles.input} value={memberEmail} onChangeText={setMemberEmail} placeholder="priya@example.com" autoCapitalize="none" keyboardType="email-address" placeholderTextColor={colors.muted} />
-
-            <Text style={styles.formLabel}>Password</Text>
-            <TextInput style={styles.input} value={memberPassword} onChangeText={setMemberPassword} placeholder="Min 8 chars" secureTextEntry placeholderTextColor={colors.muted} />
-
-            <Text style={styles.formLabel}>Phone (optional)</Text>
-            <TextInput style={styles.input} value={memberPhone} onChangeText={setMemberPhone} placeholder="+91XXXXXXXXXX" placeholderTextColor={colors.muted} />
-
-            <View style={styles.roleRow}>
-              <Pressable
-                style={[styles.roleBtn, memberRole === "volunteer" && styles.roleBtnActive]}
-                onPress={() => setMemberRole("volunteer")}
-              >
-                <Text style={[styles.roleBtnText, memberRole === "volunteer" && styles.roleBtnTextActive]}>Volunteer</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.roleBtn, memberRole === "admin" && styles.roleBtnActive]}
-                onPress={() => setMemberRole("admin")}
-              >
-                <Text style={[styles.roleBtnText, memberRole === "admin" && styles.roleBtnTextActive]}>Admin</Text>
-              </Pressable>
+      <Animated.View style={{ flex: 1, opacity: fadeIn }}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.content}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={load} tintColor="#667EEA" />}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.headerRow}>
+            <View>
+              <Text style={[styles.pageTitle, lightPrimary]}>Organizations</Text>
+              <Text style={[styles.pageSubtitle, lightSecondary]}>Manage branches and branch admins</Text>
             </View>
-
-            <Pressable
-              style={[styles.primaryBtn, memberLoading && styles.disabledBtn]}
-              disabled={
-                memberLoading ||
-                memberName.trim().length < 2 ||
-                !memberEmail.trim() ||
-                memberPassword.length < 8
-              }
-              onPress={addMember}
-            >
-              <Text style={styles.primaryBtnText}>{memberLoading ? "Adding..." : "Add Member"}</Text>
-            </Pressable>
-
-            {memberMessage ? <Text style={styles.message}>{memberMessage}</Text> : null}
-
-            {isMyOrgOwner && myOrganization.is_active ? (
-              <Pressable
-                style={[styles.deactivateBtn, deactivatingOrgId === myOrganization.id && styles.deactivateBtnDisabled]}
-                disabled={deactivatingOrgId === myOrganization.id}
-                onPress={() => deactivateOrganization(myOrganization.id)}
-              >
-                <Text style={styles.deactivateBtnText}>
-                  {deactivatingOrgId === myOrganization.id ? "Deactivating..." : "Deactivate Organization"}
-                </Text>
-              </Pressable>
-            ) : null}
           </View>
-        ) : null}
 
-        {items.map((o) => (
-          <View key={o.id} style={styles.card}>
-            <View style={styles.headerRow}>
-              <Text style={styles.name}>{o.organization_name}</Text>
-              <View style={[styles.badge, o.is_active ? styles.activeBadge : styles.inactiveBadge]}>
-                <Text style={[styles.badgeText, o.is_active ? styles.activeText : styles.inactiveText]}>
-                  {o.is_active ? "Active" : "Inactive"}
-                </Text>
+          {canManage ? (
+            <View style={[styles.formCard, lightCard]}>
+              <Text style={[styles.formTitle, lightPrimary]}>Branch Actions</Text>
+              <View style={styles.actionRow}>
+                <Pressable
+                  style={[styles.actionBtn, showCreateForm && styles.actionBtnActive]}
+                  onPress={() => {
+                    setShowCreateForm((v) => !v);
+                    setShowUpdateAdminForm(false);
+                    setShowDeleteForm(false);
+                    setActionMessage("");
+                  }}
+                >
+                  <Text style={[styles.actionBtnText, lightPrimary]}>Create Branch</Text>
+                </Pressable>
+
+                <Pressable
+                  style={[styles.actionBtn, showUpdateAdminForm && styles.actionBtnActive]}
+                  onPress={() => {
+                    setShowUpdateAdminForm((v) => !v);
+                    setShowCreateForm(false);
+                    setShowDeleteForm(false);
+                    setActionMessage("");
+                  }}
+                >
+                  <Text style={[styles.actionBtnText, lightPrimary]}>Update Admin Details</Text>
+                </Pressable>
+
+                <Pressable
+                  style={[styles.actionBtn, showDeleteForm && styles.actionBtnDanger]}
+                  onPress={() => {
+                    setShowDeleteForm((v) => !v);
+                    setShowCreateForm(false);
+                    setShowUpdateAdminForm(false);
+                    setActionMessage("");
+                  }}
+                >
+                  <Text style={[styles.actionBtnText, lightPrimary]}>Delete Branch</Text>
+                </Pressable>
               </View>
+
+              {showCreateForm && canCreateOrDeleteBranch ? (
+                <View style={styles.formFields}>
+                  <Text style={[styles.label, lightSecondary]}>Branch Name</Text>
+                  <TextInput style={[styles.input, lightInput]} value={newBranchName} onChangeText={setNewBranchName} placeholder="NeedMap East Branch" placeholderTextColor={isLight ? "#374151" : "#6B6B8A"} />
+
+                  <Text style={[styles.label, lightSecondary]}>Branch Location</Text>
+                  <TextInput style={[styles.input, lightInput]} value={newBranchLocation} onChangeText={setNewBranchLocation} placeholder="Naini, Prayagraj" placeholderTextColor={isLight ? "#374151" : "#6B6B8A"} />
+
+                  <Text style={[styles.label, lightSecondary]}>Branch Address</Text>
+                  <TextInput style={[styles.input, lightInput]} value={newBranchAddress} onChangeText={setNewBranchAddress} placeholder="Full branch address" placeholderTextColor={isLight ? "#374151" : "#6B6B8A"} />
+
+                  <Text style={[styles.label, lightSecondary]}>Branch Phone</Text>
+                  <TextInput style={[styles.input, lightInput]} value={newBranchPhone} onChangeText={setNewBranchPhone} placeholder="+91XXXXXXXXXX" placeholderTextColor={isLight ? "#374151" : "#6B6B8A"} />
+
+                  <Pressable style={[styles.submitBtn, actionLoading && styles.disabledBtn]} disabled={actionLoading} onPress={createBranch}>
+                    <LinearGradient colors={["#667EEA", "#764BA2"]} style={styles.submitGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                      <Text style={[styles.submitText, isLight ? { color: "#0B1220", fontWeight: "900" } : null]}>{actionLoading ? "Creating..." : "Create Branch"}</Text>
+                    </LinearGradient>
+                  </Pressable>
+                </View>
+              ) : null}
+
+              {showUpdateAdminForm ? (
+                <View style={styles.formFields}>
+                  <Text style={[styles.label, lightSecondary]}>Branch ID</Text>
+                  <TextInput style={[styles.input, lightInput]} value={adminBranchId} onChangeText={setAdminBranchId} keyboardType="numeric" placeholder="Enter branch id" placeholderTextColor={isLight ? "#374151" : "#6B6B8A"} />
+
+                  <Text style={[styles.label, lightSecondary]}>Admin Name</Text>
+                  <TextInput style={[styles.input, lightInput]} value={adminName} onChangeText={setAdminName} placeholder="Admin full name" placeholderTextColor={isLight ? "#374151" : "#6B6B8A"} />
+
+                  <Text style={[styles.label, lightSecondary]}>Admin Email</Text>
+                  <TextInput style={[styles.input, lightInput]} value={adminEmail} onChangeText={setAdminEmail} autoCapitalize="none" keyboardType="email-address" placeholder="admin@example.com" placeholderTextColor={isLight ? "#374151" : "#6B6B8A"} />
+
+                  <Text style={[styles.label, lightSecondary]}>Admin Password</Text>
+                  <TextInput style={[styles.input, lightInput]} value={adminPassword} onChangeText={setAdminPassword} secureTextEntry placeholder="Minimum 8 characters" placeholderTextColor={isLight ? "#374151" : "#6B6B8A"} />
+
+                  <Text style={[styles.label, lightSecondary]}>Admin Phone (optional)</Text>
+                  <TextInput style={[styles.input, lightInput]} value={adminPhone} onChangeText={setAdminPhone} placeholder="+91XXXXXXXXXX" placeholderTextColor={isLight ? "#374151" : "#6B6B8A"} />
+
+                  <Pressable style={[styles.submitBtn, actionLoading && styles.disabledBtn]} disabled={actionLoading} onPress={updateBranchAdmin}>
+                    <LinearGradient colors={["#667EEA", "#764BA2"]} style={styles.submitGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                      <Text style={[styles.submitText, isLight ? { color: "#0B1220", fontWeight: "900" } : null]}>{actionLoading ? "Updating..." : "Update Admin"}</Text>
+                    </LinearGradient>
+                  </Pressable>
+                </View>
+              ) : null}
+
+              {showDeleteForm && canCreateOrDeleteBranch ? (
+                <View style={styles.formFields}>
+                  <Text style={[styles.label, lightSecondary]}>Branch ID</Text>
+                  <TextInput style={[styles.input, lightInput]} value={deleteBranchId} onChangeText={setDeleteBranchId} keyboardType="numeric" placeholder="Enter branch id to delete" placeholderTextColor={isLight ? "#374151" : "#6B6B8A"} />
+
+                  <Pressable style={[styles.deleteBtn, actionLoading && styles.disabledBtn]} disabled={actionLoading} onPress={deleteBranch}>
+                    <Text style={styles.deleteBtnText}>{actionLoading ? "Deleting..." : "Delete Branch"}</Text>
+                  </Pressable>
+                </View>
+              ) : null}
+
+              {actionMessage ? <Text style={[styles.message, lightSecondary]}>{actionMessage}</Text> : null}
+            </View>
+          ) : null}
+
+          <View style={styles.listHeader}>
+            <Text style={[styles.listTitle, lightPrimary]}>Branch List</Text>
+            <Text style={[styles.listCount, lightSecondary]}>{filteredBranches.length} shown</Text>
+          </View>
+
+          <View style={styles.filterRow}>
+            <View style={[styles.filterCol, { flex: 1.4 }]}> 
+              <Text style={[styles.filterLabel, lightSecondary]}>Search</Text>
+              <TextInput
+                style={[styles.filterInput, lightInput]}
+                value={filterText}
+                onChangeText={setFilterText}
+                placeholder="Name, location or address"
+                placeholderTextColor={isLight ? "#374151" : "#6B6B8A"}
+              />
             </View>
 
-            <Text style={styles.metaLine}>
-              <Text style={styles.metaStrong}>Address:</Text> {o.address || "No address"}
-            </Text>
-            <Text style={styles.metaLine}>
-              <Text style={styles.metaStrong}>Phone:</Text> {o.phone || "No phone"}
-            </Text>
-            <Text style={styles.metaLine}>
-              <Text style={styles.metaStrong}>Owner ID:</Text> {o.user_id}
-            </Text>
+            <View style={styles.filterCol}>
+              <Text style={[styles.filterLabel, lightSecondary]}>Status</Text>
+              <Pressable
+                style={[styles.filterSelectBtn, lightInput]}
+                onPress={() => setShowStatusDropdown((prev) => !prev)}
+              >
+                <Text style={[styles.filterSelectText, lightPrimary]}>{statusFilter}</Text>
+                <Text style={[styles.filterChevron, lightPrimary]}>▼</Text>
+              </Pressable>
+              {showStatusDropdown ? (
+                <View style={[styles.filterDropdown, lightCard]}>
+                  {STATUS_FILTERS.map((s) => (
+                    <Pressable
+                      key={s}
+                      style={styles.filterOption}
+                      onPress={() => {
+                        setStatusFilter(s);
+                        setShowStatusDropdown(false);
+                      }}
+                    >
+                      <Text style={[styles.filterOptionText, lightPrimary]}>{s}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+            </View>
           </View>
-        ))}
 
-        {items.length === 0 && !refreshing ? (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>No organizations found</Text>
-            <Text style={styles.emptyMeta}>Pull to refresh and load organization records.</Text>
-          </View>
-        ) : null}
-      </ScrollView>
+          {filteredBranches.map((branch) => {
+            const admin = adminByBranch.get(branch.id);
+            return (
+              <Pressable key={branch.id} style={[styles.branchCard, lightCard]} onPress={() => nav.navigate("BranchDetail", { branchId: branch.id })}>
+                <View style={styles.branchHeader}>
+                  <Text style={[styles.branchTitle, lightPrimary]} numberOfLines={1}>{branch.organization_name}</Text>
+                  <View style={[styles.statusBadge, branch.is_active ? styles.activeBadge : styles.inactiveBadge]}>
+                    <Text style={[styles.statusText, branch.is_active ? styles.activeText : styles.inactiveText]}>
+                      {branch.is_active ? "ACTIVE" : "INACTIVE"}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={[styles.branchMeta, lightSecondary]}><Text style={[styles.branchMetaStrong, lightPrimary]}>Branch ID:</Text> #{branch.id}</Text>
+                <Text style={[styles.branchMeta, lightSecondary]}><Text style={[styles.branchMetaStrong, lightPrimary]}>Location:</Text> {branch.branch_location || "No location"}</Text>
+                <Text style={[styles.branchMeta, lightSecondary]}><Text style={[styles.branchMetaStrong, lightPrimary]}>Address:</Text> {branch.address || "No address"}</Text>
+                <Text style={[styles.branchMeta, lightSecondary]}><Text style={[styles.branchMetaStrong, lightPrimary]}>Admin:</Text> {admin ? `${admin.user_name} (${admin.email})` : "Not assigned"}</Text>
+                <Text style={[styles.branchHint, lightPrimary]}>Tap to view branch details</Text>
+              </Pressable>
+            );
+          })}
+
+          {filteredBranches.length === 0 && !refreshing ? (
+            <View style={[styles.emptyCard, lightCard]}>
+              <Text style={[styles.emptyTitle, lightPrimary]}>No branches found</Text>
+              <Text style={[styles.emptyMeta, lightSecondary]}>Try changing filters or create a new branch.</Text>
+            </View>
+          ) : null}
+        </ScrollView>
+      </Animated.View>
     </View>
   );
 };
@@ -255,109 +441,158 @@ export const OrganizationsScreen = () => {
 const styles = StyleSheet.create({
   page: { flex: 1 },
   scroll: { flex: 1 },
-  content: { padding: 16, paddingBottom: 30 },
-
-  blob: { position: "absolute", borderRadius: 999, opacity: 0.33 },
-  blobA: { width: 220, height: 220, top: 80, left: -60, backgroundColor: colors.blobA },
-  blobB: { width: 260, height: 260, right: -80, bottom: 120, backgroundColor: colors.blobB },
-
-  title: { color: colors.text, fontSize: 32, fontWeight: "900", marginBottom: 2 },
-  subtitle: { color: colors.muted, fontSize: 14, marginBottom: 12 },
-
-  card: {
-    backgroundColor: colors.card,
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: 14,
-    marginBottom: 10,
-  },
-
-  sectionTitle: { color: colors.textStrong, fontWeight: "900", fontSize: 16, marginBottom: 8 },
+  content: { padding: 20, paddingBottom: 36 },
 
   headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 8,
-    gap: 8,
+    marginBottom: 14,
+  },
+  pageTitle: { fontSize: 30, fontWeight: "800", color: "#FFFFFF", letterSpacing: 0.3 },
+  pageSubtitle: { marginTop: 4, fontSize: 14, color: "#8B8DA3", lineHeight: 20 },
+
+  formCard: {
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    padding: 14,
+    marginBottom: 16,
+  },
+  formTitle: { color: "#FFFFFF", fontSize: 17, fontWeight: "700", marginBottom: 10 },
+  actionRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 10 },
+  actionBtn: {
+    backgroundColor: "rgba(102,126,234,0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(102,126,234,0.35)",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  actionBtnActive: { backgroundColor: "rgba(102,126,234,0.28)" },
+  actionBtnDanger: { backgroundColor: "rgba(255,75,75,0.18)", borderColor: "rgba(255,75,75,0.35)" },
+  actionBtnText: { color: "#FFFFFF", fontWeight: "700", fontSize: 12 },
+
+  formFields: { marginTop: 4 },
+  label: { fontSize: 12, color: "#8B8DA3", marginBottom: 6, fontWeight: "600", marginTop: 6 },
+  input: {
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.select({ web: 10, default: 9 }),
+    color: "#FFFFFF",
   },
 
-  name: { flex: 1, color: colors.textStrong, fontWeight: "900", fontSize: 16 },
+  submitBtn: { borderRadius: 12, overflow: "hidden", marginTop: 12 },
+  submitGradient: { alignItems: "center", justifyContent: "center", paddingVertical: 12 },
+  submitText: { color: "#FFFFFF", fontSize: 13, fontWeight: "700" },
 
-  badge: {
+  deleteBtn: {
+    marginTop: 12,
+    borderRadius: 10,
     borderWidth: 1,
-    borderRadius: 999,
+    borderColor: "rgba(255,75,75,0.35)",
+    backgroundColor: "rgba(255,75,75,0.16)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 11,
+  },
+  deleteBtnText: { color: "#FF7D7D", fontSize: 12, fontWeight: "700" },
+
+  disabledBtn: { opacity: 0.6 },
+  message: { color: "#8B8DA3", marginTop: 10, fontSize: 12 },
+
+  listHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  listTitle: { color: "#FFFFFF", fontSize: 18, fontWeight: "700" },
+  listCount: { color: "#8B8DA3", fontSize: 12, fontWeight: "600" },
+
+  filterRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    marginBottom: 12,
+    zIndex: 10,
+  },
+  filterCol: { flex: 1 },
+  filterLabel: { fontSize: 11, color: "#8B8DA3", marginBottom: 6, fontWeight: "600" },
+  filterInput: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderColor: "rgba(255,255,255,0.12)",
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: Platform.select({ web: 9, default: 8 }),
+    color: "#FFFFFF",
+  },
+  filterSelectBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderColor: "rgba(255,255,255,0.12)",
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: Platform.select({ web: 9, default: 8 }),
+  },
+  filterSelectText: { color: "#FFFFFF", fontSize: 13, fontWeight: "600", textTransform: "capitalize" },
+  filterChevron: { color: "#8B8DA3", fontSize: 11 },
+  filterDropdown: {
+    marginTop: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    backgroundColor: "#1A1640",
+    overflow: "hidden",
+  },
+  filterOption: {
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.06)",
+  },
+  filterOptionText: { color: "#FFFFFF", fontSize: 13, textTransform: "capitalize" },
+
+  branchCard: {
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    padding: 12,
+    marginBottom: 10,
+  },
+  branchHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
+  branchTitle: { color: "#FFFFFF", fontSize: 17, fontWeight: "800", flex: 1 },
+  statusBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
-  },
-  activeBadge: { backgroundColor: "rgba(59,203,146,0.18)", borderColor: colors.success },
-  inactiveBadge: { backgroundColor: "rgba(227,108,106,0.18)", borderColor: colors.danger },
-  badgeText: { fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
-  activeText: { color: colors.success },
-  inactiveText: { color: colors.danger },
-
-  metaLine: { color: colors.muted, fontSize: 13, lineHeight: 19, marginBottom: 2 },
-  metaStrong: { color: colors.textStrong, fontWeight: "800" },
-
-  formLabel: { color: colors.textStrong, fontWeight: "800", marginTop: 8, marginBottom: 4, fontSize: 12 },
-  input: {
+    borderRadius: 999,
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 10,
-    backgroundColor: colors.cardSoft,
-    color: colors.text,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
   },
-  roleRow: { flexDirection: "row", gap: 8, marginTop: 10 },
-  roleBtn: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.cardSoft,
-    borderRadius: 10,
-    paddingVertical: 8,
-    alignItems: "center",
-  },
-  roleBtnActive: { backgroundColor: colors.accent, borderColor: colors.accent },
-  roleBtnText: { color: colors.muted, fontWeight: "800" },
-  roleBtnTextActive: { color: colors.textStrong },
-
-  primaryBtn: {
-    marginTop: 10,
-    backgroundColor: colors.primary,
-    borderRadius: 10,
-    paddingVertical: 10,
-    alignItems: "center",
-  },
-  primaryBtnText: { color: colors.textStrong, fontWeight: "900" },
-  disabledBtn: { opacity: 0.6 },
-
-  message: { marginTop: 8, color: colors.muted, fontSize: 12, fontWeight: "700" },
-
-  deactivateBtn: {
-    marginTop: 10,
-    backgroundColor: colors.danger,
-    borderColor: colors.danger,
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingVertical: 10,
-    alignItems: "center",
-  },
-  deactivateBtnDisabled: { opacity: 0.6 },
-  deactivateBtnText: { color: colors.textStrong, fontWeight: "800", fontSize: 13 },
+  statusText: { fontSize: 11, fontWeight: "800", letterSpacing: 0.4 },
+  activeBadge: { backgroundColor: "rgba(46,204,113,0.18)", borderColor: "rgba(46,204,113,0.5)" },
+  inactiveBadge: { backgroundColor: "rgba(231,76,60,0.18)", borderColor: "rgba(231,76,60,0.5)" },
+  activeText: { color: "#9FFFC4" },
+  inactiveText: { color: "#FFD0C8" },
+  branchMeta: { color: "#CFCFE8", fontSize: 13, lineHeight: 20, marginTop: 3 },
+  branchMetaStrong: { color: "#FFFFFF", fontWeight: "700" },
+  branchHint: { color: "#667EEA", marginTop: 8, fontSize: 12, fontWeight: "700" },
 
   emptyCard: {
-    backgroundColor: colors.cardSoft,
-    borderColor: colors.border,
+    backgroundColor: "rgba(255,255,255,0.04)",
     borderWidth: 1,
-    borderRadius: 16,
-    padding: 16,
-    marginTop: 6,
+    borderColor: "rgba(255,255,255,0.08)",
+    borderRadius: 14,
+    padding: 14,
   },
-  emptyTitle: { color: colors.textStrong, fontSize: 16, fontWeight: "900", marginBottom: 4 },
-  emptyMeta: { color: colors.muted, fontSize: 13 },
+  emptyTitle: { color: "#FFFFFF", fontWeight: "800", marginBottom: 4 },
+  emptyMeta: { color: "#8B8DA3" },
 });
-
-

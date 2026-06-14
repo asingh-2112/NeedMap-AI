@@ -9,6 +9,7 @@ from app.models.need import Need
 from app.models.organization import Organization
 from app.models.user import User
 from app.models.volunteer import Volunteer
+from app.services.organization_service import get_accessible_organization_ids
 from app.schemas.assignment import (
     AssignmentCreateRequest,
     AssignmentFeedbackRequest,
@@ -63,17 +64,46 @@ def _require_owner_or_admin(user: User) -> None:
         )
 
 
+def _ensure_assignment_access(db: Session, current_user: User, assignment: Assignment) -> None:
+    if current_user.role == UserRole.VOLUNTEER:
+        volunteer = db.query(Volunteer).filter(Volunteer.id == assignment.volunteer_id).first()
+        if volunteer is None or volunteer.user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not allowed to access this assignment",
+            )
+        return
+
+    allowed_ids = set(get_accessible_organization_ids(db=db, current_user=current_user))
+    if assignment.organization_id not in allowed_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not allowed to access this assignment",
+        )
+
+
 # ── Assignment CRUD ──────────────────────────────────────────────────────────
 
 
 def create_assignment(db: Session, current_user: User, payload: AssignmentCreateRequest) -> Assignment:
     """Assign a volunteer to a need. Only owner or admin can create assignments."""
     _require_owner_or_admin(current_user)
+    allowed_ids = set(get_accessible_organization_ids(db=db, current_user=current_user))
+    if payload.organization_id not in allowed_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not allowed to create assignment for this organization/branch",
+        )
 
     # Validate need exists
     need = db.query(Need).filter(Need.id == payload.need_id).first()
     if need is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Need not found")
+    if need.organization_id != payload.organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Need and assignment organization mismatch",
+        )
 
     # Validate organization exists and is active
     org = (
@@ -129,18 +159,33 @@ def create_assignment(db: Session, current_user: User, payload: AssignmentCreate
 
 def list_assignments(
     db: Session,
+    current_user: User,
     need_id: int | None = None,
     volunteer_id: int | None = None,
     organization_id: int | None = None,
     status_filter: AssignmentStatus | None = None,
 ) -> list[Assignment]:
-    query = db.query(Assignment)
+    if current_user.role == UserRole.VOLUNTEER:
+        volunteer_profile = db.query(Volunteer).filter(Volunteer.user_id == current_user.id).first()
+        if volunteer_profile is None:
+            return []
+        query = db.query(Assignment).filter(Assignment.volunteer_id == volunteer_profile.id)
+    else:
+        allowed_ids = set(get_accessible_organization_ids(db=db, current_user=current_user))
+        query = db.query(Assignment).filter(Assignment.organization_id.in_(allowed_ids))
 
     if need_id is not None:
         query = query.filter(Assignment.need_id == need_id)
     if volunteer_id is not None:
         query = query.filter(Assignment.volunteer_id == volunteer_id)
     if organization_id is not None:
+        if current_user.role != UserRole.VOLUNTEER:
+            allowed_ids = set(get_accessible_organization_ids(db=db, current_user=current_user))
+            if organization_id not in allowed_ids:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Not allowed to access this organization/branch",
+                )
         query = query.filter(Assignment.organization_id == organization_id)
     if status_filter is not None:
         query = query.filter(Assignment.status == status_filter)
@@ -148,17 +193,21 @@ def list_assignments(
     return query.order_by(Assignment.assigned_at.desc()).all()
 
 
-def get_assignment_by_id(db: Session, assignment_id: int) -> Assignment:
-    return _get_assignment_or_404(db, assignment_id)
+def get_assignment_by_id(db: Session, current_user: User, assignment_id: int) -> Assignment:
+    assignment = _get_assignment_or_404(db, assignment_id)
+    _ensure_assignment_access(db=db, current_user=current_user, assignment=assignment)
+    return assignment
 
 
 def update_assignment_status(
     db: Session,
+    current_user: User,
     assignment_id: int,
     payload: AssignmentStatusUpdateRequest,
 ) -> Assignment:
     """Update assignment lifecycle status with transition validation."""
     assignment = _get_assignment_or_404(db, assignment_id)
+    _ensure_assignment_access(db=db, current_user=current_user, assignment=assignment)
 
     current = assignment.status
     target = payload.status
@@ -206,11 +255,13 @@ def update_assignment_status(
 
 def submit_assignment_feedback(
     db: Session,
+    current_user: User,
     assignment_id: int,
     payload: AssignmentFeedbackRequest,
 ) -> Assignment:
     """Submit feedback and rating for an assignment."""
     assignment = _get_assignment_or_404(db, assignment_id)
+    _ensure_assignment_access(db=db, current_user=current_user, assignment=assignment)
 
     if payload.feedback is not None:
         assignment.feedback = payload.feedback

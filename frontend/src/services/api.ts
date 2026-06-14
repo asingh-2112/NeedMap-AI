@@ -11,6 +11,8 @@ import type {
 
 const normalize = (baseUrl: string) => baseUrl.trim().replace(/\/+$/, "");
 const isBypassToken = (token?: string) => token === "dev-bypass-token";
+type ApiPrefix = "" | "/api" | "/api/v1";
+const preferredPrefixByResource: Record<string, ApiPrefix> = {};
 
 export const apiRequest = async <T>(
   baseUrl: string,
@@ -18,8 +20,9 @@ export const apiRequest = async <T>(
   options?: RequestInit,
   token?: string,
 ): Promise<T> => {
+  const hasFormDataBody = typeof FormData !== "undefined" && options?.body instanceof FormData;
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    ...(hasFormDataBody ? {} : { "Content-Type": "application/json" }),
     ...(options?.headers as Record<string, string> | undefined),
   };
 
@@ -58,8 +61,103 @@ export const apiRequest = async <T>(
   return payload as T;
 };
 
+const applyPrefix = (path: string, prefix: "" | "/api" | "/api/v1"): string => {
+  if (prefix === "") {
+    if (path.startsWith("/api/v1/")) return path.replace("/api/v1", "");
+    if (path.startsWith("/api/")) return path.replace("/api", "");
+    return path;
+  }
+
+  if (prefix === "/api") {
+    if (path.startsWith("/api/v1/")) return path.replace("/api/v1", "/api");
+    if (path.startsWith("/api/")) return path;
+    return `/api${path}`;
+  }
+
+  if (path.startsWith("/api/v1/")) return path;
+  if (path.startsWith("/api/")) return path.replace("/api", "/api/v1");
+  return `/api/v1${path}`;
+};
+
+const getPrefixFromPath = (path: string): "" | "/api" | "/api/v1" => {
+  if (path.startsWith("/api/v1/")) return "/api/v1";
+  if (path.startsWith("/api/")) return "/api";
+  return "";
+};
+
+const getResourceKeyFromPath = (path: string): string => {
+  const normalizedPath = path.startsWith("/api/v1/")
+    ? path.replace("/api/v1", "")
+    : path.startsWith("/api/")
+      ? path.replace("/api", "")
+      : path;
+  const [segment] = normalizedPath.split("/").filter(Boolean);
+  return segment || "root";
+};
+
+const buildPathFallbacks = (path: string): string[] => {
+  const resourceKey = getResourceKeyFromPath(path);
+  const preferredPrefix = preferredPrefixByResource[resourceKey];
+
+  if (preferredPrefix !== undefined) {
+    const preferredPath = applyPrefix(path, preferredPrefix);
+    const rest = ["", "/api", "/api/v1"]
+      .filter((p): p is "" | "/api" | "/api/v1" => p !== preferredPrefix)
+      .map((p) => applyPrefix(path, p));
+    return [preferredPath, ...rest];
+  }
+
+  if (path.startsWith("/api/v1/")) {
+    return [path, path.replace("/api/v1", ""), path.replace("/api/v1", "/api")];
+  }
+
+  if (path.startsWith("/api/")) {
+    return [path, path.replace("/api", ""), `/api/v1${path.slice(4)}`];
+  }
+
+  return [path, `/api${path}`, `/api/v1${path}`];
+};
+
+const apiRequestWith404Fallback = async <T>(
+  baseUrl: string,
+  path: string,
+  options?: RequestInit,
+  token?: string,
+): Promise<T> => {
+  const candidates = buildPathFallbacks(path);
+  const resourceKey = getResourceKeyFromPath(path);
+  let lastError: unknown;
+  let exhausted404Fallback = false;
+
+  for (let i = 0; i < candidates.length; i += 1) {
+    try {
+      const result = await apiRequest<T>(baseUrl, candidates[i], options, token);
+      preferredPrefixByResource[resourceKey] = getPrefixFromPath(candidates[i]);
+      return result;
+    } catch (err) {
+      lastError = err;
+      const is404 = err instanceof Error && err.message.includes("(404)");
+      const hasMore = i < candidates.length - 1;
+      if (!is404) {
+        throw err;
+      }
+      if (!hasMore) {
+        exhausted404Fallback = true;
+      }
+    }
+  }
+
+  if (exhausted404Fallback) {
+    throw new Error(
+      `Endpoint not available on backend for path ${path}. Please restart the backend from NeedMap-AI/backend or deploy a backend build that exposes this route.`,
+    );
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("Request failed");
+};
+
 export const authApi = {
-  signup: (baseUrl: string, body: { user_name: string; email: string; password: string; role: "volunteer" }) =>
+  signup: (baseUrl: string, body: { user_name: string; email: string; password: string; role: string; phone?: string }) =>
     apiRequest<AuthUser>(baseUrl, "/auth/register", { method: "POST", body: JSON.stringify(body) }),
 
   registerOrganization: (
@@ -214,6 +312,83 @@ export const moduleApi = {
       token,
     ),
 
+  ingestUploadFile: (
+    baseUrl: string,
+    token: string,
+    body: {
+      source_type: "image" | "voice_note" | "document" | "csv_upload" | "web_form";
+      file: { uri: string; name: string; type: string; file?: Blob };
+      organization_id: number;
+      latitude?: number;
+      longitude?: number;
+      address?: string;
+      create_need?: boolean;
+    },
+  ) => {
+    const form = new FormData();
+    form.append("source_type", body.source_type);
+    form.append("organization_id", String(body.organization_id));
+    form.append("latitude", String(body.latitude ?? 0));
+    form.append("longitude", String(body.longitude ?? 0));
+    form.append("address", body.address ?? "");
+    form.append("create_need", String(body.create_need ?? true));
+    const webFile = body.file.file;
+    if (typeof Blob !== "undefined" && webFile instanceof Blob) {
+      form.append("file", webFile, body.file.name);
+    } else {
+      form.append("file", body.file as unknown as Blob);
+    }
+
+    return apiRequestWith404Fallback<{
+      category: string;
+      urgency: string;
+      location: string | null;
+      description: string;
+      skills_required: string[];
+      affected_count: number | null;
+      confidence: number;
+      model_used: string;
+      need_id: number | null;
+      source_id: number | null;
+      raw_text: string;
+    }>(
+      baseUrl,
+      "/needs/ingest/upload",
+      { method: "POST", body: form },
+      token,
+    );
+  },
+
+  addNeedSourceUpload: (
+    baseUrl: string,
+    token: string,
+    needId: number,
+    body: {
+      source_type: "image" | "voice_note" | "document" | "csv_upload" | "web_form" | "paper_survey";
+      file: { uri: string; name: string; type: string; file?: Blob };
+      location?: string;
+    },
+  ) => {
+    const form = new FormData();
+    form.append("source_type", body.source_type);
+    if (body.location) {
+      form.append("location", body.location);
+    }
+    const webFile = body.file.file;
+    if (typeof Blob !== "undefined" && webFile instanceof Blob) {
+      form.append("file", webFile, body.file.name);
+    } else {
+      form.append("file", body.file as unknown as Blob);
+    }
+
+    return apiRequestWith404Fallback<NeedSource>(
+      baseUrl,
+      `/needs/${needId}/sources/upload`,
+      { method: "POST", body: form },
+      token,
+    );
+  },
+
   volunteers: (baseUrl: string, token: string) => {
     if (isBypassToken(token)) {
       const mockVolunteers: Volunteer[] = [
@@ -242,6 +417,9 @@ export const moduleApi = {
     return apiRequest<Organization[]>(baseUrl, "/organizations", { method: "GET" }, token);
   },
 
+  getOrganization: (baseUrl: string, token: string, orgId: number) =>
+    apiRequest<Organization>(baseUrl, `/organizations/${orgId}`, { method: "GET" }, token),
+
   addOrganizationMember: (
     baseUrl: string,
     token: string,
@@ -251,18 +429,66 @@ export const moduleApi = {
       email: string;
       password: string;
       role: "admin" | "volunteer";
+      managed_branch_id?: number;
       phone?: string;
     },
   ) =>
-    apiRequest<AuthUser>(
+    apiRequestWith404Fallback<AuthUser>(
       baseUrl,
       `/organizations/${organizationId}/members`,
       { method: "POST", body: JSON.stringify(body) },
       token,
     ),
 
+  organizationMembers: (baseUrl: string, token: string, organizationId: number) =>
+    apiRequestWith404Fallback<AuthUser[]>(
+      baseUrl,
+      `/organizations/${organizationId}/members`,
+      { method: "GET" },
+      token,
+    ),
+
+  organizationBranches: (baseUrl: string, token: string, organizationId: number) =>
+    apiRequestWith404Fallback<Organization[]>(
+      baseUrl,
+      `/organizations/${organizationId}/branches`,
+      { method: "GET" },
+      token,
+    ),
+
+  createOrganizationBranch: (
+    baseUrl: string,
+    token: string,
+    organizationId: number,
+    body: {
+      organization_name: string;
+      branch_location: string;
+      address?: string;
+      phone?: string;
+    },
+  ) =>
+    apiRequestWith404Fallback<Organization>(
+      baseUrl,
+      `/organizations/${organizationId}/branches`,
+      { method: "POST", body: JSON.stringify(body) },
+      token,
+    ),
+
+  deactivateOrganizationMember: (
+    baseUrl: string,
+    token: string,
+    organizationId: number,
+    memberId: number,
+  ) =>
+    apiRequestWith404Fallback<{ message: string }>(
+      baseUrl,
+      `/organizations/${organizationId}/members/${memberId}`,
+      { method: "DELETE" },
+      token,
+    ),
+
   deactivateOrganization: (baseUrl: string, token: string, organizationId: number) =>
-    apiRequest<{ message: string }>(
+    apiRequestWith404Fallback<{ message: string }>(
       baseUrl,
       `/organizations/${organizationId}`,
       { method: "DELETE" },

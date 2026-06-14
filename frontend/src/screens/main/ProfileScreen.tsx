@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Animated,
+  Image,
   Platform,
   Pressable,
   ScrollView,
@@ -12,11 +13,17 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAuth } from "../../context/AuthContext";
+import { useThemeMode } from "../../context/ThemeModeContext";
 import { moduleApi } from "../../services/api";
-import { colors } from "../../theme";
 
 export const ProfileScreen = () => {
   const { user, baseUrl, token, refreshMe, logout } = useAuth();
+  const { theme } = useThemeMode();
+  const isLight = theme.mode === "light";
+  const lightPrimary = isLight ? { color: "#0B1220", fontWeight: "900" as const } : null;
+  const lightSecondary = isLight ? { color: "#111827", fontWeight: "700" as const } : null;
+  const lightCard = isLight ? { borderColor: "#000000", borderWidth: 2, backgroundColor: "rgba(255,255,255,0.97)" } : null;
+  const lightInput = isLight ? { borderColor: "#000000", borderWidth: 2, color: "#0B1220", fontWeight: "700" as const, backgroundColor: "#FFFFFF" } : null;
 
   const [name, setName] = useState(user?.user_name || "");
   const [phone, setPhone] = useState(user?.phone || "");
@@ -26,6 +33,7 @@ export const ProfileScreen = () => {
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [message, setMessage] = useState("");
+  const [profileImage, setProfileImage] = useState<string>("");
 
   const pulse = useRef(new Animated.Value(0)).current;
   const floatA = useRef(new Animated.Value(0)).current;
@@ -36,6 +44,15 @@ export const ProfileScreen = () => {
     setName(user?.user_name || "");
     setPhone(user?.phone || "");
   }, [user?.user_name, user?.phone]);
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined") return;
+    const key = `needmap-profile-image-${user?.id ?? "me"}`;
+    const saved = window.localStorage.getItem(key);
+    if (saved) {
+      setProfileImage(saved);
+    }
+  }, [user?.id]);
 
   useEffect(() => {
     Animated.loop(
@@ -131,6 +148,36 @@ export const ProfileScreen = () => {
     }
   };
 
+  const pickProfileImage = () => {
+    if (Platform.OS !== "web") {
+      setMessage("Profile image upload from computer is available on web.");
+      return;
+    }
+
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = typeof reader.result === "string" ? reader.result : "";
+        if (!dataUrl) return;
+        setProfileImage(dataUrl);
+        if (typeof window !== "undefined") {
+          const key = `needmap-profile-image-${user?.id ?? "me"}`;
+          window.localStorage.setItem(key, dataUrl);
+        }
+        setMessage("Profile image updated.");
+      };
+      reader.onerror = () => setMessage("Unable to read selected image.");
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  };
+
   const deactivateAccount = async () => {
     const go = async () => {
       try {
@@ -156,7 +203,12 @@ export const ProfileScreen = () => {
 
   return (
     <View style={styles.page}>
-      <LinearGradient colors={[colors.bg, colors.bgSoft, colors.bgWarm]} style={StyleSheet.absoluteFillObject} />
+      <LinearGradient
+        colors={theme.gradients.page}
+        style={StyleSheet.absoluteFillObject}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      />
 
       <Animated.View
         style={[
@@ -174,75 +226,77 @@ export const ProfileScreen = () => {
       />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.heading}>Profile</Text>
-        <Text style={styles.subheading}>Manage your personal settings and account actions</Text>
+        <Text style={[styles.heading, lightPrimary]}>Profile</Text>
+        <Text style={[styles.subheading, lightSecondary]}>Manage your personal settings and account actions</Text>
 
-        <View style={styles.heroCard}>
+        <View style={[styles.heroCard, lightCard]}>
           <Animated.View style={[styles.avatarRing, { transform: [{ rotate: ringRotate }] }]} />
-          <View style={styles.avatarCore}>
-            <Text style={styles.avatarText}>{initials}</Text>
-          </View>
+          {profileImage ? (
+            <Image source={{ uri: profileImage }} style={styles.avatarImage} />
+          ) : (
+            <View style={styles.avatarCore}>
+              <Text style={styles.avatarText}>{initials}</Text>
+            </View>
+          )}
 
           <View style={styles.heroMeta}>
-            <Text style={styles.name}>{user?.user_name || "NeedMap User"}</Text>
-            <Text style={styles.email}>{user?.email || "No email"}</Text>
+            <Text style={[styles.name, lightPrimary]}>{user?.user_name || "NeedMap User"}</Text>
+            <Text style={[styles.email, lightSecondary]}>{user?.email || "No email"}</Text>
             <View style={styles.roleBadge}>
               <Text style={styles.roleBadgeText}>{(user?.role || "volunteer").toUpperCase()}</Text>
             </View>
-          </View>
-        </View>
-
-        <View style={styles.panelCard}>
-          <Text style={styles.panelTitle}>Update Profile</Text>
-          <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Full name" placeholderTextColor={colors.muted} />
-          <TextInput style={styles.input} value={phone} onChangeText={setPhone} placeholder="Phone" placeholderTextColor={colors.muted} />
-          <Pressable style={styles.primaryBtn} onPress={saveProfile}>
-            <Text style={styles.primaryBtnText}>Save Profile</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.panelCard}>
-          <Text style={styles.panelTitle}>Update Location</Text>
-          <View style={styles.row}>
-            <TextInput style={[styles.input, styles.col]} value={latitude} onChangeText={setLatitude} placeholder="Latitude" keyboardType="numeric" placeholderTextColor={colors.muted} />
-            <TextInput style={[styles.input, styles.col]} value={longitude} onChangeText={setLongitude} placeholder="Longitude" keyboardType="numeric" placeholderTextColor={colors.muted} />
-          </View>
-          <TextInput style={styles.input} value={radius} onChangeText={setRadius} placeholder="Radius km" keyboardType="numeric" placeholderTextColor={colors.muted} />
-          <View style={styles.row}>
-            <Pressable style={[styles.secondaryBtn, styles.col]} onPress={useBrowserLocation}>
-              <Text style={styles.secondaryBtnText}>Use Live Location</Text>
-            </Pressable>
-            <Pressable style={[styles.primaryBtn, styles.col]} onPress={saveLocation}>
-              <Text style={styles.primaryBtnText}>Save Location</Text>
+            <Pressable style={[styles.uploadBtn, isLight ? { borderColor: "#000", borderWidth: 2 } : null]} onPress={pickProfileImage}>
+              <Text style={[styles.uploadBtnText, lightPrimary]}>Upload Profile Photo</Text>
             </Pressable>
           </View>
         </View>
 
-        <View style={styles.panelCard}>
-          <Text style={styles.panelTitle}>Change Password</Text>
-          <TextInput style={styles.input} value={oldPassword} onChangeText={setOldPassword} placeholder="Old password" secureTextEntry placeholderTextColor={colors.muted} />
-          <TextInput style={styles.input} value={newPassword} onChangeText={setNewPassword} placeholder="New password" secureTextEntry placeholderTextColor={colors.muted} />
-          <Pressable style={styles.primaryBtn} onPress={changePassword}>
-            <Text style={styles.primaryBtnText}>Change Password</Text>
+        <View style={[styles.panelCard, lightCard]}>
+          <Text style={[styles.panelTitle, lightPrimary]}>Update Profile</Text>
+          <TextInput style={[styles.input, lightInput]} value={name} onChangeText={setName} placeholder="Full name" placeholderTextColor={isLight ? "#374151" : "#BFC0CF"} />
+          <TextInput style={[styles.input, lightInput]} value={phone} onChangeText={setPhone} placeholder="Phone" placeholderTextColor={isLight ? "#374151" : "#BFC0CF"} />
+          <Pressable style={[styles.primaryBtn, isLight ? { borderColor: "#000", borderWidth: 2 } : null]} onPress={saveProfile}>
+            <Text style={[styles.primaryBtnText, lightPrimary]}>Save Profile</Text>
           </Pressable>
         </View>
 
-        <View style={styles.panelCard}>
-          <Text style={styles.panelTitle}>Danger Zone</Text>
-          <Pressable style={styles.dangerBtn} onPress={deactivateAccount}>
+        <View style={[styles.panelCard, lightCard]}>
+          <Text style={[styles.panelTitle, lightPrimary]}>Update Location</Text>
+          <View style={styles.row}>
+            <TextInput style={[styles.input, styles.col, lightInput]} value={latitude} onChangeText={setLatitude} placeholder="Latitude" keyboardType="numeric" placeholderTextColor={isLight ? "#374151" : "#BFC0CF"} />
+            <TextInput style={[styles.input, styles.col, lightInput]} value={longitude} onChangeText={setLongitude} placeholder="Longitude" keyboardType="numeric" placeholderTextColor={isLight ? "#374151" : "#BFC0CF"} />
+          </View>
+          <TextInput style={[styles.input, lightInput]} value={radius} onChangeText={setRadius} placeholder="Radius km" keyboardType="numeric" placeholderTextColor={isLight ? "#374151" : "#BFC0CF"} />
+          <View style={styles.row}>
+            <Pressable style={[styles.secondaryBtn, styles.col, isLight ? { borderColor: "#000", borderWidth: 2 } : null]} onPress={useBrowserLocation}>
+              <Text style={[styles.secondaryBtnText, lightPrimary]}>Use Live Location</Text>
+            </Pressable>
+            <Pressable style={[styles.primaryBtn, styles.col, isLight ? { borderColor: "#000", borderWidth: 2 } : null]} onPress={saveLocation}>
+              <Text style={[styles.primaryBtnText, lightPrimary]}>Save Location</Text>
+            </Pressable>
+          </View>
+        </View>
+
+        <View style={[styles.panelCard, lightCard]}>
+          <Text style={[styles.panelTitle, lightPrimary]}>Change Password</Text>
+          <TextInput style={[styles.input, lightInput]} value={oldPassword} onChangeText={setOldPassword} placeholder="Old password" secureTextEntry placeholderTextColor={isLight ? "#374151" : "#BFC0CF"} />
+          <TextInput style={[styles.input, lightInput]} value={newPassword} onChangeText={setNewPassword} placeholder="New password" secureTextEntry placeholderTextColor={isLight ? "#374151" : "#BFC0CF"} />
+          <Pressable style={[styles.primaryBtn, isLight ? { borderColor: "#000", borderWidth: 2 } : null]} onPress={changePassword}>
+            <Text style={[styles.primaryBtnText, lightPrimary]}>Change Password</Text>
+          </Pressable>
+        </View>
+
+        <View style={[styles.panelCard, lightCard]}>
+          <Text style={[styles.panelTitle, lightPrimary]}>Danger Zone</Text>
+          <Pressable style={[styles.dangerBtn, isLight ? { borderColor: "#000", borderWidth: 2 } : null]} onPress={deactivateAccount}>
             <Text style={styles.dangerBtnText}>Deactivate Account</Text>
           </Pressable>
         </View>
 
-        {message ? <Text style={styles.message}>{message}</Text> : null}
+        {message ? <Text style={[styles.message, lightSecondary]}>{message}</Text> : null}
 
-        <View style={styles.panelCard}>
-          <Text style={styles.panelTitle}>Connection</Text>
-          <Text style={styles.backendText}>{baseUrl}</Text>
-        </View>
-
-        <Pressable style={styles.logoutBtn} onPress={logout}>
-          <Text style={styles.logoutText}>Logout</Text>
+        <Pressable style={[styles.logoutBtn, isLight ? { borderColor: "#000", borderWidth: 2 } : null]} onPress={logout}>
+          <Text style={[styles.logoutText, lightPrimary]}>Logout</Text>
         </Pressable>
       </ScrollView>
     </View>
@@ -261,24 +315,24 @@ const styles = StyleSheet.create({
   orbLeft: {
     width: 220,
     height: 220,
-    backgroundColor: colors.blobA,
+    backgroundColor: "rgba(102,126,234,0.22)",
     top: 90,
     left: -50,
   },
   orbRight: {
     width: 260,
     height: 260,
-    backgroundColor: colors.blobB,
+    backgroundColor: "rgba(123,104,238,0.2)",
     top: 220,
     right: -90,
   },
 
-  heading: { color: colors.text, fontSize: 32, fontWeight: "900", marginTop: 6 },
-  subheading: { color: colors.muted, marginTop: 4, marginBottom: 16, fontSize: 14 },
+  heading: { color: "#FFFFFF", fontSize: 32, fontWeight: "900", marginTop: 6 },
+  subheading: { color: "#BFC0CF", marginTop: 4, marginBottom: 16, fontSize: 14 },
 
   heroCard: {
-    backgroundColor: colors.cardSoft,
-    borderColor: colors.border,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderColor: "rgba(255,255,255,0.1)",
     borderWidth: 1,
     borderRadius: 20,
     padding: 16,
@@ -306,11 +360,19 @@ const styles = StyleSheet.create({
     borderColor: "#FFD8C9",
     marginRight: 16,
   },
+  avatarImage: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    marginRight: 16,
+    borderWidth: 2,
+    borderColor: "#FFD8C9",
+  },
   avatarText: { color: "white", fontSize: 26, fontWeight: "900" },
 
   heroMeta: { flex: 1 },
-  name: { color: colors.textStrong, fontSize: 20, fontWeight: "900" },
-  email: { color: colors.muted, fontSize: 13, marginTop: 2 },
+  name: { color: "#FFFFFF", fontSize: 20, fontWeight: "900" },
+  email: { color: "#BFC0CF", fontSize: 13, marginTop: 2 },
   roleBadge: {
     alignSelf: "flex-start",
     marginTop: 8,
@@ -320,65 +382,74 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   roleBadgeText: { color: "#5A3525", fontWeight: "900", fontSize: 11 },
+  uploadBtn: {
+    marginTop: 10,
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(102,126,234,0.2)",
+    borderColor: "rgba(102,126,234,0.45)",
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  uploadBtnText: { color: "#D9DEFF", fontWeight: "700", fontSize: 12 },
 
   panelCard: {
-    backgroundColor: colors.card,
-    borderColor: colors.border,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderColor: "rgba(255,255,255,0.1)",
     borderWidth: 1,
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
   },
-  panelTitle: { color: colors.textStrong, fontSize: 16, fontWeight: "900", marginBottom: 10 },
+  panelTitle: { color: "#FFFFFF", fontSize: 16, fontWeight: "900", marginBottom: 10 },
 
   row: { flexDirection: "row", gap: 8 },
   col: { flex: 1 },
 
   input: {
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: "rgba(255,255,255,0.12)",
     borderRadius: 10,
-    backgroundColor: colors.cardSoft,
-    color: colors.text,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    color: "#FFFFFF",
     paddingHorizontal: 10,
     paddingVertical: 8,
     marginBottom: 8,
   },
 
   primaryBtn: {
-    backgroundColor: colors.primary,
+    backgroundColor: "#667EEA",
     borderRadius: 10,
     paddingVertical: 10,
     alignItems: "center",
   },
-  primaryBtnText: { color: colors.textStrong, fontWeight: "900", fontSize: 13 },
+  primaryBtnText: { color: "#FFFFFF", fontWeight: "900", fontSize: 13 },
 
   secondaryBtn: {
-    backgroundColor: colors.cardSoft,
-    borderColor: colors.border,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(255,255,255,0.12)",
     borderWidth: 1,
     borderRadius: 10,
     paddingVertical: 10,
     alignItems: "center",
   },
-  secondaryBtnText: { color: colors.muted, fontWeight: "900", fontSize: 13 },
+  secondaryBtnText: { color: "#D0D2E4", fontWeight: "900", fontSize: 13 },
 
   dangerBtn: {
-    backgroundColor: colors.danger,
-    borderColor: colors.danger,
+    backgroundColor: "#E36C6A",
+    borderColor: "#E36C6A",
     borderWidth: 1,
     borderRadius: 10,
     paddingVertical: 10,
     alignItems: "center",
   },
-  dangerBtnText: { color: colors.textStrong, fontWeight: "900", fontSize: 13 },
+  dangerBtnText: { color: "#FFFFFF", fontWeight: "900", fontSize: 13 },
 
-  message: { color: colors.muted, fontWeight: "700", marginBottom: 12 },
-
-  backendText: { color: colors.muted, fontWeight: "700" },
+  message: { color: "#BFC0CF", fontWeight: "700", marginBottom: 12 },
 
   logoutBtn: {
-    backgroundColor: colors.primary,
+    backgroundColor: "#667EEA",
     borderRadius: 14,
     height: 48,
     alignItems: "center",
@@ -386,7 +457,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
     marginBottom: 8,
   },
-  logoutText: { color: colors.textStrong, fontWeight: "900", fontSize: 15 },
+  logoutText: { color: "#FFFFFF", fontWeight: "900", fontSize: 15 },
 });
 
 

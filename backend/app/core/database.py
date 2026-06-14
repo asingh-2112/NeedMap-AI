@@ -17,7 +17,16 @@ def get_engine():
     if _engine is None:
         if not settings.database_url:
             raise ValueError("DATABASE_URL environment variable is not set")
-        _engine = create_engine(settings.database_url, echo=settings.sqlalchemy_echo)
+        db_url = settings.database_url
+        # Convert psycopg2 URL to psycopg3 URL format if needed
+        if "postgresql://" in db_url and "+psycopg" not in db_url:
+            db_url = db_url.replace("postgresql://", "postgresql+psycopg://", 1)
+        # Disable prepared statements for PgBouncer/Supabase pooler compatibility
+        _engine = create_engine(
+            db_url,
+            echo=settings.sqlalchemy_echo,
+            connect_args={"prepare_threshold": None},
+        )
 
     return _engine
 

@@ -14,6 +14,14 @@ class NeedCreateRequest(BaseModel):
     latitude: float = Field(..., ge=-90, le=90)
     longitude: float = Field(..., ge=-180, le=180)
     address: str = Field(..., min_length=2, max_length=500)
+    house_number: str | None = Field(default=None, max_length=50)
+    street: str | None = Field(default=None, max_length=255)
+    colony: str | None = Field(default=None, max_length=255)
+    city: str | None = Field(default=None, max_length=100)
+    state: str | None = Field(default=None, max_length=100)
+    pincode: str | None = Field(default=None, max_length=10)
+    country: str | None = Field(default=None, max_length=100)
+    affected_count: int | None = None
 
     @model_validator(mode="after")
     def validate_location_pair(self):
@@ -83,6 +91,14 @@ class NeedResponse(BaseModel):
     latitude: float
     longitude: float
     address: str
+    house_number: str | None = None
+    street: str | None = None
+    colony: str | None = None
+    city: str | None = None
+    state: str | None = None
+    pincode: str | None = None
+    country: str | None = None
+    affected_count: int | None = None
     created_at: datetime
     resolved_at: datetime | None
 

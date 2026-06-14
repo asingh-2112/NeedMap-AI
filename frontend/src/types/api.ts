@@ -5,6 +5,7 @@
   role: string;
   phone: string | null;
   organization_id: number | null;
+  managed_branch_id?: number | null;
 };
 
 export type LoginResponse = {
@@ -31,6 +32,9 @@ export type Need = {
   latitude: number;
   longitude: number;
   address: string;
+  city?: string | null;
+  state?: string | null;
+  country?: string | null;
   created_at: string;
 };
 
@@ -57,7 +61,10 @@ export type Volunteer = {
 
 export type Organization = {
   id: number;
+  parent_organization_id?: number | null;
   organization_name: string;
+  branch_location?: string | null;
+  is_branch?: boolean;
   address: string | null;
   phone: string | null;
   user_id: number;
