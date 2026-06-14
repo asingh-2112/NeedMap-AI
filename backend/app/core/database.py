@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
-from app.core.config import settings
+from app.core.config import settings, _resolve_database_url
 
 _engine = None
 _SessionLocal = None
@@ -15,9 +15,11 @@ def get_engine():
     global _engine
 
     if _engine is None:
-        if not settings.database_url:
-            raise ValueError("DATABASE_URL environment variable is not set")
-        db_url = settings.database_url
+        raw_url = settings.database_url
+        # Empty string or None → try Secret Manager
+        db_url = _resolve_database_url(raw_url or None)
+        if not db_url:
+            raise ValueError("Could not resolve DATABASE_URL — set it in .env or Secret Manager")
         # Convert psycopg2 URL to psycopg3 URL format if needed
         if "postgresql://" in db_url and "+psycopg" not in db_url:
             db_url = db_url.replace("postgresql://", "postgresql+psycopg://", 1)

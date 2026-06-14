@@ -36,6 +36,8 @@ import urllib.request
 from datetime import datetime, timezone
 from functools import cached_property
 
+from app.core.config import _find_service_account_json, _fetch_secret
+
 # Fix SSL cert verification on macOS Homebrew Python
 if 'SSL_CERT_FILE' not in os.environ:
     try:
@@ -227,32 +229,31 @@ def _resolve_auth() -> tuple[str | None, str | None, str]:
     """
     Resolve auth method and return (model_id, auth_mode, provider_label).
 
-    Returns:
-        model_id: full model name (e.g. projects/p/locations/... or gemini-2.5-flash)
-        auth_mode: "vertex" or "studio" or None
-        provider_label: human-readable label for logging
+    Auth discovery order:
+    1. Vertex AI via auto-detected service-account.json
+    2. AI Studio API key from Secret Manager (`needmap-gemini-api-key`) or env
+    3. None — LLM disabled
     """
     from google.genai import Client
 
     model = os.getenv("LLM_MODEL", "gemini-2.5-flash")
-    creds_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
 
-    # 1. Try Vertex AI with service account
-    if creds_path and os.path.exists(creds_path):
+    # 1. Try Vertex AI with service account (auto-detected, not from env)
+    sa_path = _find_service_account_json()
+    if sa_path:
         try:
-            # Verify credentials load
             import google.auth
-            google.auth.load_credentials_from_file(creds_path)
+            google.auth.load_credentials_from_file(sa_path)
             vertex_model = (
                 f"projects/{_VERTEX_PROJECT}/locations/{_VERTEX_LOCATION}"
                 f"/publishers/google/models/{model}"
             )
             return vertex_model, "vertex", "Vertex AI"
         except Exception as exc:
-            logger.warning("Vertex AI auth failed (%s), trying AI Studio fallback", exc)
+            logger.warning("Vertex AI auth failed (%s), trying fallback", exc)
 
-    # 2. Fallback: AI Studio API key
-    api_key = os.getenv("GEMINI_API_KEY")
+    # 2. Fallback: AI Studio API key (env → Secret Manager)
+    api_key = os.getenv("GEMINI_API_KEY") or _fetch_secret("needmap-gemini-api-key")
     if api_key:
         return model, "studio", "AI Studio"
 
