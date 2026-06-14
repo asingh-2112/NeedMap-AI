@@ -12,6 +12,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp, NativeStackScreenProps } from "@react-navigation/native-stack";
+import { useAccessibility } from "../../context/AccessibilityContext";
 import { useAuth } from "../../context/AuthContext";
 import { useThemeMode } from "../../context/ThemeModeContext";
 import { moduleApi } from "../../services/api";
@@ -25,6 +26,7 @@ export const BranchDetailScreen = ({ route }: Props) => {
   const nav = useNavigation<Nav>();
   const { branchId } = route.params;
   const { baseUrl, token, user } = useAuth();
+  const { reduceMotion } = useAccessibility();
   const { theme } = useThemeMode();
 
   const [branch, setBranch] = useState<Organization | null>(null);
@@ -36,8 +38,15 @@ export const BranchDetailScreen = ({ route }: Props) => {
   const fadeIn = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.timing(fadeIn, { toValue: 1, duration: 500, useNativeDriver: true }).start();
-  }, [fadeIn]);
+    if (reduceMotion) {
+      fadeIn.setValue(1);
+      return;
+    }
+
+    const animation = Animated.timing(fadeIn, { toValue: 1, duration: 500, useNativeDriver: true });
+    animation.start();
+    return () => animation.stop();
+  }, [fadeIn, reduceMotion]);
 
   const load = async (refresh = false) => {
     if (refresh) setRefreshing(true);

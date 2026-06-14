@@ -14,6 +14,7 @@ import {
   Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { useAccessibility } from "../../context/AccessibilityContext";
 import { useAuth } from "../../context/AuthContext";
 
 const LOGIN_GIF = "https://cdn.dribbble.com/users/1162077/screenshots/3848914/programmer.gif";
@@ -25,6 +26,7 @@ type Props = {
 
 export const LoginScreen = ({ onBack, onSignup }: Props) => {
   const { login, loading } = useAuth();
+  const { highContrast, reduceMotion, screenReaderOptimized, textScale, touchTarget } = useAccessibility();
   const [emailOrUsername, setEmailOrUsername] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
@@ -35,19 +37,40 @@ export const LoginScreen = ({ onBack, onSignup }: Props) => {
   const pulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    Animated.parallel([
+    if (reduceMotion) {
+      fadeIn.setValue(1);
+      slideUp.setValue(0);
+      pulse.setValue(1);
+      return;
+    }
+
+    const entrance = Animated.parallel([
       Animated.timing(fadeIn, { toValue: 1, duration: 800, useNativeDriver: true }),
       Animated.spring(slideUp, { toValue: 0, tension: 50, friction: 8, useNativeDriver: true }),
-    ]).start();
+    ]);
 
-    // Subtle pulse on the GIF container
-    Animated.loop(
+    const pulseAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(pulse, { toValue: 1.03, duration: 2000, useNativeDriver: true }),
         Animated.timing(pulse, { toValue: 1, duration: 2000, useNativeDriver: true }),
       ])
-    ).start();
-  }, [fadeIn, slideUp, pulse]);
+    );
+
+    entrance.start();
+    pulseAnimation.start();
+    return () => {
+      entrance.stop();
+      pulseAnimation.stop();
+    };
+  }, [fadeIn, pulse, reduceMotion, slideUp]);
+
+  const textStyle = (fontSize: number, lineHeight?: number) => ({
+    fontSize: fontSize * textScale,
+    ...(lineHeight ? { lineHeight: lineHeight * textScale } : {}),
+  });
+  const highContrastCard = highContrast ? styles.highContrastCard : null;
+  const highContrastInput = highContrast ? styles.highContrastInput : null;
+  const touchStyle = { minHeight: touchTarget };
 
   const validate = (): boolean => {
     const newErrors: { email?: string; password?: string } = {};
@@ -97,64 +120,66 @@ export const LoginScreen = ({ onBack, onSignup }: Props) => {
             </Animated.View>
 
             {/* Title */}
-            <Text style={styles.title}>Welcome Back</Text>
-            <Text style={styles.subtitle}>Sign in to your account</Text>
+            <Text style={[styles.title, textStyle(32, 38)]}>Welcome Back</Text>
+            <Text style={[styles.subtitle, textStyle(15, 21)]}>Sign in to your account</Text>
 
             {/* Glass card */}
-            <View style={styles.glassCard}>
+            <View style={[styles.glassCard, highContrastCard]}>
               {/* Email Input */}
               <View style={styles.fieldGroup}>
-                <View style={[styles.inputWrapper, errors.email ? styles.inputError : null]}>
-                  <Text style={styles.inputIcon}>✉️</Text>
+                <View style={[styles.inputWrapper, touchStyle, highContrastInput, errors.email ? styles.inputError : null]}>
+                  <Text style={[styles.inputIcon, textStyle(16)]}>✉️</Text>
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, textStyle(15, 20)]}
                     value={emailOrUsername}
                     onChangeText={(t) => { setEmailOrUsername(t); setErrors((e) => ({ ...e, email: undefined })); }}
                     autoCapitalize="none"
                     keyboardType="email-address"
                     placeholder="Email or Username"
                     placeholderTextColor="#8B8DA3"
+                    accessibilityLabel="Email or username"
                   />
                 </View>
-                {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
+                {errors.email && <Text style={[styles.errorText, textStyle(12, 17)]}>{errors.email}</Text>}
               </View>
 
               {/* Password Input */}
               <View style={styles.fieldGroup}>
-                <View style={[styles.inputWrapper, errors.password ? styles.inputError : null]}>
-                  <Text style={styles.inputIcon}>🔒</Text>
+                <View style={[styles.inputWrapper, touchStyle, highContrastInput, errors.password ? styles.inputError : null]}>
+                  <Text style={[styles.inputIcon, textStyle(16)]}>🔒</Text>
                   <TextInput
-                    style={[styles.input, { flex: 1 }]}
+                    style={[styles.input, { flex: 1 }, textStyle(15, 20)]}
                     value={password}
                     onChangeText={(t) => { setPassword(t); setErrors((e) => ({ ...e, password: undefined })); }}
                     secureTextEntry={!showPassword}
                     placeholder="Password"
                     placeholderTextColor="#8B8DA3"
+                    accessibilityLabel="Password"
                   />
-                  <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.toggleBtn}>
-                    <Text style={styles.toggleText}>{showPassword ? "Hide" : "Show"}</Text>
+                  <Pressable onPress={() => setShowPassword(!showPassword)} style={[styles.toggleBtn, touchStyle]} accessibilityRole="button" accessibilityLabel={screenReaderOptimized ? `${showPassword ? "Hide" : "Show"} password` : undefined}>
+                    <Text style={[styles.toggleText, textStyle(13, 18)]}>{showPassword ? "Hide" : "Show"}</Text>
                   </Pressable>
                 </View>
-                {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
+                {errors.password && <Text style={[styles.errorText, textStyle(12, 17)]}>{errors.password}</Text>}
               </View>
 
               {/* Forgot password */}
-              <Pressable style={styles.forgotBtn}>
-                <Text style={styles.forgotText}>Forgot Password?</Text>
+              <Pressable style={[styles.forgotBtn, touchStyle]} accessibilityRole="button">
+                <Text style={[styles.forgotText, textStyle(13, 18)]}>Forgot Password?</Text>
               </Pressable>
 
               {/* Login Button */}
-              <Pressable style={[styles.loginBtn, loading && styles.disabled]} onPress={onSubmit} disabled={loading}>
+              <Pressable style={[styles.loginBtn, loading && styles.disabled]} onPress={onSubmit} disabled={loading} accessibilityRole="button" accessibilityLabel={screenReaderOptimized ? "Sign in" : undefined}>
                 <LinearGradient
                   colors={["#667EEA", "#764BA2"]}
-                  style={styles.btnGradient}
+                  style={[styles.btnGradient, touchStyle]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                 >
                   {loading ? (
                     <ActivityIndicator color="#FFFFFF" />
                   ) : (
-                    <Text style={styles.loginBtnText}>Sign In</Text>
+                    <Text style={[styles.loginBtnText, textStyle(16, 21)]}>Sign In</Text>
                   )}
                 </LinearGradient>
               </Pressable>
@@ -162,9 +187,9 @@ export const LoginScreen = ({ onBack, onSignup }: Props) => {
 
             {/* Sign Up link */}
             <View style={styles.bottomLink}>
-              <Text style={styles.bottomLinkText}>Don't have an account? </Text>
-              <Pressable onPress={onSignup || onBack}>
-                <Text style={styles.bottomLinkAction}>Sign Up</Text>
+              <Text style={[styles.bottomLinkText, textStyle(14, 19)]}>Don't have an account? </Text>
+              <Pressable onPress={onSignup || onBack} accessibilityRole="button">
+                <Text style={[styles.bottomLinkAction, textStyle(14, 19)]}>Sign Up</Text>
               </Pressable>
             </View>
           </Animated.View>
@@ -220,6 +245,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.12)",
   },
+  highContrastCard: { borderColor: "#FFFFFF", borderWidth: 2, backgroundColor: "#000000" },
 
   // Input fields
   fieldGroup: { marginBottom: 16 },
@@ -234,6 +260,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.1)",
   },
   inputError: { borderColor: "#FF6B6B" },
+  highContrastInput: { borderColor: "#FFFFFF", borderWidth: 2, backgroundColor: "#000000" },
   inputIcon: { fontSize: 16, marginRight: 12 },
   input: {
     flex: 1,

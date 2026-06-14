@@ -9,18 +9,54 @@ import type {
   Volunteer,
   VolunteerSkill,
 } from "../types/api";
+import { getErrorMessage, publishToast } from "./toast";
 
 const normalize = (baseUrl: string) => baseUrl.trim().replace(/\/+$/, "");
 const isBypassToken = (token?: string) => token === "dev-bypass-token";
 type ApiPrefix = "" | "/api" | "/api/v1";
 const preferredPrefixByResource: Record<string, ApiPrefix> = {};
+type ApiToastOptions = {
+  suppress?: boolean;
+  successMessage?: string;
+  errorMessage?: string;
+};
+
+const mutationMethods = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+const getMethod = (options?: RequestInit) => (options?.method || "GET").toUpperCase();
+
+const getResourceLabel = (path: string) => {
+  const [resource] = path
+    .split("?")[0]
+    .replace(/^\/api\/v1\//, "/")
+    .replace(/^\/api\//, "/")
+    .split("/")
+    .filter(Boolean);
+  const normalized = (resource || "request").replace(/[-_]/g, " ");
+  const singular = normalized.endsWith("ies")
+    ? `${normalized.slice(0, -3)}y`
+    : normalized.endsWith("s")
+      ? normalized.slice(0, -1)
+      : normalized;
+  return singular.charAt(0).toUpperCase() + singular.slice(1);
+};
+
+const getSuccessMessage = (method: string, path: string) => {
+  const resource = getResourceLabel(path);
+  if (method === "POST") return `${resource} saved successfully`;
+  if (method === "PUT" || method === "PATCH") return `${resource} updated successfully`;
+  if (method === "DELETE") return `${resource} deleted successfully`;
+  return "Request completed";
+};
 
 export const apiRequest = async <T>(
   baseUrl: string,
   path: string,
   options?: RequestInit,
   token?: string,
+  toastOptions?: ApiToastOptions,
 ): Promise<T> => {
+  const method = getMethod(options);
   const hasFormDataBody = typeof FormData !== "undefined" && options?.body instanceof FormData;
   const headers: Record<string, string> = {
     ...(hasFormDataBody ? {} : { "Content-Type": "application/json" }),
@@ -38,7 +74,11 @@ export const apiRequest = async <T>(
       headers,
     });
   } catch {
-    throw new Error("Network request failed. Check backend URL and firewall.");
+    const err = new Error("Network request failed. Check backend URL and firewall.");
+    if (!toastOptions?.suppress) {
+      publishToast({ type: "error", title: "API failed", message: toastOptions?.errorMessage || err.message });
+    }
+    throw err;
   }
 
   const text = await response.text();
@@ -56,7 +96,18 @@ export const apiRequest = async <T>(
       payload && typeof payload === "object" && "detail" in payload
         ? (payload as { detail?: string }).detail
         : null;
-    throw new Error(detail || `Request failed (${response.status})`);
+    const err = new Error(detail || `Request failed (${response.status})`);
+    if (!toastOptions?.suppress) {
+      publishToast({ type: "error", title: "API failed", message: toastOptions?.errorMessage || err.message });
+    }
+    throw err;
+  }
+
+  if (!toastOptions?.suppress && mutationMethods.has(method)) {
+    publishToast({
+      type: "success",
+      title: toastOptions?.successMessage || getSuccessMessage(method, path),
+    });
   }
 
   return payload as T;
@@ -132,8 +183,11 @@ const apiRequestWith404Fallback = async <T>(
 
   for (let i = 0; i < candidates.length; i += 1) {
     try {
-      const result = await apiRequest<T>(baseUrl, candidates[i], options, token);
+      const result = await apiRequest<T>(baseUrl, candidates[i], options, token, { suppress: true });
       preferredPrefixByResource[resourceKey] = getPrefixFromPath(candidates[i]);
+      if (mutationMethods.has(getMethod(options))) {
+        publishToast({ type: "success", title: getSuccessMessage(getMethod(options), candidates[i]) });
+      }
       return result;
     } catch (err) {
       lastError = err;
@@ -149,11 +203,17 @@ const apiRequestWith404Fallback = async <T>(
   }
 
   if (exhausted404Fallback) {
+    publishToast({
+      type: "error",
+      title: "API failed",
+      message: `Endpoint not available on backend for path ${path}.`,
+    });
     throw new Error(
       `Endpoint not available on backend for path ${path}. Please restart the backend from NeedMap-AI/backend or deploy a backend build that exposes this route.`,
     );
   }
 
+  publishToast({ type: "error", title: "API failed", message: getErrorMessage(lastError) });
   throw lastError instanceof Error ? lastError : new Error("Request failed");
 };
 

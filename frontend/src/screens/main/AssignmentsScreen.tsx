@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { useAccessibility } from "../../context/AccessibilityContext";
 import { useAuth } from "../../context/AuthContext";
 import { useRealtime } from "../../context/RealtimeContext";
 import { moduleApi } from "../../services/api";
@@ -29,7 +30,8 @@ const NEXT_TRANSITIONS: Record<Assignment["status"], Assignment["status"][]> = {
 
 export const AssignmentsScreen = () => {
   const { baseUrl, token, user } = useAuth();
-  const { realtimeVersion } = useRealtime();
+  const { assignmentsVersion } = useRealtime();
+  const { reduceMotion } = useAccessibility();
   const scopedOrganizationId = user?.role === "admin" ? user?.managed_branch_id ?? user?.organization_id : user?.organization_id;
   const [items, setItems] = useState<Assignment[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
@@ -67,23 +69,29 @@ export const AssignmentsScreen = () => {
 
   useEffect(() => {
     load();
-  }, [baseUrl, token, realtimeVersion, scopedOrganizationId]);
+  }, [assignmentsVersion, baseUrl, token, scopedOrganizationId]);
 
   useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
+    if (reduceMotion) {
+      floatA.setValue(0);
+      floatB.setValue(0);
+      return;
+    }
+
+    const animations = [
+      Animated.loop(Animated.sequence([
         Animated.timing(floatA, { toValue: 1, duration: 2800, useNativeDriver: true }),
         Animated.timing(floatA, { toValue: 0, duration: 2800, useNativeDriver: true }),
-      ]),
-    ).start();
-
-    Animated.loop(
-      Animated.sequence([
+      ])),
+      Animated.loop(Animated.sequence([
         Animated.timing(floatB, { toValue: 1, duration: 3300, useNativeDriver: true }),
         Animated.timing(floatB, { toValue: 0, duration: 3300, useNativeDriver: true }),
-      ]),
-    ).start();
-  }, [floatA, floatB]);
+      ])),
+    ];
+
+    animations.forEach((animation) => animation.start());
+    return () => animations.forEach((animation) => animation.stop());
+  }, [floatA, floatB, reduceMotion]);
 
   const yA = floatA.interpolate({ inputRange: [0, 1], outputRange: [0, -12] });
   const yB = floatB.interpolate({ inputRange: [0, 1], outputRange: [0, -18] });

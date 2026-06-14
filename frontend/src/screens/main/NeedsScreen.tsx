@@ -15,6 +15,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as DocumentPicker from "expo-document-picker";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useAccessibility } from "../../context/AccessibilityContext";
 import { useAuth } from "../../context/AuthContext";
 import { useRealtime } from "../../context/RealtimeContext";
 import { useThemeMode } from "../../context/ThemeModeContext";
@@ -99,7 +100,8 @@ const getNeedLocationLabel = (need: Need) => {
 export const NeedsScreen = () => {
   const nav = useNavigation<Nav>();
   const { baseUrl, token, user } = useAuth();
-  const { realtimeVersion } = useRealtime();
+  const { assignmentsVersion, needsVersion } = useRealtime();
+  const { reduceMotion } = useAccessibility();
   const { theme } = useThemeMode();
   const isLight = theme.mode === "light";
   const lightPrimary = isLight ? { color: "#0B1220", fontWeight: "800" as const } : null;
@@ -166,8 +168,15 @@ export const NeedsScreen = () => {
   const fadeIn = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.timing(fadeIn, { toValue: 1, duration: 500, useNativeDriver: true }).start();
-  }, [fadeIn]);
+    if (reduceMotion) {
+      fadeIn.setValue(1);
+      return;
+    }
+
+    const animation = Animated.timing(fadeIn, { toValue: 1, duration: 500, useNativeDriver: true });
+    animation.start();
+    return () => animation.stop();
+  }, [fadeIn, reduceMotion]);
 
   const load = async () => {
     setRefreshing(true);
@@ -202,12 +211,12 @@ export const NeedsScreen = () => {
 
   useEffect(() => {
     load();
-  }, [adminBranchId, baseUrl, isOrgManager, isOwner, isVolunteer, realtimeVersion, token]);
+  }, [adminBranchId, assignmentsVersion, baseUrl, isOrgManager, isOwner, isVolunteer, needsVersion, token]);
 
   useFocusEffect(
     useCallback(() => {
       load();
-    }, [adminBranchId, baseUrl, isOrgManager, isOwner, isVolunteer, realtimeVersion, token]),
+    }, [adminBranchId, assignmentsVersion, baseUrl, isOrgManager, isOwner, isVolunteer, needsVersion, token]),
   );
 
   const fetchMyLocation = async () => {

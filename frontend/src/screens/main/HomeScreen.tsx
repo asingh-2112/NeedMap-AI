@@ -14,6 +14,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useAccessibility } from "../../context/AccessibilityContext";
 import { useAuth } from "../../context/AuthContext";
 import { useRealtime } from "../../context/RealtimeContext";
 import { useThemeMode } from "../../context/ThemeModeContext";
@@ -54,7 +55,8 @@ type AreaPreview = {
 export const HomeScreen = () => {
   const nav = useNavigation<Nav>();
   const { baseUrl, token, user } = useAuth();
-  const { realtimeVersion } = useRealtime();
+  const { assignmentsVersion, needsVersion, volunteerRatingVersion } = useRealtime();
+  const { reduceMotion } = useAccessibility();
   const { theme } = useThemeMode();
   const adminBranchId = user?.role === "admin" ? user?.managed_branch_id ?? null : null;
   const scopedOrganizationId = user?.role === "admin" ? adminBranchId ?? user?.organization_id : user?.organization_id;
@@ -98,11 +100,19 @@ export const HomeScreen = () => {
   const slideUp = useRef(new Animated.Value(30)).current;
 
   useEffect(() => {
-    Animated.parallel([
+    if (reduceMotion) {
+      fadeIn.setValue(1);
+      slideUp.setValue(0);
+      return;
+    }
+
+    const animation = Animated.parallel([
       Animated.timing(fadeIn, { toValue: 1, duration: 600, useNativeDriver: true }),
       Animated.spring(slideUp, { toValue: 0, tension: 50, friction: 8, useNativeDriver: true }),
-    ]).start();
-  }, [fadeIn, slideUp]);
+    ]);
+    animation.start();
+    return () => animation.stop();
+  }, [fadeIn, reduceMotion, slideUp]);
 
   // Fetch location
   useEffect(() => {
@@ -209,7 +219,6 @@ export const HomeScreen = () => {
             moduleApi.assignments(baseUrl, token),
             moduleApi.organizations(baseUrl, token),
           ]);
-          const profile = await moduleApi.myVolunteerProfile(baseUrl, token).catch(() => null);
 
           const activeNeeds = needs.filter((n) => !["resolved", "closed"].includes(n.status));
           setNeedsCount(activeNeeds.length);
@@ -218,7 +227,6 @@ export const HomeScreen = () => {
           setMapNeeds(needs);
           setMapOrganizations(organizations.filter((organization) => Boolean(organization.branch_location)));
           setMapVolunteers([]);
-          setVolunteerProfile(profile);
 
           const active = assignments.filter((a) =>
             ["accepted", "in_progress", "proposed", "assigned"].includes(a.status)
@@ -232,7 +240,21 @@ export const HomeScreen = () => {
     };
 
     loadData();
-  }, [adminBranchId, baseUrl, isOrgOwner, realtimeVersion, scopedOrganizationId, token, user?.role]);
+  }, [adminBranchId, assignmentsVersion, baseUrl, isOrgOwner, needsVersion, scopedOrganizationId, token, user?.role]);
+
+  useEffect(() => {
+    if (!token || !isVolunteer) {
+      setVolunteerProfile(null);
+      return;
+    }
+
+    const loadVolunteerProfile = async () => {
+      const profile = await moduleApi.myVolunteerProfile(baseUrl, token).catch(() => null);
+      setVolunteerProfile(profile);
+    };
+
+    void loadVolunteerProfile();
+  }, [baseUrl, isVolunteer, token, volunteerRatingVersion]);
 
   useEffect(() => {
     if (!token) {

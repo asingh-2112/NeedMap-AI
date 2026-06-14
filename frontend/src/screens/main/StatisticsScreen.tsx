@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Platform, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { useAccessibility } from "../../context/AccessibilityContext";
 import { useAuth } from "../../context/AuthContext";
 import { useRealtime } from "../../context/RealtimeContext";
 import { useThemeMode } from "../../context/ThemeModeContext";
@@ -94,7 +95,8 @@ const buildConicGradient = (items: DistItem[]): string => {
 
 export const StatisticsScreen = () => {
   const { baseUrl, token, user } = useAuth();
-  const { realtimeVersion } = useRealtime();
+  const { statisticsVersion } = useRealtime();
+  const { highContrast, textScale } = useAccessibility();
   const { theme } = useThemeMode();
   const isLight = theme.mode === "light";
   const isAdmin = user?.role === "admin";
@@ -154,7 +156,7 @@ export const StatisticsScreen = () => {
 
   useEffect(() => {
     void load();
-  }, [adminBranchId, baseUrl, isAdmin, isOwner, realtimeVersion, scopedOrganizationId, token]);
+  }, [adminBranchId, baseUrl, isAdmin, isOwner, scopedOrganizationId, statisticsVersion, token]);
 
   const summary = useMemo(() => {
     const total = needs.length;
@@ -296,6 +298,11 @@ export const StatisticsScreen = () => {
     ? adminBranchId ? `Branch #${adminBranchId}` : "No branch"
     : isOwner ? `${Math.max(scopeOrganizations.length - 1, 0)} branches` : null;
   const scopeNoun = isOwner ? "Organization" : "Branch";
+  const scaledText = (fontSize: number, lineHeight?: number) => ({
+    fontSize: fontSize * textScale,
+    ...(lineHeight ? { lineHeight: lineHeight * textScale } : {}),
+  });
+  const highContrastPanel = highContrast ? styles.highContrastPanel : null;
 
   return (
     <View style={styles.page}>
@@ -314,16 +321,16 @@ export const StatisticsScreen = () => {
       >
         <View style={styles.headerRow}>
           <View style={styles.headerTextWrap}>
-            <Text style={[styles.title, lightPrimary]}>{headerTitle}</Text>
-            <Text style={[styles.subtitle, lightSecondary]}>{headerSubtitle}</Text>
+            <Text style={[styles.title, lightPrimary, scaledText(26, 32)]}>{headerTitle}</Text>
+            <Text style={[styles.subtitle, lightSecondary, scaledText(13, 19)]}>{headerSubtitle}</Text>
           </View>
           {scopeLabel ? <ScopeBadge label={scopeLabel} isLight={isLight} /> : null}
         </View>
 
         {!hasScope && isAdmin ? (
-          <View style={[styles.emptyPanel, lightPanel]}>
-            <Text style={[styles.emptyTitle, lightPrimary]}>No branch assigned</Text>
-            <Text style={[styles.empty, lightSecondary]}>Ask the owner to assign this admin account to a branch before viewing branch statistics.</Text>
+          <View style={[styles.emptyPanel, lightPanel, highContrastPanel]}>
+            <Text style={[styles.emptyTitle, lightPrimary, scaledText(17, 22)]}>No branch assigned</Text>
+            <Text style={[styles.empty, lightSecondary, scaledText(13, 19)]}>Ask the owner to assign this admin account to a branch before viewing branch statistics.</Text>
           </View>
         ) : (
           <>
@@ -339,10 +346,10 @@ export const StatisticsScreen = () => {
               <InsightPanel label="Average Priority" value={summary.avgPriority || "-"} detail="Based on scored needs" color="#8B5CF6" isLight={isLight} />
             </View>
 
-            <View style={[styles.panel, lightPanel]}>
+            <View style={[styles.panel, lightPanel, highContrastPanel]}>
               <View style={styles.panelHeader}>
-                <Text style={[styles.panelTitle, lightPrimary]}>{scopeNoun} Workload Mix</Text>
-                <Text style={[styles.panelMeta, lightSecondary]}>{summary.total} total</Text>
+                <Text style={[styles.panelTitle, lightPrimary, scaledText(15, 20)]}>{scopeNoun} Workload Mix</Text>
+                <Text style={[styles.panelMeta, lightSecondary, scaledText(11, 15)]}>{summary.total} total</Text>
               </View>
               <View style={styles.chartSplit}>
                 <Donut gradient={statusGradient} center={`${summary.activeLoadRate}%`} label="Open" />
@@ -352,10 +359,10 @@ export const StatisticsScreen = () => {
               </View>
             </View>
 
-            <View style={[styles.panel, lightPanel]}>
+            <View style={[styles.panel, lightPanel, highContrastPanel]}>
               <View style={styles.panelHeader}>
-                <Text style={[styles.panelTitle, lightPrimary]}>{isOwner ? "Branch Completion Details" : "Branch Completion"}</Text>
-                <Text style={[styles.panelMeta, lightSecondary]}>{summary.completed} completed</Text>
+                <Text style={[styles.panelTitle, lightPrimary, scaledText(15, 20)]}>{isOwner ? "Branch Completion Details" : "Branch Completion"}</Text>
+                <Text style={[styles.panelMeta, lightSecondary, scaledText(11, 15)]}>{summary.completed} completed</Text>
               </View>
               {branchCompletionBreakdown.length > 0 ? (
                 <View style={styles.branchCompletionList}>
@@ -368,7 +375,7 @@ export const StatisticsScreen = () => {
               )}
             </View>
 
-            <View style={[styles.panel, lightPanel]}>
+            <View style={[styles.panel, lightPanel, highContrastPanel]}>
               <View style={styles.panelHeader}>
                 <Text style={[styles.panelTitle, lightPrimary]}>Urgency Load</Text>
                 <Text style={[styles.panelMeta, lightSecondary]}>{summary.urgentOpen} urgent open</Text>
@@ -376,7 +383,7 @@ export const StatisticsScreen = () => {
               <HorizontalBars data={needsByUrgency} isLight={isLight} />
             </View>
 
-            <View style={[styles.panel, lightPanel]}>
+            <View style={[styles.panel, lightPanel, highContrastPanel]}>
               <View style={styles.panelHeader}>
                 <Text style={[styles.panelTitle, lightPrimary]}>New Needs This Week</Text>
                 <Text style={[styles.panelMeta, lightSecondary]}>Last 7 days</Text>
@@ -384,7 +391,7 @@ export const StatisticsScreen = () => {
               <MiniTrend data={lastSevenDays} isLight={isLight} />
             </View>
 
-            <View style={[styles.panel, lightPanel]}>
+            <View style={[styles.panel, lightPanel, highContrastPanel]}>
               <View style={styles.panelHeader}>
                 <Text style={[styles.panelTitle, lightPrimary]}>Category Distribution</Text>
                 <Text style={[styles.panelMeta, lightSecondary]}>Top categories</Text>
@@ -401,7 +408,7 @@ export const StatisticsScreen = () => {
               )}
             </View>
 
-            <View style={[styles.panel, lightPanel]}>
+            <View style={[styles.panel, lightPanel, highContrastPanel]}>
               <View style={styles.panelHeader}>
                 <Text style={[styles.panelTitle, lightPrimary]}>{isOwner ? "Top Organization Areas" : "Top Branch Areas"}</Text>
                 <Text style={[styles.panelMeta, lightSecondary]}>Need concentration</Text>
@@ -587,6 +594,7 @@ const styles = StyleSheet.create({
   insightLabel: { color: "#D8D9E3", fontSize: 12, fontWeight: "900", marginTop: 2 },
   insightDetail: { color: "#8B8DA3", fontSize: 10, fontWeight: "700", marginTop: 3 },
   panel: { marginTop: 12, backgroundColor: "rgba(15,23,42,0.52)", borderRadius: 8, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)", padding: 14 },
+  highContrastPanel: { borderColor: "#FFFFFF", borderWidth: 2, backgroundColor: "#000000" },
   panelHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 12 },
   panelTitle: { color: "#FFFFFF", fontSize: 15, fontWeight: "900" },
   panelMeta: { color: "#B8B8D0", fontSize: 11, fontWeight: "800" },

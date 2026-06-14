@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Alert, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { useAccessibility } from "./AccessibilityContext";
 import { useAuth } from "./AuthContext";
 import { moduleApi } from "../services/api";
 
@@ -14,6 +15,10 @@ type RealtimeMessage = {
 
 type RealtimeContextShape = {
   realtimeVersion: number;
+  needsVersion: number;
+  assignmentsVersion: number;
+  volunteerRatingVersion: number;
+  statisticsVersion: number;
   lastMessage: RealtimeMessage | null;
 };
 
@@ -28,6 +33,16 @@ type AssignmentProposal = {
   matchScore?: number | null;
 };
 
+type AdminRatingPrompt = {
+  assignmentId: number;
+  volunteerId: number;
+  title: string;
+  message: string;
+  needTitle?: string | null;
+};
+
+type RefreshDomain = "needs" | "assignments" | "volunteerRating" | "statistics";
+
 const RealtimeContext = createContext<RealtimeContextShape | undefined>(undefined);
 
 const getWebSocketUrl = (baseUrl: string, token: string) => {
@@ -40,11 +55,43 @@ const asNumber = (value: unknown) => (typeof value === "number" && Number.isFini
 
 export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
   const { baseUrl, token, user } = useAuth();
+  const { highContrast, screenReaderOptimized, textScale, touchTarget } = useAccessibility();
   const [realtimeVersion, setRealtimeVersion] = useState(0);
+  const [needsVersion, setNeedsVersion] = useState(0);
+  const [assignmentsVersion, setAssignmentsVersion] = useState(0);
+  const [volunteerRatingVersion, setVolunteerRatingVersion] = useState(0);
+  const [statisticsVersion, setStatisticsVersion] = useState(0);
   const [lastMessage, setLastMessage] = useState<RealtimeMessage | null>(null);
   const [proposal, setProposal] = useState<AssignmentProposal | null>(null);
   const [proposalBusy, setProposalBusy] = useState<"accepted" | "declined" | null>(null);
+  const [adminRatingPrompt, setAdminRatingPrompt] = useState<AdminRatingPrompt | null>(null);
+  const [adminRating, setAdminRating] = useState(0);
+  const [adminRatingBusy, setAdminRatingBusy] = useState(false);
   const socketRef = useRef<WebSocket | null>(null);
+  const refreshTimersRef = useRef<Partial<Record<RefreshDomain, ReturnType<typeof setTimeout>>>>({});
+
+  const scheduleRefresh = (domains: RefreshDomain[]) => {
+    domains.forEach((domain) => {
+      const existingTimer = refreshTimersRef.current[domain];
+      if (existingTimer) clearTimeout(existingTimer);
+
+      refreshTimersRef.current[domain] = setTimeout(() => {
+        delete refreshTimersRef.current[domain];
+        setRealtimeVersion((current) => current + 1);
+        if (domain === "needs") setNeedsVersion((current) => current + 1);
+        if (domain === "assignments") setAssignmentsVersion((current) => current + 1);
+        if (domain === "volunteerRating") setVolunteerRatingVersion((current) => current + 1);
+        if (domain === "statistics") setStatisticsVersion((current) => current + 1);
+      }, 650);
+    });
+  };
+
+  useEffect(() => () => {
+    Object.values(refreshTimersRef.current).forEach((timer) => {
+      if (timer) clearTimeout(timer);
+    });
+    refreshTimersRef.current = {};
+  }, []);
 
   useEffect(() => {
     if (!token || token === "dev-bypass-token") {
@@ -64,14 +111,25 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
 
-      setLastMessage(message);
-      setRealtimeVersion((current) => current + 1);
-
       const eventName = message.event || message.type || "notification";
       const payload = message.payload ?? {};
+      const subject = typeof payload.subject === "string" ? payload.subject : "";
       const assignmentId = asNumber(payload.assignment_id);
+      const volunteerId = asNumber(payload.volunteer_id);
 
       if (eventName === "realtime.subscribed") return;
+
+      setLastMessage(message);
+
+      if (eventName === "need_created") {
+        scheduleRefresh(["needs", "statistics"]);
+      } else if (eventName === "assignment_created") {
+        scheduleRefresh(["assignments"]);
+      } else if (eventName === "assignment_status_changed") {
+        scheduleRefresh(["assignments", "needs", "statistics"]);
+      } else if (eventName === "volunteer_rating_updated" || subject.includes("volunteer.rating.updated")) {
+        scheduleRefresh(["volunteerRating", "statistics"]);
+      }
 
       if (user?.role === "volunteer" && eventName === "assignment_created" && assignmentId) {
         setProposal({
@@ -83,6 +141,23 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
           urgency: typeof payload.need_urgency === "string" ? payload.need_urgency : undefined,
           address: typeof payload.address === "string" ? payload.address : undefined,
           matchScore: asNumber(payload.match_score),
+        });
+        return;
+      }
+
+      if (
+        user?.role === "admin" &&
+        eventName === "assignment_status_changed" &&
+        assignmentId &&
+        volunteerId &&
+        payload.status === "completed"
+      ) {
+        setAdminRatingPrompt({
+          assignmentId,
+          volunteerId,
+          title: message.title || "Assignment completed",
+          message: message.message || "A volunteer completed an assignment. Please rate their work.",
+          needTitle: typeof payload.need_title === "string" ? payload.need_title : null,
         });
         return;
       }
@@ -117,7 +192,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     setProposalBusy(status);
     try {
       await moduleApi.updateAssignmentStatus(baseUrl, token, proposal.assignmentId, status);
-      setRealtimeVersion((current) => current + 1);
+      scheduleRefresh(["assignments", "needs", "statistics"]);
       closeProposal();
     } catch (err) {
       Alert.alert("Assignment", err instanceof Error ? err.message : "Unable to update assignment");
@@ -125,25 +200,52 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const value = useMemo(() => ({ realtimeVersion, lastMessage }), [realtimeVersion, lastMessage]);
+  const closeAdminRating = () => {
+    setAdminRatingPrompt(null);
+    setAdminRating(0);
+    setAdminRatingBusy(false);
+  };
+
+  const submitAdminRating = async () => {
+    if (!adminRatingPrompt) return;
+    if (adminRating < 1) {
+      Alert.alert("Volunteer Rating", "Please select a rating from 1 to 5 stars.");
+      return;
+    }
+
+    setAdminRatingBusy(true);
+    try {
+      await moduleApi.updateVolunteer(baseUrl, token, adminRatingPrompt.volunteerId, { rating: adminRating });
+      scheduleRefresh(["assignments", "volunteerRating", "statistics"]);
+      closeAdminRating();
+    } catch (err) {
+      Alert.alert("Volunteer Rating", err instanceof Error ? err.message : "Unable to update volunteer rating");
+      setAdminRatingBusy(false);
+    }
+  };
+
+  const value = useMemo(
+    () => ({ realtimeVersion, needsVersion, assignmentsVersion, volunteerRatingVersion, statisticsVersion, lastMessage }),
+    [assignmentsVersion, lastMessage, needsVersion, realtimeVersion, statisticsVersion, volunteerRatingVersion]
+  );
 
   return (
     <RealtimeContext.Provider value={value}>
       {children}
       <Modal visible={Boolean(proposal)} transparent animationType="fade" onRequestClose={closeProposal}>
         <View style={styles.overlay}>
-          <View style={styles.card}>
+          <View style={[styles.card, highContrast ? styles.highContrastCard : null]} accessibilityRole="alert">
             <View style={styles.headerRow}>
               <View style={styles.iconBadge}>
                 <Text style={styles.iconText}>!</Text>
               </View>
               <View style={styles.headerTextWrap}>
-                <Text style={styles.title}>{proposal?.title ?? "New assignment proposal"}</Text>
-                <Text style={styles.subtitle}>Assignment #{proposal?.assignmentId ?? "-"}</Text>
+                <Text style={[styles.title, { fontSize: 17 * textScale, lineHeight: 22 * textScale }]}>{proposal?.title ?? "New assignment proposal"}</Text>
+                <Text style={[styles.subtitle, { fontSize: 12 * textScale, lineHeight: 16 * textScale }]}>Assignment #{proposal?.assignmentId ?? "-"}</Text>
               </View>
             </View>
 
-            <Text style={styles.message}>{proposal?.message}</Text>
+            <Text style={[styles.message, { fontSize: 13 * textScale, lineHeight: 19 * textScale }]}>{proposal?.message}</Text>
 
             <View style={styles.detailBox}>
               <Text style={styles.needTitle}>{proposal?.needTitle || "Matching community need"}</Text>
@@ -160,6 +262,8 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
                 style={[styles.actionButton, styles.declineButton, proposalBusy !== null && styles.disabledButton]}
                 disabled={proposalBusy !== null}
                 onPress={() => void updateProposalStatus("declined")}
+                accessibilityRole="button"
+                accessibilityLabel={screenReaderOptimized ? "Decline assignment proposal" : undefined}
               >
                 <Text style={styles.declineText}>{proposalBusy === "declined" ? "Declining..." : "Decline"}</Text>
               </Pressable>
@@ -167,6 +271,8 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
                 style={[styles.actionButton, styles.laterButton, proposalBusy !== null && styles.disabledButton]}
                 disabled={proposalBusy !== null}
                 onPress={closeProposal}
+                accessibilityRole="button"
+                accessibilityLabel={screenReaderOptimized ? "Decide later on assignment proposal" : undefined}
               >
                 <Text style={styles.laterText}>Do Later</Text>
               </Pressable>
@@ -174,8 +280,68 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
                 style={[styles.actionButton, styles.acceptButton, proposalBusy !== null && styles.disabledButton]}
                 disabled={proposalBusy !== null}
                 onPress={() => void updateProposalStatus("accepted")}
+                accessibilityRole="button"
+                accessibilityLabel={screenReaderOptimized ? "Accept assignment proposal" : undefined}
               >
                 <Text style={styles.acceptText}>{proposalBusy === "accepted" ? "Accepting..." : "Accept"}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      <Modal visible={Boolean(adminRatingPrompt)} transparent animationType="fade" onRequestClose={closeAdminRating}>
+        <View style={styles.overlay}>
+          <View style={[styles.card, highContrast ? styles.highContrastCard : null]} accessibilityRole="alert">
+            <View style={styles.headerRow}>
+              <View style={styles.iconBadge}>
+                <Text style={styles.iconText}>★</Text>
+              </View>
+              <View style={styles.headerTextWrap}>
+                <Text style={[styles.title, { fontSize: 17 * textScale, lineHeight: 22 * textScale }]}>{adminRatingPrompt?.title ?? "Assignment completed"}</Text>
+                <Text style={[styles.subtitle, { fontSize: 12 * textScale, lineHeight: 16 * textScale }]}>Assignment #{adminRatingPrompt?.assignmentId ?? "-"}</Text>
+              </View>
+            </View>
+
+            <Text style={[styles.message, { fontSize: 13 * textScale, lineHeight: 19 * textScale }]}>{adminRatingPrompt?.message}</Text>
+
+            <View style={styles.detailBox}>
+              <Text style={styles.needTitle}>{adminRatingPrompt?.needTitle || "Completed assignment"}</Text>
+              <Text style={styles.detailText}>Volunteer #{adminRatingPrompt?.volunteerId ?? "-"}</Text>
+            </View>
+
+            <View style={styles.starRow}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <Pressable
+                  key={star}
+                  style={[styles.starButton, { width: touchTarget, height: touchTarget }]}
+                  onPress={() => setAdminRating(star)}
+                  disabled={adminRatingBusy}
+                  accessibilityRole="button"
+                  accessibilityLabel={screenReaderOptimized ? `Rate volunteer ${star} out of 5 stars` : undefined}
+                >
+                  <Text style={[styles.starText, star <= adminRating && styles.starTextActive]}>{star <= adminRating ? "★" : "☆"}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <View style={styles.actionsRow}>
+              <Pressable
+                style={[styles.actionButton, styles.laterButton, adminRatingBusy && styles.disabledButton]}
+                disabled={adminRatingBusy}
+                onPress={closeAdminRating}
+                accessibilityRole="button"
+                accessibilityLabel={screenReaderOptimized ? "Rate this volunteer later" : undefined}
+              >
+                <Text style={styles.laterText}>Do Later</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.actionButton, styles.acceptButton, adminRatingBusy && styles.disabledButton]}
+                disabled={adminRatingBusy}
+                onPress={() => void submitAdminRating()}
+                accessibilityRole="button"
+                accessibilityLabel={screenReaderOptimized ? "Save volunteer rating" : undefined}
+              >
+                <Text style={styles.acceptText}>{adminRatingBusy ? "Saving..." : "Save Rating"}</Text>
               </Pressable>
             </View>
           </View>
@@ -215,6 +381,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
     elevation: 8,
   },
+  highContrastCard: { borderColor: "#FFFFFF", borderWidth: 2, backgroundColor: "#000000" },
   headerRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 12 },
   iconBadge: {
     width: 38,
@@ -253,6 +420,10 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   urgentChip: { color: "#FFD7A6", backgroundColor: "rgba(245,158,11,0.16)" },
+  starRow: { flexDirection: "row", justifyContent: "center", gap: 8, marginBottom: 14 },
+  starButton: { width: 38, height: 38, alignItems: "center", justifyContent: "center" },
+  starText: { color: "rgba(255,255,255,0.32)", fontSize: 30, fontWeight: "900", lineHeight: 34 },
+  starTextActive: { color: "#F59E0B" },
   actionsRow: { flexDirection: "row", gap: 8 },
   actionButton: {
     flex: 1,

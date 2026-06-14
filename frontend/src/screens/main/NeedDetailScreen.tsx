@@ -13,6 +13,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { useRoute, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useAccessibility } from "../../context/AccessibilityContext";
 import { useAuth } from "../../context/AuthContext";
 import { moduleApi } from "../../services/api";
 import type { RootStackParamList } from "../../navigation/types";
@@ -25,6 +26,7 @@ export const NeedDetailScreen = () => {
   const nav = useNavigation<Nav>();
   const route = useRoute<Route>();
   const { baseUrl, token, user } = useAuth();
+  const { reduceMotion } = useAccessibility();
   const { needId } = route.params || {};
 
   const [need, setNeed] = useState<Need | null>(null);
@@ -37,8 +39,15 @@ export const NeedDetailScreen = () => {
   const fadeIn = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.timing(fadeIn, { toValue: 1, duration: 500, useNativeDriver: true }).start();
-  }, [fadeIn]);
+    if (reduceMotion) {
+      fadeIn.setValue(1);
+      return;
+    }
+
+    const animation = Animated.timing(fadeIn, { toValue: 1, duration: 500, useNativeDriver: true });
+    animation.start();
+    return () => animation.stop();
+  }, [fadeIn, reduceMotion]);
 
   useEffect(() => {
     const fetchNeed = async () => {

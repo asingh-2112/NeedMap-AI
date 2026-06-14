@@ -12,16 +12,36 @@ import {
   View,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { useAccessibility, type TextSize } from "../../context/AccessibilityContext";
 import { useAuth } from "../../context/AuthContext";
 import { useThemeMode } from "../../context/ThemeModeContext";
 import { moduleApi } from "../../services/api";
 import type { Volunteer, VolunteerSkill } from "../../types/api";
 
 const proficiencyOptions: VolunteerSkill["proficiency"][] = ["beginner", "intermediate", "expert"];
+const textSizeOptions: { label: string; value: TextSize }[] = [
+  { label: "Normal", value: "normal" },
+  { label: "Large", value: "large" },
+  { label: "Extra Large", value: "extraLarge" },
+];
 
 export const ProfileScreen = () => {
   const { user, baseUrl, token, refreshMe, logout } = useAuth();
   const { theme } = useThemeMode();
+  const {
+    highContrast,
+    largeTouchTargets,
+    reduceMotion,
+    screenReaderOptimized,
+    setHighContrast,
+    setLargeTouchTargets,
+    setReduceMotion,
+    setScreenReaderOptimized,
+    setTextSize,
+    textScale,
+    textSize,
+    touchTarget,
+  } = useAccessibility();
   const isVolunteer = user?.role === "volunteer";
   const isLight = theme.mode === "light";
   const lightPrimary = isLight ? { color: "#0B1220", fontWeight: "900" as const } : null;
@@ -94,36 +114,67 @@ export const ProfileScreen = () => {
   }, [user?.id]);
 
   useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
+    if (reduceMotion) {
+      pulse.setValue(0);
+      floatA.setValue(0);
+      floatB.setValue(0);
+      rotate.setValue(0);
+      return;
+    }
+
+    const animations = [
+      Animated.loop(Animated.sequence([
         Animated.timing(pulse, { toValue: 1, duration: 1500, useNativeDriver: true }),
         Animated.timing(pulse, { toValue: 0, duration: 1500, useNativeDriver: true }),
-      ]),
-    ).start();
-
-    Animated.loop(
-      Animated.sequence([
+      ])),
+      Animated.loop(Animated.sequence([
         Animated.timing(floatA, { toValue: 1, duration: 2600, useNativeDriver: true }),
         Animated.timing(floatA, { toValue: 0, duration: 2600, useNativeDriver: true }),
-      ]),
-    ).start();
-
-    Animated.loop(
-      Animated.sequence([
+      ])),
+      Animated.loop(Animated.sequence([
         Animated.timing(floatB, { toValue: 1, duration: 3100, useNativeDriver: true }),
         Animated.timing(floatB, { toValue: 0, duration: 3100, useNativeDriver: true }),
-      ]),
-    ).start();
+      ])),
+      Animated.loop(Animated.timing(rotate, { toValue: 1, duration: 9000, useNativeDriver: true })),
+    ];
 
-    Animated.loop(
-      Animated.timing(rotate, { toValue: 1, duration: 9000, useNativeDriver: true }),
-    ).start();
-  }, [floatA, floatB, pulse, rotate]);
+    animations.forEach((animation) => animation.start());
+    return () => animations.forEach((animation) => animation.stop());
+  }, [floatA, floatB, pulse, reduceMotion, rotate]);
 
   const pulseScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.08] });
   const floatATranslate = floatA.interpolate({ inputRange: [0, 1], outputRange: [0, -10] });
   const floatBTranslate = floatB.interpolate({ inputRange: [0, 1], outputRange: [0, -14] });
   const ringRotate = rotate.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
+  const scaledText = (fontSize: number, lineHeight?: number) => ({
+    fontSize: fontSize * textScale,
+    ...(lineHeight ? { lineHeight: lineHeight * textScale } : {}),
+  });
+  const accessiblePressable = {
+    minHeight: touchTarget,
+    justifyContent: "center" as const,
+  };
+  const highContrastCard = highContrast ? styles.highContrastCard : null;
+  const highContrastInput = highContrast ? styles.highContrastInput : null;
+
+  const renderToggle = (label: string, enabled: boolean, onChange: (enabled: boolean) => void, hint: string) => (
+    <Pressable
+      style={[styles.accessibilityToggle, highContrast ? styles.highContrastToggle : null, accessiblePressable]}
+      onPress={() => onChange(!enabled)}
+      accessibilityRole="switch"
+      accessibilityState={{ checked: enabled }}
+      accessibilityLabel={screenReaderOptimized ? label : undefined}
+      accessibilityHint={screenReaderOptimized ? hint : undefined}
+    >
+      <View style={styles.accessibilityToggleTextWrap}>
+        <Text style={[styles.accessibilityToggleTitle, lightPrimary, scaledText(14, 19)]}>{label}</Text>
+        <Text style={[styles.accessibilityToggleHint, lightSecondary, scaledText(12, 17)]}>{hint}</Text>
+      </View>
+      <View style={[styles.toggleTrack, enabled ? styles.toggleTrackOn : null, highContrast ? styles.highContrastToggleTrack : null]}>
+        <View style={[styles.toggleThumb, enabled ? styles.toggleThumbOn : null]} />
+      </View>
+    </Pressable>
+  );
 
   const initials = useMemo(() => {
     const fullName = (user?.user_name || "NeedMap User").trim();
@@ -332,37 +383,64 @@ export const ProfileScreen = () => {
       />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={[styles.heading, lightPrimary]}>Profile</Text>
-        <Text style={[styles.subheading, lightSecondary]}>Manage your personal settings and account actions</Text>
+        <Text style={[styles.heading, lightPrimary, scaledText(32, 38)]}>Profile</Text>
+        <Text style={[styles.subheading, lightSecondary, scaledText(14, 20)]}>Manage your personal settings and account actions</Text>
 
-        <View style={[styles.heroCard, lightCard]}>
-          <Animated.View style={[styles.avatarRing, { transform: [{ rotate: ringRotate }] }]} />
+        <View style={[styles.heroCard, lightCard, highContrastCard]} accessible accessibilityLabel={screenReaderOptimized ? `Profile for ${user?.user_name || "NeedMap User"}, role ${user?.role || "volunteer"}` : undefined}>
+          {reduceMotion ? null : <Animated.View style={[styles.avatarRing, { transform: [{ rotate: ringRotate }] }]} />}
           {profileImage ? (
             <Image source={{ uri: profileImage }} style={styles.avatarImage} />
           ) : (
             <View style={styles.avatarCore}>
-              <Text style={styles.avatarText}>{initials}</Text>
+              <Text style={[styles.avatarText, scaledText(26, 30)]}>{initials}</Text>
             </View>
           )}
 
           <View style={styles.heroMeta}>
-            <Text style={[styles.name, lightPrimary]}>{user?.user_name || "NeedMap User"}</Text>
-            <Text style={[styles.email, lightSecondary]}>{user?.email || "No email"}</Text>
+            <Text style={[styles.name, lightPrimary, scaledText(20, 25)]}>{user?.user_name || "NeedMap User"}</Text>
+            <Text style={[styles.email, lightSecondary, scaledText(13, 18)]}>{user?.email || "No email"}</Text>
             <View style={styles.roleBadge}>
-              <Text style={styles.roleBadgeText}>{(user?.role || "volunteer").toUpperCase()}</Text>
+              <Text style={[styles.roleBadgeText, scaledText(11, 15)]}>{(user?.role || "volunteer").toUpperCase()}</Text>
             </View>
-            <Pressable style={[styles.uploadBtn, isLight ? { borderColor: "#000", borderWidth: 2 } : null]} onPress={pickProfileImage}>
-              <Text style={[styles.uploadBtnText, lightPrimary]}>Upload Profile Photo</Text>
+            <Pressable style={[styles.uploadBtn, accessiblePressable, isLight ? { borderColor: "#000", borderWidth: 2 } : null]} onPress={pickProfileImage} accessibilityRole="button">
+              <Text style={[styles.uploadBtnText, lightPrimary, scaledText(12, 16)]}>Upload Profile Photo</Text>
             </Pressable>
           </View>
         </View>
 
-        <View style={[styles.panelCard, lightCard]}>
-          <Text style={[styles.panelTitle, lightPrimary]}>Update Profile</Text>
-          <TextInput style={[styles.input, lightInput]} value={name} onChangeText={setName} placeholder="Full name" placeholderTextColor={isLight ? "#374151" : "#BFC0CF"} />
-          <TextInput style={[styles.input, lightInput]} value={phone} onChangeText={setPhone} placeholder="Phone" placeholderTextColor={isLight ? "#374151" : "#BFC0CF"} />
-          <Pressable style={[styles.primaryBtn, isLight ? { borderColor: "#000", borderWidth: 2 } : null]} onPress={saveProfile}>
-            <Text style={[styles.primaryBtnText, lightPrimary]}>Save Profile</Text>
+        <View style={[styles.panelCard, lightCard, highContrastCard]}>
+          <Text style={[styles.panelTitle, lightPrimary, scaledText(16, 22)]}>Accessibility</Text>
+          <Text style={[styles.skillHint, lightSecondary, scaledText(12, 18)]}>Choose display, motion, and assistive support that works best for you.</Text>
+          <Text style={[styles.accessibilityLabel, lightPrimary, scaledText(13, 18)]}>Text Size</Text>
+          <View style={styles.accessibilitySegmentRow}>
+            {textSizeOptions.map((option) => {
+              const selected = textSize === option.value;
+              return (
+                <Pressable
+                  key={option.value}
+                  style={[styles.accessibilitySegment, selected && styles.accessibilitySegmentActive, highContrast ? styles.highContrastToggle : null, accessiblePressable]}
+                  onPress={() => setTextSize(option.value)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={screenReaderOptimized ? `Set text size to ${option.label}` : undefined}
+                >
+                  <Text style={[styles.accessibilitySegmentText, selected && styles.accessibilitySegmentTextActive, scaledText(12, 16)]}>{option.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          {renderToggle("High contrast", highContrast, setHighContrast, "Uses stronger borders and brighter foreground colors.")}
+          {renderToggle("Reduce motion", reduceMotion, setReduceMotion, "Stops decorative animations and rotating profile effects.")}
+          {renderToggle("Screen reader support", screenReaderOptimized, setScreenReaderOptimized, "Adds clearer labels and hints for assistive technology.")}
+          {renderToggle("Large touch targets", largeTouchTargets, setLargeTouchTargets, "Makes buttons easier to tap for motor accessibility.")}
+        </View>
+
+        <View style={[styles.panelCard, lightCard, highContrastCard]}>
+          <Text style={[styles.panelTitle, lightPrimary, scaledText(16, 22)]}>Update Profile</Text>
+          <TextInput style={[styles.input, lightInput, highContrastInput, scaledText(14, 19)]} value={name} onChangeText={setName} placeholder="Full name" placeholderTextColor={isLight ? "#374151" : "#BFC0CF"} accessibilityLabel="Full name" />
+          <TextInput style={[styles.input, lightInput, highContrastInput, scaledText(14, 19)]} value={phone} onChangeText={setPhone} placeholder="Phone" placeholderTextColor={isLight ? "#374151" : "#BFC0CF"} accessibilityLabel="Phone number" />
+          <Pressable style={[styles.primaryBtn, accessiblePressable, isLight ? { borderColor: "#000", borderWidth: 2 } : null]} onPress={saveProfile} accessibilityRole="button">
+            <Text style={[styles.primaryBtnText, lightPrimary, scaledText(13, 17)]}>Save Profile</Text>
           </Pressable>
         </View>
 
@@ -575,8 +653,55 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 12,
   },
+  highContrastCard: { borderColor: "#FFFFFF", borderWidth: 2, backgroundColor: "#000000" },
   panelTitle: { color: "#FFFFFF", fontSize: 16, fontWeight: "900", marginBottom: 10 },
   skillHint: { color: "#BFC0CF", fontSize: 12, fontWeight: "700", marginBottom: 10 },
+  accessibilityLabel: { color: "#FFFFFF", fontSize: 13, fontWeight: "900", marginBottom: 8 },
+  accessibilitySegmentRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 10 },
+  accessibilitySegment: {
+    flexGrow: 1,
+    minWidth: 92,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+  },
+  accessibilitySegmentActive: { backgroundColor: "#FFD7C2", borderColor: "#FF8A5B" },
+  accessibilitySegmentText: { color: "#D0D2E4", fontWeight: "900", fontSize: 12 },
+  accessibilitySegmentTextActive: { color: "#5A3525" },
+  accessibilityToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    backgroundColor: "rgba(255,255,255,0.07)",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginTop: 8,
+  },
+  accessibilityToggleTextWrap: { flex: 1, minWidth: 0 },
+  accessibilityToggleTitle: { color: "#FFFFFF", fontSize: 14, fontWeight: "900" },
+  accessibilityToggleHint: { color: "#BFC0CF", fontSize: 12, fontWeight: "700", marginTop: 2 },
+  highContrastToggle: { borderColor: "#FFFFFF", borderWidth: 2, backgroundColor: "#050505" },
+  toggleTrack: {
+    width: 50,
+    height: 28,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+    backgroundColor: "rgba(255,255,255,0.12)",
+    padding: 3,
+  },
+  toggleTrackOn: { backgroundColor: "#3BCB92", borderColor: "#3BCB92" },
+  highContrastToggleTrack: { borderColor: "#FFFFFF" },
+  toggleThumb: { width: 20, height: 20, borderRadius: 10, backgroundColor: "#FFFFFF" },
+  toggleThumbOn: { transform: [{ translateX: 22 }] },
 
   row: { flexDirection: "row", gap: 8 },
   locationRow: { flexDirection: "row", alignItems: "stretch", gap: 8 },
@@ -592,6 +717,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     marginBottom: 8,
   },
+  highContrastInput: { borderColor: "#FFFFFF", borderWidth: 2, backgroundColor: "#000000", color: "#FFFFFF" },
   coordinateInput: {
     height: 44,
     marginBottom: 8,

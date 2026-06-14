@@ -14,6 +14,7 @@ import {
   Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { useAccessibility } from "../../context/AccessibilityContext";
 import { useAuth } from "../../context/AuthContext";
 
 const SIGNUP_GIF = "https://cdn.dribbble.com/users/1162077/screenshots/4649464/media/5e5e1534f8c54799307b810dc7adff17.gif";
@@ -32,6 +33,7 @@ type FormErrors = {
 
 export const SignupScreen = ({ onBack, onLogin }: Props) => {
   const { signup, loading } = useAuth();
+  const { highContrast, reduceMotion, screenReaderOptimized, textScale, touchTarget } = useAccessibility();
   const [userName, setUserName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -43,11 +45,27 @@ export const SignupScreen = ({ onBack, onLogin }: Props) => {
   const slideUp = useRef(new Animated.Value(40)).current;
 
   useEffect(() => {
-    Animated.parallel([
+    if (reduceMotion) {
+      fadeIn.setValue(1);
+      slideUp.setValue(0);
+      return;
+    }
+
+    const animation = Animated.parallel([
       Animated.timing(fadeIn, { toValue: 1, duration: 800, useNativeDriver: true }),
       Animated.spring(slideUp, { toValue: 0, tension: 50, friction: 8, useNativeDriver: true }),
-    ]).start();
-  }, [fadeIn, slideUp]);
+    ]);
+    animation.start();
+    return () => animation.stop();
+  }, [fadeIn, reduceMotion, slideUp]);
+
+  const textStyle = (fontSize: number, lineHeight?: number) => ({
+    fontSize: fontSize * textScale,
+    ...(lineHeight ? { lineHeight: lineHeight * textScale } : {}),
+  });
+  const touchStyle = { minHeight: touchTarget };
+  const highContrastCard = highContrast ? styles.highContrastCard : null;
+  const highContrastInput = highContrast ? styles.highContrastInput : null;
 
   const validate = (): boolean => {
     const newErrors: FormErrors = {};
@@ -122,99 +140,103 @@ export const SignupScreen = ({ onBack, onLogin }: Props) => {
             </View>
 
             {/* Title */}
-            <Text style={styles.title}>Create Account</Text>
-            <Text style={styles.subtitle}>Join us and start making an impact</Text>
+            <Text style={[styles.title, textStyle(30, 36)]}>Create Account</Text>
+            <Text style={[styles.subtitle, textStyle(14, 20)]}>Join us and start making an impact</Text>
 
             {/* Glass card */}
-            <View style={styles.glassCard}>
+            <View style={[styles.glassCard, highContrastCard]}>
               {/* Full Name */}
               <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Full Name</Text>
-                <View style={[styles.inputWrapper, errors.userName ? styles.inputError : null]}>
-                  <Text style={styles.inputIcon}>👤</Text>
+                <Text style={[styles.label, textStyle(12, 17)]}>Full Name</Text>
+                <View style={[styles.inputWrapper, touchStyle, highContrastInput, errors.userName ? styles.inputError : null]}>
+                  <Text style={[styles.inputIcon, textStyle(15)]}>👤</Text>
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, textStyle(14, 19)]}
                     value={userName}
                     onChangeText={(t) => { setUserName(t); clearError("userName"); }}
                     placeholder="John Doe"
                     placeholderTextColor="#8B8DA3"
                     autoCapitalize="words"
+                    accessibilityLabel="Full name"
                   />
                 </View>
-                {errors.userName && <Text style={styles.errorText}>{errors.userName}</Text>}
+                {errors.userName && <Text style={[styles.errorText, textStyle(11, 16)]}>{errors.userName}</Text>}
               </View>
 
               {/* Email */}
               <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Email</Text>
-                <View style={[styles.inputWrapper, errors.email ? styles.inputError : null]}>
-                  <Text style={styles.inputIcon}>✉️</Text>
+                <Text style={[styles.label, textStyle(12, 17)]}>Email</Text>
+                <View style={[styles.inputWrapper, touchStyle, highContrastInput, errors.email ? styles.inputError : null]}>
+                  <Text style={[styles.inputIcon, textStyle(15)]}>✉️</Text>
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, textStyle(14, 19)]}
                     value={email}
                     onChangeText={(t) => { setEmail(t); clearError("email"); }}
                     placeholder="you@email.com"
                     placeholderTextColor="#8B8DA3"
                     autoCapitalize="none"
                     keyboardType="email-address"
+                    accessibilityLabel="Email address"
                   />
                 </View>
-                {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
+                {errors.email && <Text style={[styles.errorText, textStyle(11, 16)]}>{errors.email}</Text>}
               </View>
 
               {/* Password */}
               <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Password</Text>
-                <View style={[styles.inputWrapper, errors.password ? styles.inputError : null]}>
-                  <Text style={styles.inputIcon}>🔒</Text>
+                <Text style={[styles.label, textStyle(12, 17)]}>Password</Text>
+                <View style={[styles.inputWrapper, touchStyle, highContrastInput, errors.password ? styles.inputError : null]}>
+                  <Text style={[styles.inputIcon, textStyle(15)]}>🔒</Text>
                   <TextInput
-                    style={[styles.input, { flex: 1 }]}
+                    style={[styles.input, { flex: 1 }, textStyle(14, 19)]}
                     value={password}
                     onChangeText={(t) => { setPassword(t); clearError("password"); }}
                     secureTextEntry={!showPassword}
                     placeholder="Min 8 chars, uppercase + number"
                     placeholderTextColor="#8B8DA3"
+                    accessibilityLabel="Password"
                   />
-                  <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.toggleBtn}>
-                    <Text style={styles.toggleText}>{showPassword ? "Hide" : "Show"}</Text>
+                  <Pressable onPress={() => setShowPassword(!showPassword)} style={[styles.toggleBtn, touchStyle]} accessibilityRole="button" accessibilityLabel={screenReaderOptimized ? `${showPassword ? "Hide" : "Show"} password` : undefined}>
+                    <Text style={[styles.toggleText, textStyle(12, 17)]}>{showPassword ? "Hide" : "Show"}</Text>
                   </Pressable>
                 </View>
-                {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
+                {errors.password && <Text style={[styles.errorText, textStyle(11, 16)]}>{errors.password}</Text>}
               </View>
 
               {/* Confirm Password */}
               <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Confirm Password</Text>
-                <View style={[styles.inputWrapper, errors.confirmPassword ? styles.inputError : null]}>
-                  <Text style={styles.inputIcon}>🔐</Text>
+                <Text style={[styles.label, textStyle(12, 17)]}>Confirm Password</Text>
+                <View style={[styles.inputWrapper, touchStyle, highContrastInput, errors.confirmPassword ? styles.inputError : null]}>
+                  <Text style={[styles.inputIcon, textStyle(15)]}>🔐</Text>
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, textStyle(14, 19)]}
                     value={confirmPassword}
                     onChangeText={(t) => { setConfirmPassword(t); clearError("confirmPassword"); }}
                     secureTextEntry={!showPassword}
                     placeholder="Re-enter password"
                     placeholderTextColor="#8B8DA3"
+                    accessibilityLabel="Confirm password"
                   />
                 </View>
-                {errors.confirmPassword && <Text style={styles.errorText}>{errors.confirmPassword}</Text>}
+                {errors.confirmPassword && <Text style={[styles.errorText, textStyle(11, 16)]}>{errors.confirmPassword}</Text>}
               </View>
 
               {/* Buttons */}
               <View style={styles.btnRow}>
-                <Pressable style={styles.outlinedBtn} onPress={onLogin || onBack}>
-                  <Text style={styles.outlinedBtnText}>Login</Text>
+                <Pressable style={[styles.outlinedBtn, touchStyle]} onPress={onLogin || onBack} accessibilityRole="button">
+                  <Text style={[styles.outlinedBtnText, textStyle(15, 20)]}>Login</Text>
                 </Pressable>
-                <Pressable style={[styles.filledBtn, loading && styles.disabled]} onPress={onSubmit} disabled={loading}>
+                <Pressable style={[styles.filledBtn, loading && styles.disabled]} onPress={onSubmit} disabled={loading} accessibilityRole="button" accessibilityLabel={screenReaderOptimized ? "Create volunteer account" : undefined}>
                   <LinearGradient
                     colors={["#667EEA", "#764BA2"]}
-                    style={styles.btnGradient}
+                    style={[styles.btnGradient, touchStyle]}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
                   >
                     {loading ? (
                       <ActivityIndicator color="#FFFFFF" />
                     ) : (
-                      <Text style={styles.filledBtnText}>Sign Up</Text>
+                      <Text style={[styles.filledBtnText, textStyle(15, 20)]}>Sign Up</Text>
                     )}
                   </LinearGradient>
                 </Pressable>
@@ -266,6 +288,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.1)",
   },
+  highContrastCard: { borderColor: "#FFFFFF", borderWidth: 2, backgroundColor: "#000000" },
 
   // Fields
   fieldGroup: { marginBottom: 16 },
@@ -281,6 +304,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.1)",
   },
   inputError: { borderColor: "#FF6B6B" },
+  highContrastInput: { borderColor: "#FFFFFF", borderWidth: 2, backgroundColor: "#000000" },
   inputIcon: { fontSize: 15, marginRight: 10 },
   input: {
     flex: 1,

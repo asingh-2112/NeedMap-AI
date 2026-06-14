@@ -14,6 +14,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useAccessibility } from "../../context/AccessibilityContext";
 import { useAuth } from "../../context/AuthContext";
 import { useThemeMode } from "../../context/ThemeModeContext";
 import { moduleApi } from "../../services/api";
@@ -28,6 +29,7 @@ type StatusFilter = (typeof STATUS_FILTERS)[number];
 export const OrganizationsScreen = () => {
   const nav = useNavigation<Nav>();
   const { baseUrl, token, user } = useAuth();
+  const { reduceMotion } = useAccessibility();
   const { theme } = useThemeMode();
   const isLight = theme.mode === "light";
   const lightPrimary = isLight ? { color: "#0B1220", fontWeight: "800" as const } : null;
@@ -69,8 +71,15 @@ export const OrganizationsScreen = () => {
   const canCreateOrDeleteBranch = user?.role === "owner";
 
   useEffect(() => {
-    Animated.timing(fadeIn, { toValue: 1, duration: 500, useNativeDriver: true }).start();
-  }, [fadeIn]);
+    if (reduceMotion) {
+      fadeIn.setValue(1);
+      return;
+    }
+
+    const animation = Animated.timing(fadeIn, { toValue: 1, duration: 500, useNativeDriver: true });
+    animation.start();
+    return () => animation.stop();
+  }, [fadeIn, reduceMotion]);
 
   const load = async () => {
     if (!user?.organization_id) {

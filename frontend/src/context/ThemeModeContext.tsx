@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Platform } from "react-native";
+import { useAccessibility } from "./AccessibilityContext";
 
 type ThemeMode = "dark" | "light";
 
@@ -61,6 +62,7 @@ const palettes: Record<ThemeMode, ThemePalette> = {
 const ThemeModeContext = createContext<ThemeModeContextShape | undefined>(undefined);
 
 export const ThemeModeProvider = ({ children }: { children: ReactNode }) => {
+  const { highContrast } = useAccessibility();
   const [mode, setModeState] = useState<ThemeMode>("dark");
 
   useEffect(() => {
@@ -85,13 +87,32 @@ export const ThemeModeProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const value = useMemo(
-    () => ({
-      mode,
-      setMode,
-      toggleMode,
-      theme: palettes[mode],
-    }),
-    [mode],
+    () => {
+      const baseTheme = palettes[mode];
+      const theme = highContrast
+        ? {
+            ...baseTheme,
+            gradients: { page: ["#000000", "#050505", "#000000"] as [string, string, string] },
+            nav: {
+              ...baseTheme.nav,
+              background: "#000000",
+              card: "#000000",
+              text: "#FFFFFF",
+              primary: "#FFFFFF",
+              border: "#FFFFFF",
+              tabInactive: "#D1D5DB",
+            },
+          }
+        : baseTheme;
+
+      return {
+        mode,
+        setMode,
+        toggleMode,
+        theme,
+      };
+    },
+    [highContrast, mode],
   );
 
   return <ThemeModeContext.Provider value={value}>{children}</ThemeModeContext.Provider>;

@@ -14,6 +14,7 @@ import {
   View,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { useAccessibility } from "../../context/AccessibilityContext";
 import { useAuth } from "../../context/AuthContext";
 import { useThemeMode } from "../../context/ThemeModeContext";
 import { apiRequest } from "../../services/api";
@@ -43,6 +44,7 @@ type Campaign = {
 
 export const FeedsScreen = () => {
   const { baseUrl, token, user } = useAuth();
+  const { highContrast, screenReaderOptimized, textScale, touchTarget } = useAccessibility();
   const { theme } = useThemeMode();
   const scopedOrganizationId =
     user?.role === "admin"
@@ -65,6 +67,13 @@ export const FeedsScreen = () => {
     imageData: "",
     imageName: "",
   });
+  const scaledText = (fontSize: number, lineHeight?: number) => ({
+    fontSize: fontSize * textScale,
+    ...(lineHeight ? { lineHeight: lineHeight * textScale } : {}),
+  });
+  const touchStyle = { minHeight: touchTarget };
+  const highContrastCard = highContrast ? styles.highContrastCard : null;
+  const highContrastInput = highContrast ? styles.highContrastInput : null;
 
   const load = async () => {
     setRefreshing(true);
@@ -350,33 +359,37 @@ export const FeedsScreen = () => {
           />
         }
       >
-        <Text style={styles.title}>Feeds</Text>
-        <Text style={styles.subtitle}>
+        <Text style={[styles.title, scaledText(24, 30)]}>Feeds</Text>
+        <Text style={[styles.subtitle, scaledText(14, 20)]}>
           Articles and campaigns for your organization
         </Text>
 
         <View style={styles.tabRow}>
           <Pressable
-            style={[styles.tabBtn, tab === "articles" && styles.tabBtnActive]}
+            style={[styles.tabBtn, touchStyle, tab === "articles" && styles.tabBtnActive, highContrast ? styles.highContrastTab : null]}
             onPress={() => setTab("articles")}
+            accessibilityRole="button"
+            accessibilityState={{ selected: tab === "articles" }}
           >
-            <Text style={[styles.tabText, tab === "articles" && styles.tabTextActive]}>
+            <Text style={[styles.tabText, scaledText(13, 18), tab === "articles" && styles.tabTextActive]}>
               Articles
             </Text>
           </Pressable>
           <Pressable
-            style={[styles.tabBtn, tab === "campaigns" && styles.tabBtnActive]}
+            style={[styles.tabBtn, touchStyle, tab === "campaigns" && styles.tabBtnActive, highContrast ? styles.highContrastTab : null]}
             onPress={() => setTab("campaigns")}
+            accessibilityRole="button"
+            accessibilityState={{ selected: tab === "campaigns" }}
           >
-            <Text style={[styles.tabText, tab === "campaigns" && styles.tabTextActive]}>
+            <Text style={[styles.tabText, scaledText(13, 18), tab === "campaigns" && styles.tabTextActive]}>
               Campaigns
             </Text>
           </Pressable>
         </View>
 
         {isOrgManager && (
-          <Pressable style={styles.createBtn} onPress={openCreateModal}>
-            <Text style={styles.createBtnText}>
+          <Pressable style={[styles.createBtn, touchStyle]} onPress={openCreateModal} accessibilityRole="button" accessibilityLabel={screenReaderOptimized ? `Create ${tab === "articles" ? "article" : "campaign"}` : undefined}>
+            <Text style={[styles.createBtnText, scaledText(14, 19)]}>
               + Create {tab === "articles" ? "Article" : "Campaign"}
             </Text>
           </Pressable>
@@ -385,66 +398,70 @@ export const FeedsScreen = () => {
         {tab === "articles" ? (
           <>
             {stories.map((story) => (
-              <View key={story.id} style={styles.card}>
+              <View key={story.id} style={[styles.card, highContrastCard]}>
                 {getStoryImage(story) ? (
                   <Image source={{ uri: getStoryImage(story) }} style={styles.cardImage} />
                 ) : null}
                 <View style={styles.cardContent}>
-                  <Text style={styles.cardTitle}>{story.title}</Text>
-                  <Text style={styles.cardBody} numberOfLines={3}>
+                  <Text style={[styles.cardTitle, scaledText(15, 20)]}>{story.title}</Text>
+                  <Text style={[styles.cardBody, scaledText(13, 18)]} numberOfLines={3}>
                     {story.narrative}
                   </Text>
-                  <Text style={styles.meta}>
+                  <Text style={[styles.meta, scaledText(11, 16)]}>
                     Story #{story.id} · {new Date(story.created_at).toLocaleDateString()}
                   </Text>
                   {isOrgManager && (
                     <View style={styles.cardActions}>
-                      <Pressable style={styles.actionBtn} onPress={() => openEditModal(story)}>
-                        <Text style={styles.actionBtnText}>Edit</Text>
+                      <Pressable style={[styles.actionBtn, touchStyle]} onPress={() => openEditModal(story)} accessibilityRole="button" accessibilityLabel={screenReaderOptimized ? `Edit article ${story.title}` : undefined}>
+                        <Text style={[styles.actionBtnText, scaledText(12, 17)]}>Edit</Text>
                       </Pressable>
                       <Pressable
-                        style={[styles.actionBtn, styles.dangerBtn]}
+                        style={[styles.actionBtn, styles.dangerBtn, touchStyle]}
                         onPress={() => deleteStory(story.id)}
+                        accessibilityRole="button"
+                        accessibilityLabel={screenReaderOptimized ? `Delete article ${story.title}` : undefined}
                       >
-                        <Text style={styles.dangerBtnText}>Delete</Text>
+                        <Text style={[styles.dangerBtnText, scaledText(12, 17)]}>Delete</Text>
                       </Pressable>
                     </View>
                   )}
                 </View>
               </View>
             ))}
-            {stories.length === 0 ? <Text style={styles.empty}>No articles found.</Text> : null}
+            {stories.length === 0 ? <Text style={[styles.empty, scaledText(14, 20)]}>No articles found.</Text> : null}
           </>
         ) : (
           <>
             {campaigns.map((campaign) => (
-              <View key={campaign.id} style={styles.card}>
+              <View key={campaign.id} style={[styles.card, highContrastCard]}>
                 {getCampaignImage(campaign) ? (
                   <Image source={{ uri: getCampaignImage(campaign) }} style={styles.cardImage} />
                 ) : null}
                 <View style={styles.cardContent}>
-                  <Text style={styles.cardTitle}>{campaign.title}</Text>
-                  <Text style={styles.cardBody} numberOfLines={3}>
+                  <Text style={[styles.cardTitle, scaledText(15, 20)]}>{campaign.title}</Text>
+                  <Text style={[styles.cardBody, scaledText(13, 18)]} numberOfLines={3}>
                     {campaign.description || "No description"}
                   </Text>
-                  <Text style={styles.meta}>Campaign #{campaign.id} · {campaign.status}</Text>
+                  <Text style={[styles.meta, scaledText(11, 16)]}>Campaign #{campaign.id} · {campaign.status}</Text>
                   {isOrgManager && (
                     <View style={styles.cardActions}>
-                      <Pressable style={styles.actionBtn} onPress={() => openEditModal(campaign)}>
-                        <Text style={styles.actionBtnText}>Edit</Text>
+                      <Pressable style={[styles.actionBtn, touchStyle]} onPress={() => openEditModal(campaign)} accessibilityRole="button" accessibilityLabel={screenReaderOptimized ? `Edit campaign ${campaign.title}` : undefined}>
+                        <Text style={[styles.actionBtnText, scaledText(12, 17)]}>Edit</Text>
                       </Pressable>
                       <Pressable
-                        style={[styles.actionBtn, styles.dangerBtn]}
+                        style={[styles.actionBtn, styles.dangerBtn, touchStyle]}
                         onPress={() => deleteCampaign(campaign.id)}
+                        accessibilityRole="button"
+                        accessibilityLabel={screenReaderOptimized ? `Delete campaign ${campaign.title}` : undefined}
                       >
-                        <Text style={styles.dangerBtnText}>Delete</Text>
+                        <Text style={[styles.dangerBtnText, scaledText(12, 17)]}>Delete</Text>
                       </Pressable>
                     </View>
                   )}
                 </View>
               </View>
             ))}
-            {campaigns.length === 0 ? <Text style={styles.empty}>No campaigns found.</Text> : null}
+            {campaigns.length === 0 ? <Text style={[styles.empty, scaledText(14, 20)]}>No campaigns found.</Text> : null}
           </>
         )}
       </ScrollView>
@@ -456,42 +473,44 @@ export const FeedsScreen = () => {
         onRequestClose={() => setShowModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, highContrastCard]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
+              <Text style={[styles.modalTitle, scaledText(18, 23)]}>
                 {modalType === "create" ? "Create" : "Edit"} {tab === "articles" ? "Article" : "Campaign"}
               </Text>
-              <Pressable onPress={() => setShowModal(false)}>
-                <Text style={styles.closeBtn}>X</Text>
+              <Pressable onPress={() => setShowModal(false)} style={touchStyle} accessibilityRole="button" accessibilityLabel={screenReaderOptimized ? "Close editor" : undefined}>
+                <Text style={[styles.closeBtn, scaledText(24, 28)]}>X</Text>
               </Pressable>
             </View>
 
             <ScrollView style={styles.formContainer} showsVerticalScrollIndicator={false}>
-              <Text style={styles.label}>Title</Text>
+              <Text style={[styles.label, scaledText(13, 18)]}>Title</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, touchStyle, highContrastInput, scaledText(14, 19)]}
                 placeholder="Enter title"
                 placeholderTextColor="#8B8DA3"
                 value={formData.title}
                 onChangeText={(text) => setFormData({ ...formData, title: text })}
+                accessibilityLabel="Feed title"
               />
 
-              <Text style={styles.label}>Description</Text>
+              <Text style={[styles.label, scaledText(13, 18)]}>Description</Text>
               <TextInput
-                style={[styles.input, styles.textArea]}
+                style={[styles.input, styles.textArea, highContrastInput, scaledText(14, 19)]}
                 placeholder="Enter description"
                 placeholderTextColor="#8B8DA3"
                 value={formData.narrative}
                 onChangeText={(text) => setFormData({ ...formData, narrative: text })}
                 multiline
                 numberOfLines={4}
+                accessibilityLabel="Feed description"
               />
 
-              <Text style={styles.label}>Image (Optional)</Text>
-              <Pressable style={styles.filePickerBtn} onPress={pickImageFile}>
-                <Text style={styles.filePickerBtnText}>Choose image from computer</Text>
+              <Text style={[styles.label, scaledText(13, 18)]}>Image (Optional)</Text>
+              <Pressable style={[styles.filePickerBtn, touchStyle]} onPress={pickImageFile} accessibilityRole="button">
+                <Text style={[styles.filePickerBtnText, scaledText(13, 18)]}>Choose image from computer</Text>
               </Pressable>
-              <Text style={styles.fileNameText}>
+              <Text style={[styles.fileNameText, scaledText(12, 17)]}>
                 {formData.imageName || "No image selected"}
               </Text>
 
@@ -500,14 +519,15 @@ export const FeedsScreen = () => {
               ) : null}
 
               <Pressable
-                style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
+                style={[styles.submitBtn, touchStyle, loading && styles.submitBtnDisabled]}
                 onPress={handleSave}
                 disabled={loading}
+                accessibilityRole="button"
               >
                 {loading ? (
                   <ActivityIndicator color="#FFF" />
                 ) : (
-                  <Text style={styles.submitBtnText}>{modalType === "create" ? "Create" : "Update"}</Text>
+                  <Text style={[styles.submitBtnText, scaledText(14, 19)]}>{modalType === "create" ? "Create" : "Update"}</Text>
                 )}
               </Pressable>
             </ScrollView>
@@ -540,6 +560,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(102,126,234,0.18)",
     borderColor: "rgba(102,126,234,0.4)",
   },
+  highContrastTab: { borderColor: "#FFFFFF", borderWidth: 2 },
   tabText: { color: "#8B8DA3", fontWeight: "700", fontSize: 13 },
   tabTextActive: { color: "#667EEA" },
 
@@ -561,6 +582,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     marginBottom: 10,
   },
+  highContrastCard: { borderColor: "#FFFFFF", borderWidth: 2, backgroundColor: "#000000" },
   cardImage: { width: "100%", height: 160, backgroundColor: "rgba(255,255,255,0.05)" },
   cardContent: { padding: 12 },
   cardTitle: { color: "#FFF", fontSize: 15, fontWeight: "700", marginBottom: 6 },
@@ -616,6 +638,7 @@ const styles = StyleSheet.create({
     color: "#FFF",
     fontSize: 14,
   },
+  highContrastInput: { borderColor: "#FFFFFF", borderWidth: 2, backgroundColor: "#000000", color: "#FFFFFF" },
   textArea: { textAlignVertical: "top", minHeight: 100 },
 
   filePickerBtn: {
