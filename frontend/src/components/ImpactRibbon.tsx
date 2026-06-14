@@ -1,5 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Animated, StyleSheet, Text, View } from "react-native";
+import { useAccessibility } from "../context/AccessibilityContext";
+import { useLanguage } from "../context/LanguageContext";
 import { colors, fonts } from "../theme";
 
 export const ImpactRibbon = ({
@@ -11,29 +13,39 @@ export const ImpactRibbon = ({
   volunteers: number;
   organizations: number;
 }) => {
+  const { reduceMotion, textScale } = useAccessibility();
+  const { t } = useLanguage();
   const shimmer = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.loop(
+    if (reduceMotion) {
+      shimmer.setValue(0);
+      return;
+    }
+
+    const animation = Animated.loop(
       Animated.sequence([
         Animated.timing(shimmer, { toValue: 1, duration: 1800, useNativeDriver: true }),
         Animated.timing(shimmer, { toValue: 0, duration: 1800, useNativeDriver: true }),
       ]),
-    ).start();
-  }, [shimmer]);
+    );
+
+    animation.start();
+    return () => animation.stop();
+  }, [reduceMotion, shimmer]);
 
   const x = shimmer.interpolate({ inputRange: [0, 1], outputRange: [-220, 240] });
 
   return (
     <View style={styles.ribbon}>
-      <Animated.View style={[styles.shimmer, { transform: [{ translateX: x }] }]} />
-      <Text style={styles.tag}>Impact Pulse</Text>
+      {reduceMotion ? null : <Animated.View style={[styles.shimmer, { transform: [{ translateX: x }] }]} />}
+      <Text style={[styles.tag, { fontSize: 11 * textScale, lineHeight: 15 * textScale }]}>{t("Impact Pulse")}</Text>
       <View style={styles.row}>
-        <Text style={styles.item}>Needs {needs}</Text>
+        <Text style={[styles.item, { fontSize: 12 * textScale, lineHeight: 17 * textScale }]}>{t("Needs")} {needs}</Text>
         <Text style={styles.dot}>|</Text>
-        <Text style={styles.item}>Volunteers {volunteers}</Text>
+        <Text style={[styles.item, { fontSize: 12 * textScale, lineHeight: 17 * textScale }]}>{t("Volunteers")} {volunteers}</Text>
         <Text style={styles.dot}>|</Text>
-        <Text style={styles.item}>Orgs {organizations}</Text>
+        <Text style={[styles.item, { fontSize: 12 * textScale, lineHeight: 17 * textScale }]}>{t("Orgs")} {organizations}</Text>
       </View>
     </View>
   );

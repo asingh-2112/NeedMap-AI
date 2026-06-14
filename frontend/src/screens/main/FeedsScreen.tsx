@@ -16,6 +16,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { useAccessibility } from "../../context/AccessibilityContext";
 import { useAuth } from "../../context/AuthContext";
+import { useLanguage } from "../../context/LanguageContext";
 import { useThemeMode } from "../../context/ThemeModeContext";
 import { apiRequest } from "../../services/api";
 
@@ -45,6 +46,7 @@ type Campaign = {
 export const FeedsScreen = () => {
   const { baseUrl, token, user } = useAuth();
   const { highContrast, screenReaderOptimized, textScale, touchTarget } = useAccessibility();
+  const { t, translateStatus, translateText } = useLanguage();
   const { theme } = useThemeMode();
   const scopedOrganizationId =
     user?.role === "admin"
@@ -111,10 +113,10 @@ export const FeedsScreen = () => {
   }, [baseUrl, token, scopedOrganizationId]);
 
   const deleteStory = async (storyId: number) => {
-    Alert.alert("Delete Article", "Are you sure you want to delete this article?", [
-      { text: "Cancel", style: "cancel" },
+    Alert.alert(t("Delete") + " " + t("Article"), t("Are you sure you want to delete this article?"), [
+      { text: t("Cancel"), style: "cancel" },
       {
-        text: "Delete",
+        text: t("Delete"),
         style: "destructive",
         onPress: async () => {
           try {
@@ -125,9 +127,9 @@ export const FeedsScreen = () => {
               token
             );
             setStories((prev) => prev.filter((s) => s.id !== storyId));
-            Alert.alert("Success", "Article deleted successfully");
+            Alert.alert(t("Success"), t("Article deleted successfully"));
           } catch {
-            Alert.alert("Error", "Failed to delete article");
+            Alert.alert(t("Error"), t("Failed to delete article"));
           }
         },
       },
@@ -136,12 +138,12 @@ export const FeedsScreen = () => {
 
   const deleteCampaign = async (campaignId: number) => {
     Alert.alert(
-      "Delete Campaign",
-      "Are you sure you want to delete this campaign?",
+      t("Delete") + " " + t("Campaign"),
+      t("Are you sure you want to delete this campaign?"),
       [
-        { text: "Cancel", style: "cancel" },
+        { text: t("Cancel"), style: "cancel" },
         {
-          text: "Delete",
+          text: t("Delete"),
           style: "destructive",
           onPress: async () => {
             try {
@@ -152,9 +154,9 @@ export const FeedsScreen = () => {
                 token
               );
               setCampaigns((prev) => prev.filter((c) => c.id !== campaignId));
-              Alert.alert("Success", "Campaign deleted successfully");
+              Alert.alert(t("Success"), t("Campaign deleted successfully"));
             } catch {
-              Alert.alert("Error", "Failed to delete campaign");
+              Alert.alert(t("Error"), t("Failed to delete campaign"));
             }
           },
         },
@@ -189,7 +191,7 @@ export const FeedsScreen = () => {
 
   const pickImageFile = () => {
     if (Platform.OS !== "web") {
-      Alert.alert("Web only", "Please use web to pick an image from your computer.");
+      Alert.alert(t("Web only"), t("Please use web to pick an image from your computer."));
       return;
     }
 
@@ -212,7 +214,7 @@ export const FeedsScreen = () => {
         }));
       };
       reader.onerror = () => {
-        Alert.alert("Error", "Failed to read selected image file.");
+        Alert.alert(t("Error"), t("Failed to read selected image file."));
       };
       reader.readAsDataURL(file);
     };
@@ -254,12 +256,12 @@ export const FeedsScreen = () => {
 
   const handleSave = async () => {
     if (!formData.title.trim() || !formData.narrative.trim()) {
-      Alert.alert("Validation", "Please fill in title and description");
+      Alert.alert(t("Validation"), t("Please fill in title and description"));
       return;
     }
 
     if (!scopedOrganizationId) {
-      Alert.alert("Error", "Organization not found for this user");
+      Alert.alert(t("Error"), t("Organization not found for this user"));
       return;
     }
 
@@ -320,18 +322,18 @@ export const FeedsScreen = () => {
       }
 
       Alert.alert(
-        "Success",
-        `${tab === "articles" ? "Article" : "Campaign"} ${
-          modalType === "create" ? "created" : "updated"
-        } successfully`
+        t("Success"),
+        `${tab === "articles" ? t("Article") : t("Campaign")} ${
+          modalType === "create" ? t("created") : t("updated")
+        } ${t("successfully")}`
       );
       setShowModal(false);
       setFormData({ title: "", narrative: "", imageData: "", imageName: "" });
     } catch {
       Alert.alert(
-        "Error",
-        `Failed to ${modalType} ${
-          tab === "articles" ? "article" : "campaign"
+        t("Error"),
+        `${t("Failed to")} ${modalType === "create" ? t("Create") : t("Update")} ${
+          tab === "articles" ? t("Article") : t("Campaign")
         }`
       );
     } finally {
@@ -359,9 +361,9 @@ export const FeedsScreen = () => {
           />
         }
       >
-        <Text style={[styles.title, scaledText(24, 30)]}>Feeds</Text>
+        <Text style={[styles.title, scaledText(24, 30)]}>{t("Feeds")}</Text>
         <Text style={[styles.subtitle, scaledText(14, 20)]}>
-          Articles and campaigns for your organization
+          {t("Articles and campaigns for your organization")}
         </Text>
 
         <View style={styles.tabRow}>
@@ -372,7 +374,7 @@ export const FeedsScreen = () => {
             accessibilityState={{ selected: tab === "articles" }}
           >
             <Text style={[styles.tabText, scaledText(13, 18), tab === "articles" && styles.tabTextActive]}>
-              Articles
+              {t("Articles")}
             </Text>
           </Pressable>
           <Pressable
@@ -382,15 +384,15 @@ export const FeedsScreen = () => {
             accessibilityState={{ selected: tab === "campaigns" }}
           >
             <Text style={[styles.tabText, scaledText(13, 18), tab === "campaigns" && styles.tabTextActive]}>
-              Campaigns
+              {t("Campaigns")}
             </Text>
           </Pressable>
         </View>
 
         {isOrgManager && (
-          <Pressable style={[styles.createBtn, touchStyle]} onPress={openCreateModal} accessibilityRole="button" accessibilityLabel={screenReaderOptimized ? `Create ${tab === "articles" ? "article" : "campaign"}` : undefined}>
+          <Pressable style={[styles.createBtn, touchStyle]} onPress={openCreateModal} accessibilityRole="button" accessibilityLabel={screenReaderOptimized ? `${t("Create")} ${tab === "articles" ? t("Article") : t("Campaign")}` : undefined}>
             <Text style={[styles.createBtnText, scaledText(14, 19)]}>
-              + Create {tab === "articles" ? "Article" : "Campaign"}
+              + {t("Create")} {tab === "articles" ? t("Article") : t("Campaign")}
             </Text>
           </Pressable>
         )}
@@ -403,32 +405,32 @@ export const FeedsScreen = () => {
                   <Image source={{ uri: getStoryImage(story) }} style={styles.cardImage} />
                 ) : null}
                 <View style={styles.cardContent}>
-                  <Text style={[styles.cardTitle, scaledText(15, 20)]}>{story.title}</Text>
+                  <Text style={[styles.cardTitle, scaledText(15, 20)]}>{translateText(story.title)}</Text>
                   <Text style={[styles.cardBody, scaledText(13, 18)]} numberOfLines={3}>
-                    {story.narrative}
+                    {t("Description")}: {translateText(story.narrative)}
                   </Text>
                   <Text style={[styles.meta, scaledText(11, 16)]}>
-                    Story #{story.id} · {new Date(story.created_at).toLocaleDateString()}
+                    {t("Story")} #{story.id} · {t("Date")}: {new Date(story.created_at).toLocaleDateString()}
                   </Text>
                   {isOrgManager && (
                     <View style={styles.cardActions}>
-                      <Pressable style={[styles.actionBtn, touchStyle]} onPress={() => openEditModal(story)} accessibilityRole="button" accessibilityLabel={screenReaderOptimized ? `Edit article ${story.title}` : undefined}>
-                        <Text style={[styles.actionBtnText, scaledText(12, 17)]}>Edit</Text>
+                      <Pressable style={[styles.actionBtn, touchStyle]} onPress={() => openEditModal(story)} accessibilityRole="button" accessibilityLabel={screenReaderOptimized ? `${t("Edit")} ${t("Article")} ${translateText(story.title)}` : undefined}>
+                        <Text style={[styles.actionBtnText, scaledText(12, 17)]}>{t("Edit")}</Text>
                       </Pressable>
                       <Pressable
                         style={[styles.actionBtn, styles.dangerBtn, touchStyle]}
                         onPress={() => deleteStory(story.id)}
                         accessibilityRole="button"
-                        accessibilityLabel={screenReaderOptimized ? `Delete article ${story.title}` : undefined}
+                        accessibilityLabel={screenReaderOptimized ? `${t("Delete")} ${t("Article")} ${translateText(story.title)}` : undefined}
                       >
-                        <Text style={[styles.dangerBtnText, scaledText(12, 17)]}>Delete</Text>
+                        <Text style={[styles.dangerBtnText, scaledText(12, 17)]}>{t("Delete")}</Text>
                       </Pressable>
                     </View>
                   )}
                 </View>
               </View>
             ))}
-            {stories.length === 0 ? <Text style={[styles.empty, scaledText(14, 20)]}>No articles found.</Text> : null}
+            {stories.length === 0 ? <Text style={[styles.empty, scaledText(14, 20)]}>{t("No articles found.")}</Text> : null}
           </>
         ) : (
           <>
@@ -438,30 +440,30 @@ export const FeedsScreen = () => {
                   <Image source={{ uri: getCampaignImage(campaign) }} style={styles.cardImage} />
                 ) : null}
                 <View style={styles.cardContent}>
-                  <Text style={[styles.cardTitle, scaledText(15, 20)]}>{campaign.title}</Text>
+                  <Text style={[styles.cardTitle, scaledText(15, 20)]}>{translateText(campaign.title)}</Text>
                   <Text style={[styles.cardBody, scaledText(13, 18)]} numberOfLines={3}>
-                    {campaign.description || "No description"}
+                    {t("Description")}: {campaign.description ? translateText(campaign.description) : t("No description")}
                   </Text>
-                  <Text style={[styles.meta, scaledText(11, 16)]}>Campaign #{campaign.id} · {campaign.status}</Text>
+                  <Text style={[styles.meta, scaledText(11, 16)]}>{t("Campaign")} #{campaign.id} · {t("Status")}: {translateStatus(campaign.status)}</Text>
                   {isOrgManager && (
                     <View style={styles.cardActions}>
-                      <Pressable style={[styles.actionBtn, touchStyle]} onPress={() => openEditModal(campaign)} accessibilityRole="button" accessibilityLabel={screenReaderOptimized ? `Edit campaign ${campaign.title}` : undefined}>
-                        <Text style={[styles.actionBtnText, scaledText(12, 17)]}>Edit</Text>
+                      <Pressable style={[styles.actionBtn, touchStyle]} onPress={() => openEditModal(campaign)} accessibilityRole="button" accessibilityLabel={screenReaderOptimized ? `${t("Edit")} ${t("Campaign")} ${translateText(campaign.title)}` : undefined}>
+                        <Text style={[styles.actionBtnText, scaledText(12, 17)]}>{t("Edit")}</Text>
                       </Pressable>
                       <Pressable
                         style={[styles.actionBtn, styles.dangerBtn, touchStyle]}
                         onPress={() => deleteCampaign(campaign.id)}
                         accessibilityRole="button"
-                        accessibilityLabel={screenReaderOptimized ? `Delete campaign ${campaign.title}` : undefined}
+                        accessibilityLabel={screenReaderOptimized ? `${t("Delete")} ${t("Campaign")} ${translateText(campaign.title)}` : undefined}
                       >
-                        <Text style={[styles.dangerBtnText, scaledText(12, 17)]}>Delete</Text>
+                        <Text style={[styles.dangerBtnText, scaledText(12, 17)]}>{t("Delete")}</Text>
                       </Pressable>
                     </View>
                   )}
                 </View>
               </View>
             ))}
-            {campaigns.length === 0 ? <Text style={[styles.empty, scaledText(14, 20)]}>No campaigns found.</Text> : null}
+            {campaigns.length === 0 ? <Text style={[styles.empty, scaledText(14, 20)]}>{t("No campaigns found.")}</Text> : null}
           </>
         )}
       </ScrollView>
@@ -476,42 +478,42 @@ export const FeedsScreen = () => {
           <View style={[styles.modalContent, highContrastCard]}>
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, scaledText(18, 23)]}>
-                {modalType === "create" ? "Create" : "Edit"} {tab === "articles" ? "Article" : "Campaign"}
+                {modalType === "create" ? t("Create") : t("Edit")} {tab === "articles" ? t("Article") : t("Campaign")}
               </Text>
-              <Pressable onPress={() => setShowModal(false)} style={touchStyle} accessibilityRole="button" accessibilityLabel={screenReaderOptimized ? "Close editor" : undefined}>
+              <Pressable onPress={() => setShowModal(false)} style={touchStyle} accessibilityRole="button" accessibilityLabel={screenReaderOptimized ? t("Close editor") : undefined}>
                 <Text style={[styles.closeBtn, scaledText(24, 28)]}>X</Text>
               </Pressable>
             </View>
 
             <ScrollView style={styles.formContainer} showsVerticalScrollIndicator={false}>
-              <Text style={[styles.label, scaledText(13, 18)]}>Title</Text>
+              <Text style={[styles.label, scaledText(13, 18)]}>{t("Title")}</Text>
               <TextInput
                 style={[styles.input, touchStyle, highContrastInput, scaledText(14, 19)]}
-                placeholder="Enter title"
+                placeholder={t("Enter title")}
                 placeholderTextColor="#8B8DA3"
                 value={formData.title}
                 onChangeText={(text) => setFormData({ ...formData, title: text })}
-                accessibilityLabel="Feed title"
+                accessibilityLabel={t("Title")}
               />
 
-              <Text style={[styles.label, scaledText(13, 18)]}>Description</Text>
+              <Text style={[styles.label, scaledText(13, 18)]}>{t("Description")}</Text>
               <TextInput
                 style={[styles.input, styles.textArea, highContrastInput, scaledText(14, 19)]}
-                placeholder="Enter description"
+                placeholder={t("Enter description")}
                 placeholderTextColor="#8B8DA3"
                 value={formData.narrative}
                 onChangeText={(text) => setFormData({ ...formData, narrative: text })}
                 multiline
                 numberOfLines={4}
-                accessibilityLabel="Feed description"
+                accessibilityLabel={t("Description")}
               />
 
-              <Text style={[styles.label, scaledText(13, 18)]}>Image (Optional)</Text>
+              <Text style={[styles.label, scaledText(13, 18)]}>{t("Image (Optional)")}</Text>
               <Pressable style={[styles.filePickerBtn, touchStyle]} onPress={pickImageFile} accessibilityRole="button">
-                <Text style={[styles.filePickerBtnText, scaledText(13, 18)]}>Choose image from computer</Text>
+                <Text style={[styles.filePickerBtnText, scaledText(13, 18)]}>{t("Choose image from computer")}</Text>
               </Pressable>
               <Text style={[styles.fileNameText, scaledText(12, 17)]}>
-                {formData.imageName || "No image selected"}
+                {formData.imageName || t("No image selected")}
               </Text>
 
               {formData.imageData ? (
@@ -527,7 +529,7 @@ export const FeedsScreen = () => {
                 {loading ? (
                   <ActivityIndicator color="#FFF" />
                 ) : (
-                  <Text style={[styles.submitBtnText, scaledText(14, 19)]}>{modalType === "create" ? "Create" : "Update"}</Text>
+                  <Text style={[styles.submitBtnText, scaledText(14, 19)]}>{modalType === "create" ? t("Create") : t("Update")}</Text>
                 )}
               </Pressable>
             </ScrollView>

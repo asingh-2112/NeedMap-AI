@@ -16,6 +16,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { useAccessibility } from "../../context/AccessibilityContext";
 import { useAuth } from "../../context/AuthContext";
+import { useLanguage } from "../../context/LanguageContext";
 
 const SIGNUP_GIF = "https://cdn.dribbble.com/users/1162077/screenshots/4649464/media/5e5e1534f8c54799307b810dc7adff17.gif";
 
@@ -33,6 +34,7 @@ type FormErrors = {
 
 export const SignupScreen = ({ onBack, onLogin }: Props) => {
   const { signup, loading } = useAuth();
+  const { t } = useLanguage();
   const { highContrast, reduceMotion, screenReaderOptimized, textScale, touchTarget } = useAccessibility();
   const [userName, setUserName] = useState("");
   const [email, setEmail] = useState("");
@@ -71,32 +73,32 @@ export const SignupScreen = ({ onBack, onLogin }: Props) => {
     const newErrors: FormErrors = {};
 
     if (!userName.trim()) {
-      newErrors.userName = "Full name is required";
+      newErrors.userName = t("Full name is required");
     } else if (userName.trim().length < 2) {
-      newErrors.userName = "Name must be at least 2 characters";
+      newErrors.userName = t("Name must be at least 2 characters");
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!email.trim()) {
-      newErrors.email = "Email is required";
+      newErrors.email = t("Email is required");
     } else if (!emailRegex.test(email.trim())) {
-      newErrors.email = "Please enter a valid email address";
+      newErrors.email = t("Please enter a valid email address");
     }
 
     if (!password) {
-      newErrors.password = "Password is required";
+      newErrors.password = t("Password is required");
     } else if (password.length < 8) {
-      newErrors.password = "Password must be at least 8 characters";
+      newErrors.password = t("Password must be at least 8 characters");
     } else if (!/[A-Z]/.test(password)) {
-      newErrors.password = "Must contain at least one uppercase letter";
+      newErrors.password = t("Must contain at least one uppercase letter");
     } else if (!/[0-9]/.test(password)) {
-      newErrors.password = "Must contain at least one number";
+      newErrors.password = t("Must contain at least one number");
     }
 
     if (!confirmPassword) {
-      newErrors.confirmPassword = "Please confirm your password";
+      newErrors.confirmPassword = t("Please confirm your password");
     } else if (password !== confirmPassword) {
-      newErrors.confirmPassword = "Passwords do not match";
+      newErrors.confirmPassword = t("Passwords do not match");
     }
 
     setErrors(newErrors);
@@ -108,8 +110,8 @@ export const SignupScreen = ({ onBack, onLogin }: Props) => {
     try {
       await signup(userName.trim(), email.trim(), password, "volunteer");
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Signup failed";
-      Alert.alert("Signup Failed", msg);
+      const msg = err instanceof Error ? err.message : t("Signup failed");
+      Alert.alert(t("Signup Failed"), msg);
     }
   };
 
@@ -140,14 +142,14 @@ export const SignupScreen = ({ onBack, onLogin }: Props) => {
             </View>
 
             {/* Title */}
-            <Text style={[styles.title, textStyle(30, 36)]}>Create Account</Text>
-            <Text style={[styles.subtitle, textStyle(14, 20)]}>Join us and start making an impact</Text>
+            <Text style={[styles.title, textStyle(30, 36)]}>{t("Create Account")}</Text>
+            <Text style={[styles.subtitle, textStyle(14, 20)]}>{t("Join us and start making an impact")}</Text>
 
             {/* Glass card */}
             <View style={[styles.glassCard, highContrastCard]}>
               {/* Full Name */}
               <View style={styles.fieldGroup}>
-                <Text style={[styles.label, textStyle(12, 17)]}>Full Name</Text>
+                <Text style={[styles.label, textStyle(12, 17)]}>{t("Full Name")}</Text>
                 <View style={[styles.inputWrapper, touchStyle, highContrastInput, errors.userName ? styles.inputError : null]}>
                   <Text style={[styles.inputIcon, textStyle(15)]}>👤</Text>
                   <TextInput
@@ -157,7 +159,7 @@ export const SignupScreen = ({ onBack, onLogin }: Props) => {
                     placeholder="John Doe"
                     placeholderTextColor="#8B8DA3"
                     autoCapitalize="words"
-                    accessibilityLabel="Full name"
+                    accessibilityLabel={t("Full name")}
                   />
                 </View>
                 {errors.userName && <Text style={[styles.errorText, textStyle(11, 16)]}>{errors.userName}</Text>}
@@ -165,7 +167,7 @@ export const SignupScreen = ({ onBack, onLogin }: Props) => {
 
               {/* Email */}
               <View style={styles.fieldGroup}>
-                <Text style={[styles.label, textStyle(12, 17)]}>Email</Text>
+                <Text style={[styles.label, textStyle(12, 17)]}>{t("Email")}</Text>
                 <View style={[styles.inputWrapper, touchStyle, highContrastInput, errors.email ? styles.inputError : null]}>
                   <Text style={[styles.inputIcon, textStyle(15)]}>✉️</Text>
                   <TextInput
@@ -176,7 +178,7 @@ export const SignupScreen = ({ onBack, onLogin }: Props) => {
                     placeholderTextColor="#8B8DA3"
                     autoCapitalize="none"
                     keyboardType="email-address"
-                    accessibilityLabel="Email address"
+                    accessibilityLabel={t("Email address")}
                   />
                 </View>
                 {errors.email && <Text style={[styles.errorText, textStyle(11, 16)]}>{errors.email}</Text>}
@@ -184,7 +186,7 @@ export const SignupScreen = ({ onBack, onLogin }: Props) => {
 
               {/* Password */}
               <View style={styles.fieldGroup}>
-                <Text style={[styles.label, textStyle(12, 17)]}>Password</Text>
+                <Text style={[styles.label, textStyle(12, 17)]}>{t("Password")}</Text>
                 <View style={[styles.inputWrapper, touchStyle, highContrastInput, errors.password ? styles.inputError : null]}>
                   <Text style={[styles.inputIcon, textStyle(15)]}>🔒</Text>
                   <TextInput
@@ -192,12 +194,12 @@ export const SignupScreen = ({ onBack, onLogin }: Props) => {
                     value={password}
                     onChangeText={(t) => { setPassword(t); clearError("password"); }}
                     secureTextEntry={!showPassword}
-                    placeholder="Min 8 chars, uppercase + number"
+                    placeholder={t("Min 8 chars, uppercase + number")}
                     placeholderTextColor="#8B8DA3"
-                    accessibilityLabel="Password"
+                    accessibilityLabel={t("Password")}
                   />
-                  <Pressable onPress={() => setShowPassword(!showPassword)} style={[styles.toggleBtn, touchStyle]} accessibilityRole="button" accessibilityLabel={screenReaderOptimized ? `${showPassword ? "Hide" : "Show"} password` : undefined}>
-                    <Text style={[styles.toggleText, textStyle(12, 17)]}>{showPassword ? "Hide" : "Show"}</Text>
+                  <Pressable onPress={() => setShowPassword(!showPassword)} style={[styles.toggleBtn, touchStyle]} accessibilityRole="button" accessibilityLabel={screenReaderOptimized ? `${showPassword ? t("Hide") : t("Show")} ${t("password")}` : undefined}>
+                    <Text style={[styles.toggleText, textStyle(12, 17)]}>{showPassword ? t("Hide") : t("Show")}</Text>
                   </Pressable>
                 </View>
                 {errors.password && <Text style={[styles.errorText, textStyle(11, 16)]}>{errors.password}</Text>}
@@ -205,7 +207,7 @@ export const SignupScreen = ({ onBack, onLogin }: Props) => {
 
               {/* Confirm Password */}
               <View style={styles.fieldGroup}>
-                <Text style={[styles.label, textStyle(12, 17)]}>Confirm Password</Text>
+                <Text style={[styles.label, textStyle(12, 17)]}>{t("Confirm Password")}</Text>
                 <View style={[styles.inputWrapper, touchStyle, highContrastInput, errors.confirmPassword ? styles.inputError : null]}>
                   <Text style={[styles.inputIcon, textStyle(15)]}>🔐</Text>
                   <TextInput
@@ -213,9 +215,9 @@ export const SignupScreen = ({ onBack, onLogin }: Props) => {
                     value={confirmPassword}
                     onChangeText={(t) => { setConfirmPassword(t); clearError("confirmPassword"); }}
                     secureTextEntry={!showPassword}
-                    placeholder="Re-enter password"
+                    placeholder={t("Re-enter password")}
                     placeholderTextColor="#8B8DA3"
-                    accessibilityLabel="Confirm password"
+                    accessibilityLabel={t("Confirm password")}
                   />
                 </View>
                 {errors.confirmPassword && <Text style={[styles.errorText, textStyle(11, 16)]}>{errors.confirmPassword}</Text>}
@@ -224,9 +226,9 @@ export const SignupScreen = ({ onBack, onLogin }: Props) => {
               {/* Buttons */}
               <View style={styles.btnRow}>
                 <Pressable style={[styles.outlinedBtn, touchStyle]} onPress={onLogin || onBack} accessibilityRole="button">
-                  <Text style={[styles.outlinedBtnText, textStyle(15, 20)]}>Login</Text>
+                  <Text style={[styles.outlinedBtnText, textStyle(15, 20)]}>{t("Login")}</Text>
                 </Pressable>
-                <Pressable style={[styles.filledBtn, loading && styles.disabled]} onPress={onSubmit} disabled={loading} accessibilityRole="button" accessibilityLabel={screenReaderOptimized ? "Create volunteer account" : undefined}>
+                <Pressable style={[styles.filledBtn, loading && styles.disabled]} onPress={onSubmit} disabled={loading} accessibilityRole="button" accessibilityLabel={screenReaderOptimized ? t("Create volunteer account") : undefined}>
                   <LinearGradient
                     colors={["#667EEA", "#764BA2"]}
                     style={[styles.btnGradient, touchStyle]}
@@ -236,7 +238,7 @@ export const SignupScreen = ({ onBack, onLogin }: Props) => {
                     {loading ? (
                       <ActivityIndicator color="#FFFFFF" />
                     ) : (
-                      <Text style={[styles.filledBtnText, textStyle(15, 20)]}>Sign Up</Text>
+                      <Text style={[styles.filledBtnText, textStyle(15, 20)]}>{t("Sign Up")}</Text>
                     )}
                   </LinearGradient>
                 </Pressable>

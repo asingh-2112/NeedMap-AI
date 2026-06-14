@@ -14,6 +14,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { useAccessibility, type TextSize } from "../../context/AccessibilityContext";
 import { useAuth } from "../../context/AuthContext";
+import { useLanguage } from "../../context/LanguageContext";
 import { useThemeMode } from "../../context/ThemeModeContext";
 import { moduleApi } from "../../services/api";
 import type { Volunteer, VolunteerSkill } from "../../types/api";
@@ -27,12 +28,15 @@ const textSizeOptions: { label: string; value: TextSize }[] = [
 
 export const ProfileScreen = () => {
   const { user, baseUrl, token, refreshMe, logout } = useAuth();
+  const { t, translateCategory } = useLanguage();
   const { theme } = useThemeMode();
   const {
     highContrast,
     largeTouchTargets,
     reduceMotion,
+    resetAccessibility,
     screenReaderOptimized,
+    setUseDeviceSettings,
     setHighContrast,
     setLargeTouchTargets,
     setReduceMotion,
@@ -41,6 +45,9 @@ export const ProfileScreen = () => {
     textScale,
     textSize,
     touchTarget,
+    useDeviceSettings,
+    device,
+    announceForAccessibility,
   } = useAccessibility();
   const isVolunteer = user?.role === "volunteer";
   const isLight = theme.mode === "light";
@@ -89,7 +96,7 @@ export const ProfileScreen = () => {
         }
       } catch (err) {
         if (mounted) {
-          setMessage(err instanceof Error ? err.message : "Unable to load volunteer skills");
+          setMessage(err instanceof Error ? err.message : t("Unable to load volunteer skills"));
         }
       } finally {
         if (mounted) {
@@ -102,7 +109,7 @@ export const ProfileScreen = () => {
     return () => {
       mounted = false;
     };
-  }, [baseUrl, isVolunteer, token]);
+  }, [baseUrl, isVolunteer, t, token]);
 
   useEffect(() => {
     if (Platform.OS !== "web" || typeof window === "undefined") return;
@@ -176,8 +183,13 @@ export const ProfileScreen = () => {
     </Pressable>
   );
 
+  const resetAccessibilitySettings = () => {
+    resetAccessibility();
+    announceForAccessibility(t("Accessibility settings reset to defaults"));
+  };
+
   const initials = useMemo(() => {
-    const fullName = (user?.user_name || "NeedMap User").trim();
+    const fullName = (user?.user_name || t("NeedMap User")).trim();
     const parts = fullName.split(" ").filter(Boolean);
     return parts.slice(0, 2).map((p) => p[0]?.toUpperCase()).join("") || "NU";
   }, [user?.user_name]);
@@ -188,10 +200,10 @@ export const ProfileScreen = () => {
         user_name: name.trim(),
         phone: phone.trim() || null,
       });
-      setMessage(`Profile updated for ${updated.user_name}`);
+      setMessage(`${t("Profile updated for")} ${updated.user_name}`);
       await refreshMe();
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Unable to update profile");
+      setMessage(err instanceof Error ? err.message : t("Unable to update profile"));
     }
   };
 
@@ -202,10 +214,10 @@ export const ProfileScreen = () => {
         longitude: longitude.trim() ? Number(longitude) : undefined,
         radius_km: radius.trim() ? Number(radius) : undefined,
       });
-      setMessage("Location updated successfully.");
+      setMessage(t("Location updated successfully."));
       await refreshMe();
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Unable to update location");
+      setMessage(err instanceof Error ? err.message : t("Unable to update location"));
     }
   };
 
@@ -219,7 +231,7 @@ export const ProfileScreen = () => {
     if (!volunteerProfile) return;
     const normalizedSkill = skillName.trim().toLowerCase();
     if (!normalizedSkill) {
-      setMessage("Enter a skill before saving.");
+      setMessage(t("Enter a skill before saving."));
       return;
     }
 
@@ -232,9 +244,9 @@ export const ProfileScreen = () => {
       setSkillName("");
       setSkillProficiency("beginner");
       await reloadVolunteerProfile();
-      setMessage("Skill saved for volunteer matching.");
+      setMessage(t("Skill saved for volunteer matching."));
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Unable to save skill");
+      setMessage(err instanceof Error ? err.message : t("Unable to save skill"));
     } finally {
       setSkillsLoading(false);
     }
@@ -250,9 +262,9 @@ export const ProfileScreen = () => {
         ...volunteerProfile,
         skills: (volunteerProfile.skills ?? []).map((item) => (item.id === updated.id ? updated : item)),
       });
-      setMessage("Skill proficiency updated.");
+      setMessage(t("Skill proficiency updated."));
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Unable to update skill");
+      setMessage(err instanceof Error ? err.message : t("Unable to update skill"));
     } finally {
       setSkillsLoading(false);
     }
@@ -268,9 +280,9 @@ export const ProfileScreen = () => {
         ...volunteerProfile,
         skills: (volunteerProfile.skills ?? []).filter((item) => item.id !== skill.id),
       });
-      setMessage("Skill removed.");
+      setMessage(t("Skill removed."));
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Unable to remove skill");
+      setMessage(err instanceof Error ? err.message : t("Unable to remove skill"));
     } finally {
       setSkillsLoading(false);
     }
@@ -278,7 +290,7 @@ export const ProfileScreen = () => {
 
   const useBrowserLocation = () => {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
-      setMessage("Geolocation not supported in this environment.");
+      setMessage(t("Geolocation not supported in this environment."));
       return;
     }
 
@@ -287,7 +299,7 @@ export const ProfileScreen = () => {
         setLatitude(String(pos.coords.latitude));
         setLongitude(String(pos.coords.longitude));
       },
-      () => setMessage("Location permission denied or unavailable."),
+      () => setMessage(t("Location permission denied or unavailable.")),
     );
   };
 
@@ -301,13 +313,13 @@ export const ProfileScreen = () => {
       setNewPassword("");
       setMessage(res.message);
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Unable to change password");
+      setMessage(err instanceof Error ? err.message : t("Unable to change password"));
     }
   };
 
   const pickProfileImage = () => {
     if (Platform.OS !== "web") {
-      setMessage("Profile image upload from computer is available on web.");
+      setMessage(t("Profile image upload from computer is available on web."));
       return;
     }
 
@@ -327,9 +339,9 @@ export const ProfileScreen = () => {
           const key = `needmap-profile-image-${user?.id ?? "me"}`;
           window.localStorage.setItem(key, dataUrl);
         }
-        setMessage("Profile image updated.");
+        setMessage(t("Profile image updated."));
       };
-      reader.onerror = () => setMessage("Unable to read selected image.");
+      reader.onerror = () => setMessage(t("Unable to read selected image."));
       reader.readAsDataURL(file);
     };
     input.click();
@@ -341,20 +353,20 @@ export const ProfileScreen = () => {
         await moduleApi.deactivateMyAccount(baseUrl, token);
         logout();
       } catch (err) {
-        setMessage(err instanceof Error ? err.message : "Unable to deactivate account");
+        setMessage(err instanceof Error ? err.message : t("Unable to deactivate account"));
       }
     };
 
     if (Platform.OS === "web") {
-      if (window.confirm("Are you sure you want to deactivate your account?")) {
+      if (window.confirm(t("Are you sure you want to deactivate your account?"))) {
         await go();
       }
       return;
     }
 
-    Alert.alert("Deactivate Account", "Are you sure you want to deactivate your account?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Deactivate", style: "destructive", onPress: () => void go() },
+    Alert.alert(t("Deactivate Account"), t("Are you sure you want to deactivate your account?"), [
+      { text: t("Cancel"), style: "cancel" },
+      { text: t("Deactivate"), style: "destructive", onPress: () => void go() },
     ]);
   };
 
@@ -383,10 +395,10 @@ export const ProfileScreen = () => {
       />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={[styles.heading, lightPrimary, scaledText(32, 38)]}>Profile</Text>
-        <Text style={[styles.subheading, lightSecondary, scaledText(14, 20)]}>Manage your personal settings and account actions</Text>
+        <Text style={[styles.heading, lightPrimary, scaledText(32, 38)]}>{t("Profile")}</Text>
+        <Text style={[styles.subheading, lightSecondary, scaledText(14, 20)]}>{t("Manage your personal settings and account actions")}</Text>
 
-        <View style={[styles.heroCard, lightCard, highContrastCard]} accessible accessibilityLabel={screenReaderOptimized ? `Profile for ${user?.user_name || "NeedMap User"}, role ${user?.role || "volunteer"}` : undefined}>
+        <View style={[styles.heroCard, lightCard, highContrastCard]} accessible accessibilityLabel={screenReaderOptimized ? `${t("Profile for")} ${user?.user_name || t("NeedMap User")}, ${t("role")} ${translateCategory(user?.role || "volunteer")}` : undefined}>
           {reduceMotion ? null : <Animated.View style={[styles.avatarRing, { transform: [{ rotate: ringRotate }] }]} />}
           {profileImage ? (
             <Image source={{ uri: profileImage }} style={styles.avatarImage} />
@@ -397,21 +409,29 @@ export const ProfileScreen = () => {
           )}
 
           <View style={styles.heroMeta}>
-            <Text style={[styles.name, lightPrimary, scaledText(20, 25)]}>{user?.user_name || "NeedMap User"}</Text>
-            <Text style={[styles.email, lightSecondary, scaledText(13, 18)]}>{user?.email || "No email"}</Text>
+            <Text style={[styles.name, lightPrimary, scaledText(20, 25)]}>{user?.user_name || t("NeedMap User")}</Text>
+            <Text style={[styles.email, lightSecondary, scaledText(13, 18)]}>{user?.email || t("No email")}</Text>
             <View style={styles.roleBadge}>
-              <Text style={[styles.roleBadgeText, scaledText(11, 15)]}>{(user?.role || "volunteer").toUpperCase()}</Text>
+              <Text style={[styles.roleBadgeText, scaledText(11, 15)]}>{translateCategory(user?.role || "volunteer")}</Text>
             </View>
             <Pressable style={[styles.uploadBtn, accessiblePressable, isLight ? { borderColor: "#000", borderWidth: 2 } : null]} onPress={pickProfileImage} accessibilityRole="button">
-              <Text style={[styles.uploadBtnText, lightPrimary, scaledText(12, 16)]}>Upload Profile Photo</Text>
+              <Text style={[styles.uploadBtnText, lightPrimary, scaledText(12, 16)]}>{t("Upload Profile Photo")}</Text>
             </Pressable>
           </View>
         </View>
 
         <View style={[styles.panelCard, lightCard, highContrastCard]}>
-          <Text style={[styles.panelTitle, lightPrimary, scaledText(16, 22)]}>Accessibility</Text>
-          <Text style={[styles.skillHint, lightSecondary, scaledText(12, 18)]}>Choose display, motion, and assistive support that works best for you.</Text>
-          <Text style={[styles.accessibilityLabel, lightPrimary, scaledText(13, 18)]}>Text Size</Text>
+          <Text style={[styles.panelTitle, lightPrimary, scaledText(16, 22)]}>{t("Accessibility")}</Text>
+          <Text style={[styles.skillHint, lightSecondary, scaledText(12, 18)]}>{t("Choose display, motion, and assistive support that works best for you. These settings apply across every role and page.")}</Text>
+          {renderToggle(t("Use device accessibility"), useDeviceSettings, setUseDeviceSettings, t("Follows screen reader, reduce motion, bold text, invert colors, and high contrast settings from your device."))}
+          <View style={[styles.deviceStatusBox, highContrast ? styles.highContrastToggle : null]} accessible accessibilityLabel={screenReaderOptimized ? t("Current device accessibility status") : undefined}>
+            <Text style={[styles.deviceStatusTitle, lightPrimary, scaledText(12, 17)]}>{t("Device status")}</Text>
+            <Text style={[styles.deviceStatusText, lightSecondary, scaledText(11, 16)]}>{t("Screen reader")}: {device.screenReaderEnabled ? t("On") : t("Off")}</Text>
+            <Text style={[styles.deviceStatusText, lightSecondary, scaledText(11, 16)]}>{t("Reduce motion")}: {device.reduceMotionEnabled ? t("On") : t("Off")}</Text>
+            <Text style={[styles.deviceStatusText, lightSecondary, scaledText(11, 16)]}>{t("Bold text")}: {device.boldTextEnabled ? t("On") : t("Off")}</Text>
+            <Text style={[styles.deviceStatusText, lightSecondary, scaledText(11, 16)]}>{t("Invert/high contrast")}: {device.invertColorsEnabled || device.highTextContrastEnabled ? t("On") : t("Off")}</Text>
+          </View>
+          <Text style={[styles.accessibilityLabel, lightPrimary, scaledText(13, 18)]}>{t("Text Size")}</Text>
           <View style={styles.accessibilitySegmentRow}>
             {textSizeOptions.map((option) => {
               const selected = textSize === option.value;
@@ -422,54 +442,57 @@ export const ProfileScreen = () => {
                   onPress={() => setTextSize(option.value)}
                   accessibilityRole="button"
                   accessibilityState={{ selected }}
-                  accessibilityLabel={screenReaderOptimized ? `Set text size to ${option.label}` : undefined}
+                  accessibilityLabel={screenReaderOptimized ? `${t("Set text size to")} ${t(option.label)}` : undefined}
                 >
-                  <Text style={[styles.accessibilitySegmentText, selected && styles.accessibilitySegmentTextActive, scaledText(12, 16)]}>{option.label}</Text>
+                  <Text style={[styles.accessibilitySegmentText, selected && styles.accessibilitySegmentTextActive, scaledText(12, 16)]}>{t(option.label)}</Text>
                 </Pressable>
               );
             })}
           </View>
-          {renderToggle("High contrast", highContrast, setHighContrast, "Uses stronger borders and brighter foreground colors.")}
-          {renderToggle("Reduce motion", reduceMotion, setReduceMotion, "Stops decorative animations and rotating profile effects.")}
-          {renderToggle("Screen reader support", screenReaderOptimized, setScreenReaderOptimized, "Adds clearer labels and hints for assistive technology.")}
-          {renderToggle("Large touch targets", largeTouchTargets, setLargeTouchTargets, "Makes buttons easier to tap for motor accessibility.")}
+          {renderToggle(t("High contrast"), highContrast, setHighContrast, t("Uses stronger borders and brighter foreground colors."))}
+          {renderToggle(t("Reduce motion"), reduceMotion, setReduceMotion, t("Stops decorative animations and rotating profile effects."))}
+          {renderToggle(t("Screen reader support"), screenReaderOptimized, setScreenReaderOptimized, t("Adds clearer labels and hints for assistive technology."))}
+          {renderToggle(t("Large touch targets"), largeTouchTargets, setLargeTouchTargets, t("Makes buttons easier to tap for motor accessibility."))}
+          <Pressable style={[styles.resetAccessibilityBtn, accessiblePressable, highContrast ? styles.highContrastToggle : null]} onPress={resetAccessibilitySettings} accessibilityRole="button" accessibilityLabel={screenReaderOptimized ? t("Reset accessibility settings") : undefined} accessibilityHint={screenReaderOptimized ? t("Restores default accessibility preferences for all pages") : undefined}>
+            <Text style={[styles.resetAccessibilityText, scaledText(12, 16)]}>{t("Reset Accessibility Settings")}</Text>
+          </Pressable>
         </View>
 
         <View style={[styles.panelCard, lightCard, highContrastCard]}>
-          <Text style={[styles.panelTitle, lightPrimary, scaledText(16, 22)]}>Update Profile</Text>
-          <TextInput style={[styles.input, lightInput, highContrastInput, scaledText(14, 19)]} value={name} onChangeText={setName} placeholder="Full name" placeholderTextColor={isLight ? "#374151" : "#BFC0CF"} accessibilityLabel="Full name" />
-          <TextInput style={[styles.input, lightInput, highContrastInput, scaledText(14, 19)]} value={phone} onChangeText={setPhone} placeholder="Phone" placeholderTextColor={isLight ? "#374151" : "#BFC0CF"} accessibilityLabel="Phone number" />
+          <Text style={[styles.panelTitle, lightPrimary, scaledText(16, 22)]}>{t("Update Profile")}</Text>
+          <TextInput style={[styles.input, lightInput, highContrastInput, scaledText(14, 19)]} value={name} onChangeText={setName} placeholder={t("Full name")} placeholderTextColor={isLight ? "#374151" : "#BFC0CF"} accessibilityLabel={t("Full name")} />
+          <TextInput style={[styles.input, lightInput, highContrastInput, scaledText(14, 19)]} value={phone} onChangeText={setPhone} placeholder={t("Phone")} placeholderTextColor={isLight ? "#374151" : "#BFC0CF"} accessibilityLabel={t("Phone number")} />
           <Pressable style={[styles.primaryBtn, accessiblePressable, isLight ? { borderColor: "#000", borderWidth: 2 } : null]} onPress={saveProfile} accessibilityRole="button">
-            <Text style={[styles.primaryBtnText, lightPrimary, scaledText(13, 17)]}>Save Profile</Text>
+            <Text style={[styles.primaryBtnText, lightPrimary, scaledText(13, 17)]}>{t("Save Profile")}</Text>
           </Pressable>
         </View>
 
         <View style={[styles.panelCard, lightCard]}>
-          <Text style={[styles.panelTitle, lightPrimary]}>Update Location</Text>
+          <Text style={[styles.panelTitle, lightPrimary]}>{t("Update Location")}</Text>
           <View style={styles.locationRow}>
-            <TextInput style={[styles.input, styles.col, styles.coordinateInput, lightInput]} value={latitude} onChangeText={setLatitude} placeholder="Latitude" keyboardType="numeric" placeholderTextColor={isLight ? "#374151" : "#BFC0CF"} />
-            <TextInput style={[styles.input, styles.col, styles.coordinateInput, lightInput]} value={longitude} onChangeText={setLongitude} placeholder="Longitude" keyboardType="numeric" placeholderTextColor={isLight ? "#374151" : "#BFC0CF"} />
+            <TextInput style={[styles.input, styles.col, styles.coordinateInput, lightInput]} value={latitude} onChangeText={setLatitude} placeholder={t("Latitude")} keyboardType="numeric" placeholderTextColor={isLight ? "#374151" : "#BFC0CF"} />
+            <TextInput style={[styles.input, styles.col, styles.coordinateInput, lightInput]} value={longitude} onChangeText={setLongitude} placeholder={t("Longitude")} keyboardType="numeric" placeholderTextColor={isLight ? "#374151" : "#BFC0CF"} />
           </View>
-          <TextInput style={[styles.input, lightInput]} value={radius} onChangeText={setRadius} placeholder="Radius km" keyboardType="numeric" placeholderTextColor={isLight ? "#374151" : "#BFC0CF"} />
+          <TextInput style={[styles.input, lightInput]} value={radius} onChangeText={setRadius} placeholder={t("Radius km")} keyboardType="numeric" placeholderTextColor={isLight ? "#374151" : "#BFC0CF"} />
           <View style={styles.row}>
             <Pressable style={[styles.secondaryBtn, styles.col, isLight ? { borderColor: "#000", borderWidth: 2 } : null]} onPress={useBrowserLocation}>
-              <Text style={[styles.secondaryBtnText, lightPrimary]}>Use Live Location</Text>
+              <Text style={[styles.secondaryBtnText, lightPrimary]}>{t("Use Live Location")}</Text>
             </Pressable>
             <Pressable style={[styles.primaryBtn, styles.col, isLight ? { borderColor: "#000", borderWidth: 2 } : null]} onPress={saveLocation}>
-              <Text style={[styles.primaryBtnText, lightPrimary]}>Save Location</Text>
+              <Text style={[styles.primaryBtnText, lightPrimary]}>{t("Save Location")}</Text>
             </Pressable>
           </View>
         </View>
 
         {isVolunteer ? (
           <View style={[styles.panelCard, lightCard]}>
-            <Text style={[styles.panelTitle, lightPrimary]}>Volunteer Skills</Text>
-            <Text style={[styles.skillHint, lightSecondary]}>These skills are saved to your volunteer profile and used for need match scores.</Text>
+            <Text style={[styles.panelTitle, lightPrimary]}>{t("Volunteer Skills")}</Text>
+            <Text style={[styles.skillHint, lightSecondary]}>{t("These skills are saved to your volunteer profile and used for need match scores.")}</Text>
             <TextInput
               style={[styles.input, lightInput]}
               value={skillName}
               onChangeText={setSkillName}
-              placeholder="Skill, for example medical, cooking, logistics"
+              placeholder={t("Skill, for example medical, cooking, logistics")}
               placeholderTextColor={isLight ? "#374151" : "#BFC0CF"}
             />
             <View style={styles.proficiencyRow}>
@@ -481,7 +504,7 @@ export const ProfileScreen = () => {
                     style={[styles.proficiencyBtn, selected && styles.proficiencyBtnActive, isLight ? { borderColor: "#000", borderWidth: 2 } : null]}
                     onPress={() => setSkillProficiency(option)}
                   >
-                    <Text style={[styles.proficiencyText, selected && styles.proficiencyTextActive, lightPrimary]}>{option}</Text>
+                    <Text style={[styles.proficiencyText, selected && styles.proficiencyTextActive, lightPrimary]}>{translateCategory(option)}</Text>
                   </Pressable>
                 );
               })}
@@ -491,19 +514,19 @@ export const ProfileScreen = () => {
               onPress={addSkill}
               disabled={skillsLoading}
             >
-              <Text style={[styles.primaryBtnText, lightPrimary]}>{skillsLoading ? "Saving..." : "Add Skill"}</Text>
+              <Text style={[styles.primaryBtnText, lightPrimary]}>{skillsLoading ? t("Saving...") : t("Add Skill")}</Text>
             </Pressable>
 
             <View style={styles.skillList}>
               {(volunteerProfile?.skills ?? []).length === 0 ? (
-                <Text style={[styles.emptySkillsText, lightSecondary]}>No skills added yet.</Text>
+                <Text style={[styles.emptySkillsText, lightSecondary]}>{t("No skills added yet.")}</Text>
               ) : (
                 (volunteerProfile?.skills ?? []).map((skill) => (
                   <View key={skill.id} style={[styles.skillCard, isLight ? { borderColor: "#000", borderWidth: 1 } : null]}>
                     <View style={styles.skillCardHeader}>
                       <Text style={[styles.skillNameText, lightPrimary]} numberOfLines={2}>{skill.skill_name.replace(/_/g, " ")}</Text>
                       <Pressable style={styles.removeSkillBtn} onPress={() => removeSkill(skill)} disabled={skillsLoading}>
-                        <Text style={styles.removeSkillText}>Remove</Text>
+                        <Text style={styles.removeSkillText}>{t("Remove")}</Text>
                       </Pressable>
                     </View>
                     <View style={styles.proficiencyRowCompact}>
@@ -516,7 +539,7 @@ export const ProfileScreen = () => {
                             onPress={() => updateSkillProficiency(skill, option)}
                             disabled={skillsLoading}
                           >
-                            <Text style={[styles.proficiencyChipText, selected && styles.proficiencyChipTextActive]}>{option}</Text>
+                            <Text style={[styles.proficiencyChipText, selected && styles.proficiencyChipTextActive]}>{translateCategory(option)}</Text>
                           </Pressable>
                         );
                       })}
@@ -529,25 +552,25 @@ export const ProfileScreen = () => {
         ) : null}
 
         <View style={[styles.panelCard, lightCard]}>
-          <Text style={[styles.panelTitle, lightPrimary]}>Change Password</Text>
-          <TextInput style={[styles.input, lightInput]} value={oldPassword} onChangeText={setOldPassword} placeholder="Old password" secureTextEntry placeholderTextColor={isLight ? "#374151" : "#BFC0CF"} />
-          <TextInput style={[styles.input, lightInput]} value={newPassword} onChangeText={setNewPassword} placeholder="New password" secureTextEntry placeholderTextColor={isLight ? "#374151" : "#BFC0CF"} />
+          <Text style={[styles.panelTitle, lightPrimary]}>{t("Change Password")}</Text>
+          <TextInput style={[styles.input, lightInput]} value={oldPassword} onChangeText={setOldPassword} placeholder={t("Old password")} secureTextEntry placeholderTextColor={isLight ? "#374151" : "#BFC0CF"} />
+          <TextInput style={[styles.input, lightInput]} value={newPassword} onChangeText={setNewPassword} placeholder={t("New password")} secureTextEntry placeholderTextColor={isLight ? "#374151" : "#BFC0CF"} />
           <Pressable style={[styles.primaryBtn, isLight ? { borderColor: "#000", borderWidth: 2 } : null]} onPress={changePassword}>
-            <Text style={[styles.primaryBtnText, lightPrimary]}>Change Password</Text>
+            <Text style={[styles.primaryBtnText, lightPrimary]}>{t("Change Password")}</Text>
           </Pressable>
         </View>
 
         <View style={[styles.panelCard, lightCard]}>
-          <Text style={[styles.panelTitle, lightPrimary]}>Danger Zone</Text>
+          <Text style={[styles.panelTitle, lightPrimary]}>{t("Danger Zone")}</Text>
           <Pressable style={[styles.dangerBtn, isLight ? { borderColor: "#000", borderWidth: 2 } : null]} onPress={deactivateAccount}>
-            <Text style={styles.dangerBtnText}>Deactivate Account</Text>
+            <Text style={styles.dangerBtnText}>{t("Deactivate Account")}</Text>
           </Pressable>
         </View>
 
         {message ? <Text style={[styles.message, lightSecondary]}>{message}</Text> : null}
 
         <Pressable style={[styles.logoutBtn, isLight ? { borderColor: "#000", borderWidth: 2 } : null]} onPress={logout}>
-          <Text style={[styles.logoutText, lightPrimary]}>Logout</Text>
+          <Text style={[styles.logoutText, lightPrimary]}>{t("Logout")}</Text>
         </Pressable>
       </ScrollView>
     </View>
@@ -688,6 +711,28 @@ const styles = StyleSheet.create({
   accessibilityToggleTextWrap: { flex: 1, minWidth: 0 },
   accessibilityToggleTitle: { color: "#FFFFFF", fontSize: 14, fontWeight: "900" },
   accessibilityToggleHint: { color: "#BFC0CF", fontSize: 12, fontWeight: "700", marginTop: 2 },
+  deviceStatusBox: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    backgroundColor: "rgba(255,255,255,0.06)",
+    padding: 12,
+    marginTop: 10,
+    marginBottom: 10,
+  },
+  deviceStatusTitle: { color: "#FFFFFF", fontSize: 12, fontWeight: "900", marginBottom: 4 },
+  deviceStatusText: { color: "#BFC0CF", fontSize: 11, fontWeight: "700", marginTop: 2 },
+  resetAccessibilityBtn: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.16)",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    alignItems: "center",
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  resetAccessibilityText: { color: "#FFD7C2", fontSize: 12, fontWeight: "900" },
   highContrastToggle: { borderColor: "#FFFFFF", borderWidth: 2, backgroundColor: "#050505" },
   toggleTrack: {
     width: 50,

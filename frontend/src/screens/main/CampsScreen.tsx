@@ -3,6 +3,7 @@ import { Animated, ScrollView, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAccessibility } from "../../context/AccessibilityContext";
 import { useAuth } from "../../context/AuthContext";
+import { useLanguage } from "../../context/LanguageContext";
 import { moduleApi } from "../../services/api";
 import { colors } from "../../theme";
 import type { Need } from "../../types/api";
@@ -10,6 +11,7 @@ import type { Need } from "../../types/api";
 export const CampsScreen = () => {
   const { baseUrl, token } = useAuth();
   const { highContrast, reduceMotion, textScale } = useAccessibility();
+  const { t, translateAddress, translateCategory, translateStatus, translateText } = useLanguage();
   const [items, setItems] = useState<Need[]>([]);
 
   const floatA = useRef(new Animated.Value(0)).current;
@@ -64,21 +66,21 @@ export const CampsScreen = () => {
       <Animated.View style={[styles.blob, styles.blobB, { transform: [{ translateY: yB }] }]} />
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={[styles.title, textStyle(32, 38)]}>Updated Camps</Text>
-        <Text style={[styles.subtitle, textStyle(14, 20)]}>Recent active field camps and current urgency snapshot</Text>
+        <Text style={[styles.title, textStyle(32, 38)]}>{t("Updated Camps")}</Text>
+        <Text style={[styles.subtitle, textStyle(14, 20)]}>{t("Recent active field camps and current urgency snapshot")}</Text>
 
         {items.map((n) => (
           <View key={n.id} style={[styles.card, highContrast ? styles.highContrastCard : null]}>
-            <Text style={[styles.cardTitle, textStyle(16, 21)]}>{n.title}</Text>
-            <Text style={[styles.meta, textStyle(13, 20)]}>{n.address}</Text>
-            <Text style={[styles.meta, textStyle(13, 20)]}>Urgency: {n.urgency} | Status: {n.status}</Text>
+            <Text style={[styles.cardTitle, textStyle(16, 21)]}>{translateText(n.title)}</Text>
+            <Text style={[styles.meta, textStyle(13, 20)]}>{t("Address")}: {translateAddress(n.address)}</Text>
+            <Text style={[styles.meta, textStyle(13, 20)]}>{t("Urgency")}: {translateCategory(n.urgency)} | {t("Status")}: {translateStatus(n.status)}</Text>
           </View>
         ))}
 
         {items.length === 0 ? (
           <View style={[styles.emptyCard, highContrast ? styles.highContrastCard : null]}>
-            <Text style={[styles.emptyTitle, textStyle(16, 21)]}>No camp updates available</Text>
-            <Text style={[styles.emptyMeta, textStyle(13, 18)]}>Create or verify needs to surface active camps here.</Text>
+            <Text style={[styles.emptyTitle, textStyle(16, 21)]}>{t("No camp updates available")}</Text>
+            <Text style={[styles.emptyMeta, textStyle(13, 18)]}>{t("Create or verify needs to surface active camps here.")}</Text>
           </View>
         ) : null}
       </ScrollView>

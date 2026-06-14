@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState, type R
 import { Alert, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { useAccessibility } from "./AccessibilityContext";
 import { useAuth } from "./AuthContext";
+import { useLanguage } from "./LanguageContext";
 import { moduleApi } from "../services/api";
 
 type RealtimeMessage = {
@@ -56,6 +57,7 @@ const asNumber = (value: unknown) => (typeof value === "number" && Number.isFini
 export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
   const { baseUrl, token, user } = useAuth();
   const { highContrast, screenReaderOptimized, textScale, touchTarget } = useAccessibility();
+  const { t, translateAddress, translateCategory, translateText } = useLanguage();
   const [realtimeVersion, setRealtimeVersion] = useState(0);
   const [needsVersion, setNeedsVersion] = useState(0);
   const [assignmentsVersion, setAssignmentsVersion] = useState(0);
@@ -134,8 +136,8 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
       if (user?.role === "volunteer" && eventName === "assignment_created" && assignmentId) {
         setProposal({
           assignmentId,
-          title: message.title || "New assignment proposal",
-          message: message.message || "A nearby need matches your skills.",
+          title: message.title || t("New assignment proposal"),
+          message: message.message || t("A nearby need matches your skills."),
           needTitle: typeof payload.need_title === "string" ? payload.need_title : undefined,
           category: typeof payload.need_category === "string" ? payload.need_category : undefined,
           urgency: typeof payload.need_urgency === "string" ? payload.need_urgency : undefined,
@@ -155,20 +157,20 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
         setAdminRatingPrompt({
           assignmentId,
           volunteerId,
-          title: message.title || "Assignment completed",
-          message: message.message || "A volunteer completed an assignment. Please rate their work.",
+          title: message.title || t("Assignment completed"),
+          message: message.message || t("A volunteer completed an assignment. Please rate their work."),
           needTitle: typeof payload.need_title === "string" ? payload.need_title : null,
         });
         return;
       }
 
       if (user?.role === "admin" && eventName === "assignment_status_changed" && message.title) {
-        Alert.alert(message.title, message.message || "Your branch data has changed.");
+        Alert.alert(t(message.title), message.message ? t(message.message) : t("Your branch data has changed."));
         return;
       }
 
       if (eventName === "general" && message.title) {
-        Alert.alert(message.title, message.message || "Your data has changed.");
+        Alert.alert(t(message.title), message.message ? t(message.message) : t("Your data has changed."));
       }
     };
 
@@ -180,7 +182,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
       socket.close();
       if (socketRef.current === socket) socketRef.current = null;
     };
-  }, [baseUrl, token, user?.role]);
+  }, [baseUrl, t, token, user?.role]);
 
   const closeProposal = () => {
     setProposal(null);
@@ -195,7 +197,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
       scheduleRefresh(["assignments", "needs", "statistics"]);
       closeProposal();
     } catch (err) {
-      Alert.alert("Assignment", err instanceof Error ? err.message : "Unable to update assignment");
+      Alert.alert(t("Assignment"), err instanceof Error ? err.message : t("Unable to update assignment"));
       setProposalBusy(null);
     }
   };
@@ -209,7 +211,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
   const submitAdminRating = async () => {
     if (!adminRatingPrompt) return;
     if (adminRating < 1) {
-      Alert.alert("Volunteer Rating", "Please select a rating from 1 to 5 stars.");
+      Alert.alert(t("Volunteer Rating"), t("Please select a rating from 1 to 5 stars."));
       return;
     }
 
@@ -219,7 +221,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
       scheduleRefresh(["assignments", "volunteerRating", "statistics"]);
       closeAdminRating();
     } catch (err) {
-      Alert.alert("Volunteer Rating", err instanceof Error ? err.message : "Unable to update volunteer rating");
+      Alert.alert(t("Volunteer Rating"), err instanceof Error ? err.message : t("Unable to update volunteer rating"));
       setAdminRatingBusy(false);
     }
   };
@@ -240,20 +242,20 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
                 <Text style={styles.iconText}>!</Text>
               </View>
               <View style={styles.headerTextWrap}>
-                <Text style={[styles.title, { fontSize: 17 * textScale, lineHeight: 22 * textScale }]}>{proposal?.title ?? "New assignment proposal"}</Text>
-                <Text style={[styles.subtitle, { fontSize: 12 * textScale, lineHeight: 16 * textScale }]}>Assignment #{proposal?.assignmentId ?? "-"}</Text>
+                <Text style={[styles.title, { fontSize: 17 * textScale, lineHeight: 22 * textScale }]}>{proposal?.title ? translateText(proposal.title) : t("New assignment proposal")}</Text>
+                <Text style={[styles.subtitle, { fontSize: 12 * textScale, lineHeight: 16 * textScale }]}>{t("Assignment")} #{proposal?.assignmentId ?? "-"}</Text>
               </View>
             </View>
 
-            <Text style={[styles.message, { fontSize: 13 * textScale, lineHeight: 19 * textScale }]}>{proposal?.message}</Text>
+            <Text style={[styles.message, { fontSize: 13 * textScale, lineHeight: 19 * textScale }]}>{translateText(proposal?.message)}</Text>
 
             <View style={styles.detailBox}>
-              <Text style={styles.needTitle}>{proposal?.needTitle || "Matching community need"}</Text>
-              <Text style={styles.detailText} numberOfLines={2}>{proposal?.address || "Location details available on the assignment page"}</Text>
+              <Text style={styles.needTitle}>{proposal?.needTitle ? translateText(proposal.needTitle) : t("Matching community need")}</Text>
+              <Text style={styles.detailText} numberOfLines={2}>{proposal?.address ? translateAddress(proposal.address) : t("Location details available on the assignment page")}</Text>
               <View style={styles.metaRow}>
-                {proposal?.category ? <Text style={styles.metaChip}>{proposal.category.replace(/_/g, " ")}</Text> : null}
-                {proposal?.urgency ? <Text style={[styles.metaChip, styles.urgentChip]}>{proposal.urgency}</Text> : null}
-                {typeof proposal?.matchScore === "number" ? <Text style={styles.metaChip}>{proposal.matchScore.toFixed(0)}% match</Text> : null}
+                {proposal?.category ? <Text style={styles.metaChip}>{translateCategory(proposal.category)}</Text> : null}
+                {proposal?.urgency ? <Text style={[styles.metaChip, styles.urgentChip]}>{translateCategory(proposal.urgency)}</Text> : null}
+                {typeof proposal?.matchScore === "number" ? <Text style={styles.metaChip}>{proposal.matchScore.toFixed(0)}% {t("match")}</Text> : null}
               </View>
             </View>
 
@@ -263,27 +265,27 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
                 disabled={proposalBusy !== null}
                 onPress={() => void updateProposalStatus("declined")}
                 accessibilityRole="button"
-                accessibilityLabel={screenReaderOptimized ? "Decline assignment proposal" : undefined}
+                accessibilityLabel={screenReaderOptimized ? t("Decline assignment proposal") : undefined}
               >
-                <Text style={styles.declineText}>{proposalBusy === "declined" ? "Declining..." : "Decline"}</Text>
+                <Text style={styles.declineText}>{proposalBusy === "declined" ? t("Declining...") : t("Decline")}</Text>
               </Pressable>
               <Pressable
                 style={[styles.actionButton, styles.laterButton, proposalBusy !== null && styles.disabledButton]}
                 disabled={proposalBusy !== null}
                 onPress={closeProposal}
                 accessibilityRole="button"
-                accessibilityLabel={screenReaderOptimized ? "Decide later on assignment proposal" : undefined}
+                accessibilityLabel={screenReaderOptimized ? t("Decide later on assignment proposal") : undefined}
               >
-                <Text style={styles.laterText}>Do Later</Text>
+                <Text style={styles.laterText}>{t("Do Later")}</Text>
               </Pressable>
               <Pressable
                 style={[styles.actionButton, styles.acceptButton, proposalBusy !== null && styles.disabledButton]}
                 disabled={proposalBusy !== null}
                 onPress={() => void updateProposalStatus("accepted")}
                 accessibilityRole="button"
-                accessibilityLabel={screenReaderOptimized ? "Accept assignment proposal" : undefined}
+                accessibilityLabel={screenReaderOptimized ? t("Accept assignment proposal") : undefined}
               >
-                <Text style={styles.acceptText}>{proposalBusy === "accepted" ? "Accepting..." : "Accept"}</Text>
+                <Text style={styles.acceptText}>{proposalBusy === "accepted" ? t("Accepting...") : t("Accept")}</Text>
               </Pressable>
             </View>
           </View>
@@ -297,16 +299,16 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
                 <Text style={styles.iconText}>★</Text>
               </View>
               <View style={styles.headerTextWrap}>
-                <Text style={[styles.title, { fontSize: 17 * textScale, lineHeight: 22 * textScale }]}>{adminRatingPrompt?.title ?? "Assignment completed"}</Text>
-                <Text style={[styles.subtitle, { fontSize: 12 * textScale, lineHeight: 16 * textScale }]}>Assignment #{adminRatingPrompt?.assignmentId ?? "-"}</Text>
+                <Text style={[styles.title, { fontSize: 17 * textScale, lineHeight: 22 * textScale }]}>{adminRatingPrompt?.title ? translateText(adminRatingPrompt.title) : t("Assignment completed")}</Text>
+                <Text style={[styles.subtitle, { fontSize: 12 * textScale, lineHeight: 16 * textScale }]}>{t("Assignment")} #{adminRatingPrompt?.assignmentId ?? "-"}</Text>
               </View>
             </View>
 
-            <Text style={[styles.message, { fontSize: 13 * textScale, lineHeight: 19 * textScale }]}>{adminRatingPrompt?.message}</Text>
+            <Text style={[styles.message, { fontSize: 13 * textScale, lineHeight: 19 * textScale }]}>{translateText(adminRatingPrompt?.message)}</Text>
 
             <View style={styles.detailBox}>
-              <Text style={styles.needTitle}>{adminRatingPrompt?.needTitle || "Completed assignment"}</Text>
-              <Text style={styles.detailText}>Volunteer #{adminRatingPrompt?.volunteerId ?? "-"}</Text>
+              <Text style={styles.needTitle}>{adminRatingPrompt?.needTitle ? translateText(adminRatingPrompt.needTitle) : t("Completed assignment")}</Text>
+              <Text style={styles.detailText}>{t("Volunteer")} #{adminRatingPrompt?.volunteerId ?? "-"}</Text>
             </View>
 
             <View style={styles.starRow}>
@@ -317,7 +319,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
                   onPress={() => setAdminRating(star)}
                   disabled={adminRatingBusy}
                   accessibilityRole="button"
-                  accessibilityLabel={screenReaderOptimized ? `Rate volunteer ${star} out of 5 stars` : undefined}
+                  accessibilityLabel={screenReaderOptimized ? `${t("Rate volunteer")} ${star} ${t("out of 5 stars")}` : undefined}
                 >
                   <Text style={[styles.starText, star <= adminRating && styles.starTextActive]}>{star <= adminRating ? "★" : "☆"}</Text>
                 </Pressable>
@@ -330,18 +332,18 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
                 disabled={adminRatingBusy}
                 onPress={closeAdminRating}
                 accessibilityRole="button"
-                accessibilityLabel={screenReaderOptimized ? "Rate this volunteer later" : undefined}
+                accessibilityLabel={screenReaderOptimized ? t("Rate this volunteer later") : undefined}
               >
-                <Text style={styles.laterText}>Do Later</Text>
+                <Text style={styles.laterText}>{t("Do Later")}</Text>
               </Pressable>
               <Pressable
                 style={[styles.actionButton, styles.acceptButton, adminRatingBusy && styles.disabledButton]}
                 disabled={adminRatingBusy}
                 onPress={() => void submitAdminRating()}
                 accessibilityRole="button"
-                accessibilityLabel={screenReaderOptimized ? "Save volunteer rating" : undefined}
+                accessibilityLabel={screenReaderOptimized ? t("Save volunteer rating") : undefined}
               >
-                <Text style={styles.acceptText}>{adminRatingBusy ? "Saving..." : "Save Rating"}</Text>
+                <Text style={styles.acceptText}>{adminRatingBusy ? t("Saving...") : t("Save Rating")}</Text>
               </Pressable>
             </View>
           </View>

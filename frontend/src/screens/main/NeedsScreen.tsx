@@ -17,6 +17,7 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useAccessibility } from "../../context/AccessibilityContext";
 import { useAuth } from "../../context/AuthContext";
+import { useLanguage } from "../../context/LanguageContext";
 import { useRealtime } from "../../context/RealtimeContext";
 import { useThemeMode } from "../../context/ThemeModeContext";
 import { apiRequest, moduleApi } from "../../services/api";
@@ -100,6 +101,7 @@ const getNeedLocationLabel = (need: Need) => {
 export const NeedsScreen = () => {
   const nav = useNavigation<Nav>();
   const { baseUrl, token, user } = useAuth();
+  const { t, translateAddress, translateCategory, translateStatus, translateText } = useLanguage();
   const { assignmentsVersion, needsVersion } = useRealtime();
   const { reduceMotion } = useAccessibility();
   const { theme } = useThemeMode();
@@ -163,7 +165,7 @@ export const NeedsScreen = () => {
   const [ingestResult, setIngestResult] = useState<IngestResponse | null>(null);
 
   const isOrgManager = user?.role === "owner" || user?.role === "admin";
-  const missingAdminBranchMessage = "Admin account is not assigned to a branch. Please ask the owner to assign a managed branch before creating needs.";
+  const missingAdminBranchMessage = t("Admin account is not assigned to a branch. Please ask the owner to assign a managed branch before creating needs.");
 
   const fadeIn = useRef(new Animated.Value(0)).current;
 
@@ -226,7 +228,7 @@ export const NeedsScreen = () => {
       setLongitude(String(loc.longitude));
       setAddress(loc.address);
     } catch {
-      Alert.alert("Location Error", "Could not fetch your location.");
+      Alert.alert(t("Location Error"), t("Could not fetch your location."));
     }
   };
 
@@ -235,9 +237,9 @@ export const NeedsScreen = () => {
       const loc = await getLiveLocation();
       setVolunteerLiveLocation(loc);
       setVolunteerNearbyOnly(true);
-      setSubmitMessage({ text: "Showing the top 10 nearby needs from your live location.", type: "success" });
+      setSubmitMessage({ text: t("Showing the top 10 nearby needs from your live location."), type: "success" });
     } catch {
-      Alert.alert("Location Error", "Could not fetch your live location.");
+      Alert.alert(t("Location Error"), t("Could not fetch your live location."));
     }
   };
 
@@ -289,9 +291,9 @@ export const NeedsScreen = () => {
       if (source === "pdf") setPdfFile(picked);
       if (source === "csv") setCsvFile(picked);
 
-      setSubmitMessage({ text: `Selected file: ${picked.name}`, type: "success" });
+      setSubmitMessage({ text: `${t("Selected file")}: ${picked.name}`, type: "success" });
     } catch (err) {
-      setSubmitMessage({ text: err instanceof Error ? err.message : "File selection failed.", type: "error" });
+      setSubmitMessage({ text: err instanceof Error ? err.message : t("File selection failed."), type: "error" });
     }
   };
 
@@ -312,9 +314,9 @@ export const NeedsScreen = () => {
         file: (asset as { file?: Blob }).file,
       };
       setCreateNeedFile(picked);
-      setSubmitMessage({ text: `Selected file: ${picked.name}`, type: "success" });
+      setSubmitMessage({ text: `${t("Selected file")}: ${picked.name}`, type: "success" });
     } catch (err) {
-      setSubmitMessage({ text: err instanceof Error ? err.message : "File selection failed.", type: "error" });
+      setSubmitMessage({ text: err instanceof Error ? err.message : t("File selection failed."), type: "error" });
     }
   };
 
@@ -325,7 +327,7 @@ export const NeedsScreen = () => {
       return;
     }
     if (!description.trim() || !address.trim()) {
-      setSubmitMessage({ text: "Description and Address are required.", type: "error" });
+      setSubmitMessage({ text: t("Description and Address are required."), type: "error" });
       return;
     }
     setSubmitting(true);
@@ -362,11 +364,11 @@ export const NeedsScreen = () => {
         });
       }
 
-      setSubmitMessage({ text: "Need created successfully!", type: "success" });
+      setSubmitMessage({ text: t("Need created successfully!"), type: "success" });
       resetForm();
       load();
     } catch (err) {
-      setSubmitMessage({ text: err instanceof Error ? err.message : "Failed to create need.", type: "error" });
+      setSubmitMessage({ text: err instanceof Error ? err.message : t("Failed to create need."), type: "error" });
     } finally {
       setSubmitting(false);
     }
@@ -379,7 +381,7 @@ export const NeedsScreen = () => {
       return;
     }
     if (!rawText.trim()) {
-      setSubmitMessage({ text: "Please enter field notes or text.", type: "error" });
+      setSubmitMessage({ text: t("Please enter field notes or text."), type: "error" });
       return;
     }
     setSubmitting(true);
@@ -399,10 +401,10 @@ export const NeedsScreen = () => {
         token,
       );
       setIngestResult(result);
-      setSubmitMessage({ text: `AI extracted need (confidence: ${(result.confidence * 100).toFixed(0)}%). Need #${result.need_id} created.`, type: "success" });
+      setSubmitMessage({ text: `${t("AI extracted need")} (${t("confidence")}: ${(result.confidence * 100).toFixed(0)}%). ${t("Need")} #${result.need_id} ${t("created.")}`, type: "success" });
       load();
     } catch (err) {
-      setSubmitMessage({ text: err instanceof Error ? err.message : "Text ingest failed.", type: "error" });
+      setSubmitMessage({ text: err instanceof Error ? err.message : t("Text ingest failed."), type: "error" });
     } finally {
       setSubmitting(false);
     }
@@ -415,7 +417,7 @@ export const NeedsScreen = () => {
       return;
     }
     if (!voiceFile && !voiceTranscription.trim()) {
-      setSubmitMessage({ text: "Upload an audio file or enter transcription.", type: "error" });
+      setSubmitMessage({ text: t("Upload an audio file or enter transcription."), type: "error" });
       return;
     }
     setSubmitting(true);
@@ -448,10 +450,10 @@ export const NeedsScreen = () => {
             token,
           );
       setIngestResult(result);
-      setSubmitMessage({ text: `Voice processed (confidence: ${(result.confidence * 100).toFixed(0)}%). Need #${result.need_id} created.`, type: "success" });
+      setSubmitMessage({ text: `${t("Voice processed")} (${t("confidence")}: ${(result.confidence * 100).toFixed(0)}%). ${t("Need")} #${result.need_id} ${t("created.")}`, type: "success" });
       load();
     } catch (err) {
-      setSubmitMessage({ text: err instanceof Error ? err.message : "Voice ingest failed.", type: "error" });
+      setSubmitMessage({ text: err instanceof Error ? err.message : t("Voice ingest failed."), type: "error" });
     } finally {
       setSubmitting(false);
     }
@@ -464,7 +466,7 @@ export const NeedsScreen = () => {
       return;
     }
     if (!imageFile && !imageUrl.trim()) {
-      setSubmitMessage({ text: "Upload an image file or provide an image URL.", type: "error" });
+      setSubmitMessage({ text: t("Upload an image file or provide an image URL."), type: "error" });
       return;
     }
     setSubmitting(true);
@@ -481,7 +483,7 @@ export const NeedsScreen = () => {
           create_need: true,
         });
         setIngestResult(result);
-        setSubmitMessage({ text: `Image processed (confidence: ${(result.confidence * 100).toFixed(0)}%). Need #${result.need_id} created.`, type: "success" });
+        setSubmitMessage({ text: `${t("Image processed")} (${t("confidence")}: ${(result.confidence * 100).toFixed(0)}%). ${t("Need")} #${result.need_id} ${t("created.")}`, type: "success" });
       } else {
         const result = await apiRequest<{ source_id: number | null; need_id: number | null; multimedia_txt: string; ai_extraction: string; structured: Record<string, unknown>; category_hint: string | null; urgency_hint: string | null }>(
           baseUrl,
@@ -489,11 +491,11 @@ export const NeedsScreen = () => {
           { method: "POST", body: JSON.stringify({ image_url: imageUrl.trim() })},
           token,
         );
-        setSubmitMessage({ text: `OCR extracted: ${result.category_hint || "unknown"} category, ${result.urgency_hint || "unknown"} urgency. Source #${result.source_id} created.`, type: "success" });
+        setSubmitMessage({ text: `${t("OCR extracted")}: ${translateCategory(result.category_hint || "unknown")} ${t("category")}, ${translateCategory(result.urgency_hint || "unknown")} ${t("urgency")}. ${t("Source")} #${result.source_id} ${t("created.")}`, type: "success" });
       }
       load();
     } catch (err) {
-      setSubmitMessage({ text: err instanceof Error ? err.message : "Image OCR failed.", type: "error" });
+      setSubmitMessage({ text: err instanceof Error ? err.message : t("Image OCR failed."), type: "error" });
     } finally {
       setSubmitting(false);
     }
@@ -506,7 +508,7 @@ export const NeedsScreen = () => {
       return;
     }
     if (!pdfFile && !pdfUrl.trim()) {
-      setSubmitMessage({ text: "Upload a PDF file or provide a PDF URL.", type: "error" });
+      setSubmitMessage({ text: t("Upload a PDF file or provide a PDF URL."), type: "error" });
       return;
     }
     setSubmitting(true);
@@ -539,10 +541,10 @@ export const NeedsScreen = () => {
             token,
           );
       setIngestResult(result);
-      setSubmitMessage({ text: `PDF processed (confidence: ${(result.confidence * 100).toFixed(0)}%). Need #${result.need_id} created.`, type: "success" });
+      setSubmitMessage({ text: `${t("PDF processed")} (${t("confidence")}: ${(result.confidence * 100).toFixed(0)}%). ${t("Need")} #${result.need_id} ${t("created.")}`, type: "success" });
       load();
     } catch (err) {
-      setSubmitMessage({ text: err instanceof Error ? err.message : "PDF ingest failed.", type: "error" });
+      setSubmitMessage({ text: err instanceof Error ? err.message : t("PDF ingest failed."), type: "error" });
     } finally {
       setSubmitting(false);
     }
@@ -555,7 +557,7 @@ export const NeedsScreen = () => {
       return;
     }
     if (!csvFile && !csvText.trim()) {
-      setSubmitMessage({ text: "Upload a CSV file or paste CSV content.", type: "error" });
+      setSubmitMessage({ text: t("Upload a CSV file or paste CSV content."), type: "error" });
       return;
     }
 
@@ -572,10 +574,10 @@ export const NeedsScreen = () => {
           create_need: true,
         });
         setIngestResult(result);
-        setSubmitMessage({ text: `CSV processed (confidence: ${(result.confidence * 100).toFixed(0)}%). Need #${result.need_id} created.`, type: "success" });
+        setSubmitMessage({ text: `${t("CSV processed")} (${t("confidence")}: ${(result.confidence * 100).toFixed(0)}%). ${t("Need")} #${result.need_id} ${t("created.")}`, type: "success" });
         load();
       } catch (err) {
-        setSubmitMessage({ text: err instanceof Error ? err.message : "CSV submit failed.", type: "error" });
+        setSubmitMessage({ text: err instanceof Error ? err.message : t("CSV submit failed."), type: "error" });
       } finally {
         setSubmitting(false);
       }
@@ -591,15 +593,15 @@ export const NeedsScreen = () => {
           location: address.trim() || "CSV upload",
           multimedia_txt: csvText.trim(),
         });
-        setSubmitMessage({ text: "CSV source added to most recent need.", type: "success" });
+        setSubmitMessage({ text: t("CSV source added to most recent need."), type: "success" });
         setCsvText("");
       } catch (err) {
-        setSubmitMessage({ text: err instanceof Error ? err.message : "CSV submit failed.", type: "error" });
+        setSubmitMessage({ text: err instanceof Error ? err.message : t("CSV submit failed."), type: "error" });
       } finally {
         setSubmitting(false);
       }
     } else {
-      setSubmitMessage({ text: "No needs exist. Create a need first, then add CSV source.", type: "error" });
+      setSubmitMessage({ text: t("No needs exist. Create a need first, then add CSV source."), type: "error" });
     }
   };
 
@@ -747,12 +749,12 @@ export const NeedsScreen = () => {
   }, [assignmentCountByNeed, isOrgManager, isVolunteer, items, organizationById, selectedAssignmentFilter, selectedCategoryFilter, selectedUrgencyFilter, selectedVolunteerBranchFilter, selectedVolunteerLocationFilter, selectedVolunteerOrganizationFilter, volunteerLiveLocation, volunteerNearbyOnly]);
 
   const selectedVolunteerOrganizationLabel = selectedVolunteerOrganizationFilter === "all"
-    ? "All organizations"
-    : organizationById.get(Number(selectedVolunteerOrganizationFilter))?.organization_name ?? "Organization";
+    ? t("All organizations")
+    : organizationById.get(Number(selectedVolunteerOrganizationFilter))?.organization_name ?? t("Organization");
   const selectedVolunteerBranchLabel = selectedVolunteerBranchFilter === "all"
-    ? "All branches"
-    : organizationById.get(Number(selectedVolunteerBranchFilter))?.organization_name ?? "Branch";
-  const selectedVolunteerLocationLabel = selectedVolunteerLocationFilter === "all" ? "All locations" : selectedVolunteerLocationFilter;
+    ? t("All branches")
+    : organizationById.get(Number(selectedVolunteerBranchFilter))?.organization_name ?? t("Branch");
+  const selectedVolunteerLocationLabel = selectedVolunteerLocationFilter === "all" ? t("All locations") : selectedVolunteerLocationFilter;
 
   return (
     <View style={styles.page}>
@@ -773,9 +775,9 @@ export const NeedsScreen = () => {
           {/* Header */}
           <View style={styles.headerRow}>
             <View>
-              <Text style={[styles.pageTitle, lightPrimary]}>Needs</Text>
+              <Text style={[styles.pageTitle, lightPrimary]}>{t("Needs")}</Text>
               <Text style={[styles.pageSubtitle, lightSecondary]}>
-                {isOrgManager ? "Create & manage community needs" : "Browse active community needs"}
+                {isOrgManager ? t("Create & manage community needs") : t("Browse active community needs")}
               </Text>
             </View>
             {isOrgManager ? (
@@ -783,7 +785,7 @@ export const NeedsScreen = () => {
                 style={[styles.createToggle, showCreate && styles.createToggleActive]}
                 onPress={() => { setShowCreate(!showCreate); setSubmitMessage(null); }}
               >
-                <Text style={[styles.createToggleText, lightPrimary]}>{showCreate ? "Close" : "+ Create"}</Text>
+                <Text style={[styles.createToggleText, lightPrimary]}>{showCreate ? t("Close") : `+ ${t("Create")}`}</Text>
               </Pressable>
             ) : null}
           </View>
@@ -791,22 +793,22 @@ export const NeedsScreen = () => {
           {/* CREATE NEED FORM */}
           {showCreate && isOrgManager ? (
             <View style={[styles.formCard, lightCard]}>
-              <Text style={[styles.formTitle, lightPrimary]}>Create New Need</Text>
-              <Text style={[styles.formSubtitle, lightSecondary]}>Upload optional file, then fill details and create need</Text>
+              <Text style={[styles.formTitle, lightPrimary]}>{t("Create New Need")}</Text>
+              <Text style={[styles.formSubtitle, lightSecondary]}>{t("Upload optional file, then fill details and create need")}</Text>
 
               <View style={styles.formFields}>
-                <Text style={[styles.label, lightSecondary]}>Optional File Upload (PDF / Image / Audio)</Text>
+                <Text style={[styles.label, lightSecondary]}>{t("Optional File Upload (PDF / Image / Audio)")}</Text>
                 <Pressable style={styles.filePickBtn} onPress={pickCreateNeedFile}>
-                  <Text style={[styles.filePickBtnText, lightPrimary]}>Choose File</Text>
+                  <Text style={[styles.filePickBtnText, lightPrimary]}>{t("Choose File")}</Text>
                 </Pressable>
-                {createNeedFile ? <Text style={[styles.fileName, lightSecondary]}>Selected: {createNeedFile.name}</Text> : null}
+                {createNeedFile ? <Text style={[styles.fileName, lightSecondary]}>{t("Selected")}: {createNeedFile.name}</Text> : null}
 
-                <Text style={[styles.label, lightSecondary]}>Description *</Text>
+                <Text style={[styles.label, lightSecondary]}>{t("Description")} *</Text>
                 <TextInput
                   style={[styles.input, styles.textArea, lightInput]}
                   value={description}
                   onChangeText={setDescription}
-                  placeholder="Describe need details..."
+                  placeholder={t("Describe need details...")}
                   placeholderTextColor={isLight ? "#374151" : "#6B6B8A"}
                   multiline
                   numberOfLines={5}
@@ -814,7 +816,7 @@ export const NeedsScreen = () => {
 
                 <View style={styles.row}>
                   <View style={styles.col}>
-                    <Text style={[styles.label, lightSecondary]}>Category</Text>
+                    <Text style={[styles.label, lightSecondary]}>{t("Category")}</Text>
                     <Pressable
                       style={[styles.selectBtn, lightInput]}
                       onPress={() => {
@@ -822,7 +824,7 @@ export const NeedsScreen = () => {
                         setShowCreateUrgencyDropdown(false);
                       }}
                     >
-                      <Text style={[styles.selectText, lightPrimary]}>{displayCategory(category)}</Text>
+                      <Text style={[styles.selectText, lightPrimary]}>{translateCategory(category)}</Text>
                     </Pressable>
                     {showCreateCategoryDropdown ? (
                       <View style={[styles.filterDropdown, lightCard]}>
@@ -835,7 +837,7 @@ export const NeedsScreen = () => {
                               setShowCreateCategoryDropdown(false);
                             }}
                           >
-                            <Text style={[styles.filterOptionText, lightPrimary]}>{displayCategory(c)}</Text>
+                            <Text style={[styles.filterOptionText, lightPrimary]}>{translateCategory(c)}</Text>
                           </Pressable>
                         ))}
                       </View>
@@ -843,7 +845,7 @@ export const NeedsScreen = () => {
                   </View>
 
                   <View style={styles.col}>
-                    <Text style={[styles.label, lightSecondary]}>Urgency</Text>
+                    <Text style={[styles.label, lightSecondary]}>{t("Urgency")}</Text>
                     <Pressable
                       style={[styles.selectBtn, lightInput, { borderColor: urgencyColor(urgency) }]}
                       onPress={() => {
@@ -851,7 +853,7 @@ export const NeedsScreen = () => {
                         setShowCreateCategoryDropdown(false);
                       }}
                     >
-                      <Text style={[styles.selectText, { color: urgencyColor(urgency), fontWeight: isLight ? "800" : "600" }]}>{urgency}</Text>
+                      <Text style={[styles.selectText, { color: urgencyColor(urgency), fontWeight: isLight ? "800" : "600" }]}>{translateCategory(urgency)}</Text>
                     </Pressable>
                     {showCreateUrgencyDropdown ? (
                       <View style={[styles.filterDropdown, lightCard]}>
@@ -864,7 +866,7 @@ export const NeedsScreen = () => {
                               setShowCreateUrgencyDropdown(false);
                             }}
                           >
-                            <Text style={[styles.filterOptionText, lightPrimary]}>{u}</Text>
+                            <Text style={[styles.filterOptionText, lightPrimary]}>{translateCategory(u)}</Text>
                           </Pressable>
                         ))}
                       </View>
@@ -874,23 +876,23 @@ export const NeedsScreen = () => {
 
                 {category === "other" ? (
                   <>
-                    <Text style={[styles.label, lightSecondary]}>Custom Category</Text>
+                    <Text style={[styles.label, lightSecondary]}>{t("Custom Category")}</Text>
                     <TextInput
                       style={[styles.input, lightInput]}
                       value={customCategory}
                       onChangeText={setCustomCategory}
-                      placeholder="Enter custom category (e.g. medicine kits, baby care, rescue support)"
+                      placeholder={t("Enter custom category (e.g. medicine kits, baby care, rescue support)")}
                       placeholderTextColor={isLight ? "#374151" : "#6B6B8A"}
                     />
                   </>
                 ) : null}
 
-                <Text style={[styles.label, lightSecondary]}>Location</Text>
+                <Text style={[styles.label, lightSecondary]}>{t("Location")}</Text>
                 <TextInput
                   style={[styles.input, lightInput]}
                   value={address}
                   onChangeText={setAddress}
-                  placeholder="Full address"
+                  placeholder={t("Full address")}
                   placeholderTextColor={isLight ? "#374151" : "#6B6B8A"}
                 />
                 <View style={styles.row}>
@@ -899,7 +901,7 @@ export const NeedsScreen = () => {
                       style={[styles.input, lightInput]}
                       value={latitude}
                       onChangeText={setLatitude}
-                      placeholder="Latitude"
+                      placeholder={t("Latitude")}
                       placeholderTextColor={isLight ? "#374151" : "#6B6B8A"}
                       keyboardType="numeric"
                     />
@@ -909,13 +911,13 @@ export const NeedsScreen = () => {
                       style={[styles.input, lightInput]}
                       value={longitude}
                       onChangeText={setLongitude}
-                      placeholder="Longitude"
+                      placeholder={t("Longitude")}
                       placeholderTextColor={isLight ? "#374151" : "#6B6B8A"}
                       keyboardType="numeric"
                     />
                   </View>
                   <Pressable style={styles.locBtn} onPress={fetchMyLocation}>
-                    <Text style={[styles.locBtnText, lightPrimary]}>📍 Auto</Text>
+                    <Text style={[styles.locBtnText, lightPrimary]}>📍 {t("Auto")}</Text>
                   </Pressable>
                 </View>
               </View>
@@ -930,7 +932,7 @@ export const NeedsScreen = () => {
                   {submitting ? (
                     <ActivityIndicator color="#FFF" size="small" />
                   ) : (
-                    <Text style={[styles.submitText, isLight ? { color: "#0B1220", fontWeight: "900" } : null]}>Create Need</Text>
+                    <Text style={[styles.submitText, isLight ? { color: "#0B1220", fontWeight: "900" } : null]}>{t("Create Need")}</Text>
                   )}
                 </LinearGradient>
               </Pressable>
@@ -945,34 +947,34 @@ export const NeedsScreen = () => {
               {/* AI extraction result */}
               {ingestResult ? (
                 <View style={[styles.resultCard, lightCard]}>
-                  <Text style={[styles.resultTitle, lightPrimary]}>AI Extraction Result</Text>
+                  <Text style={[styles.resultTitle, lightPrimary]}>{t("AI Extraction Result")}</Text>
                   <View style={styles.resultRow}>
-                    <Text style={[styles.resultLabel, lightSecondary]}>Category:</Text>
-                    <Text style={[styles.resultValue, lightPrimary]}>{ingestResult.category}</Text>
+                    <Text style={[styles.resultLabel, lightSecondary]}>{t("Category")}:</Text>
+                    <Text style={[styles.resultValue, lightPrimary]}>{translateCategory(ingestResult.category)}</Text>
                   </View>
                   <View style={styles.resultRow}>
-                    <Text style={styles.resultLabel}>Urgency:</Text>
-                    <Text style={[styles.resultValue, { color: urgencyColor(ingestResult.urgency) }]}>{ingestResult.urgency}</Text>
+                    <Text style={styles.resultLabel}>{t("Urgency")}:</Text>
+                    <Text style={[styles.resultValue, { color: urgencyColor(ingestResult.urgency) }]}>{translateCategory(ingestResult.urgency)}</Text>
                   </View>
                   <View style={styles.resultRow}>
-                    <Text style={[styles.resultLabel, lightSecondary]}>Location:</Text>
+                    <Text style={[styles.resultLabel, lightSecondary]}>{t("Location")}:</Text>
                     <Text style={[styles.resultValue, lightPrimary]}>{ingestResult.location || "—"}</Text>
                   </View>
                   <View style={styles.resultRow}>
-                    <Text style={styles.resultLabel}>Affected:</Text>
+                    <Text style={styles.resultLabel}>{t("Affected")}:</Text>
                     <Text style={styles.resultValue}>{ingestResult.affected_count ?? "—"}</Text>
                   </View>
                   <View style={styles.resultRow}>
-                    <Text style={styles.resultLabel}>Confidence:</Text>
+                    <Text style={styles.resultLabel}>{t("Confidence")}:</Text>
                     <Text style={styles.resultValue}>{(ingestResult.confidence * 100).toFixed(0)}%</Text>
                   </View>
                   <View style={styles.resultRow}>
-                    <Text style={styles.resultLabel}>Model:</Text>
+                    <Text style={styles.resultLabel}>{t("Model")}:</Text>
                     <Text style={styles.resultValue}>{ingestResult.model_used}</Text>
                   </View>
                   {ingestResult.skills_required.length > 0 ? (
                     <View style={styles.resultRow}>
-                      <Text style={styles.resultLabel}>Skills:</Text>
+                      <Text style={styles.resultLabel}>{t("Skills")}:</Text>
                       <Text style={styles.resultValue}>{ingestResult.skills_required.join(", ")}</Text>
                     </View>
                   ) : null}
@@ -984,14 +986,14 @@ export const NeedsScreen = () => {
           {/* NEEDS LIST */}
           <View style={styles.listHeader}>
             <Text style={[styles.listTitle, lightPrimary]}>
-              {isOrgManager ? "Your Organization's Needs" : "All Active Needs"}
+              {isOrgManager ? t("Your Organization's Needs") : t("All Active Needs")}
             </Text>
-            <Text style={[styles.listCount, lightSecondary]}>{displayedItems.length} shown</Text>
+            <Text style={[styles.listCount, lightSecondary]}>{displayedItems.length} {t("shown")}</Text>
           </View>
 
           <View style={styles.filterRow}>
             <View style={styles.filterCol}>
-              <Text style={[styles.filterLabel, lightSecondary]}>Urgency</Text>
+              <Text style={[styles.filterLabel, lightSecondary]}>{t("Urgency")}</Text>
               <Pressable
                 style={[styles.filterSelectBtn, lightInput]}
                 onPress={() => {
@@ -1003,7 +1005,7 @@ export const NeedsScreen = () => {
                   setShowVolunteerBranchDropdown(false);
                 }}
               >
-                <Text style={[styles.filterSelectText, lightPrimary]}>{selectedUrgencyFilter}</Text>
+                <Text style={[styles.filterSelectText, lightPrimary]}>{translateCategory(selectedUrgencyFilter)}</Text>
                 <Text style={[styles.filterChevron, lightPrimary]}>▼</Text>
               </Pressable>
               {showUrgencyDropdown ? (
@@ -1017,7 +1019,7 @@ export const NeedsScreen = () => {
                         setShowUrgencyDropdown(false);
                       }}
                     >
-                      <Text style={[styles.filterOptionText, lightPrimary]}>{u}</Text>
+                      <Text style={[styles.filterOptionText, lightPrimary]}>{translateCategory(u)}</Text>
                     </Pressable>
                   ))}
                 </View>
@@ -1025,7 +1027,7 @@ export const NeedsScreen = () => {
             </View>
 
             <View style={styles.filterCol}>
-              <Text style={[styles.filterLabel, lightSecondary]}>Category</Text>
+              <Text style={[styles.filterLabel, lightSecondary]}>{t("Category")}</Text>
               <Pressable
                 style={[styles.filterSelectBtn, lightInput]}
                 onPress={() => {
@@ -1037,7 +1039,7 @@ export const NeedsScreen = () => {
                   setShowVolunteerBranchDropdown(false);
                 }}
               >
-                <Text style={[styles.filterSelectText, lightPrimary]}>{selectedCategoryFilter.replace("_", " ")}</Text>
+                <Text style={[styles.filterSelectText, lightPrimary]}>{translateCategory(selectedCategoryFilter)}</Text>
                 <Text style={[styles.filterChevron, lightPrimary]}>▼</Text>
               </Pressable>
               {showCategoryDropdown ? (
@@ -1051,7 +1053,7 @@ export const NeedsScreen = () => {
                         setShowCategoryDropdown(false);
                       }}
                     >
-                      <Text style={[styles.filterOptionText, lightPrimary]}>{displayCategory(c)}</Text>
+                      <Text style={[styles.filterOptionText, lightPrimary]}>{translateCategory(c)}</Text>
                     </Pressable>
                   ))}
                 </View>
@@ -1060,7 +1062,7 @@ export const NeedsScreen = () => {
 
             {isOrgManager ? (
               <View style={styles.filterCol}>
-                <Text style={[styles.filterLabel, lightSecondary]}>Assignment</Text>
+                <Text style={[styles.filterLabel, lightSecondary]}>{t("Assignment")}</Text>
                 <Pressable
                   style={[styles.filterSelectBtn, lightInput]}
                   onPress={() => {
@@ -1072,7 +1074,7 @@ export const NeedsScreen = () => {
                     setShowVolunteerBranchDropdown(false);
                   }}
                 >
-                  <Text style={[styles.filterSelectText, lightPrimary]}>{selectedAssignmentFilter}</Text>
+                  <Text style={[styles.filterSelectText, lightPrimary]}>{translateStatus(selectedAssignmentFilter)}</Text>
                   <Text style={[styles.filterChevron, lightPrimary]}>▼</Text>
                 </Pressable>
                 {showAssignmentDropdown ? (
@@ -1086,7 +1088,7 @@ export const NeedsScreen = () => {
                           setShowAssignmentDropdown(false);
                         }}
                       >
-                        <Text style={[styles.filterOptionText, lightPrimary]}>{assignmentFilter}</Text>
+                        <Text style={[styles.filterOptionText, lightPrimary]}>{translateStatus(assignmentFilter)}</Text>
                       </Pressable>
                     ))}
                   </View>
@@ -1099,9 +1101,9 @@ export const NeedsScreen = () => {
             <View style={[styles.volunteerFilterCard, lightCard]}>
               <View style={styles.volunteerFilterHeader}>
                 <View style={styles.volunteerFilterTitleWrap}>
-                  <Text style={[styles.volunteerFilterTitle, lightPrimary]}>Volunteer Need Filters</Text>
+                  <Text style={[styles.volunteerFilterTitle, lightPrimary]}>{t("Volunteer Need Filters")}</Text>
                   <Text style={[styles.volunteerFilterHint, lightSecondary]}>
-                    Browse needs across organizations, branches, and nearby locations.
+                    {t("Browse needs across organizations, branches, and nearby locations.")}
                   </Text>
                 </View>
                 <Pressable
@@ -1109,20 +1111,20 @@ export const NeedsScreen = () => {
                   onPress={volunteerNearbyOnly ? () => setVolunteerNearbyOnly(false) : useVolunteerLiveLocation}
                 >
                   <Text style={[styles.liveLocationBtnText, volunteerNearbyOnly ? styles.liveLocationBtnTextActive : null]}>
-                    {volunteerNearbyOnly ? "Show All" : "Use Live Location"}
+                    {volunteerNearbyOnly ? t("Show All") : t("Use Live Location")}
                   </Text>
                 </Pressable>
               </View>
 
               {volunteerNearbyOnly && volunteerLiveLocation ? (
                 <Text style={[styles.nearbyNote, lightSecondary]} numberOfLines={2}>
-                  Showing top 10 nearby needs from {volunteerLiveLocation.address || "your live location"}.
+                  {t("Showing top 10 nearby needs from")} {volunteerLiveLocation.address ? translateAddress(volunteerLiveLocation.address) : t("your live location")}.
                 </Text>
               ) : null}
 
               <View style={styles.volunteerFilterGrid}>
                 <View style={styles.volunteerFilterCol}>
-                  <Text style={[styles.filterLabel, lightSecondary]}>Location</Text>
+                  <Text style={[styles.filterLabel, lightSecondary]}>{t("Location")}</Text>
                   <Pressable
                     style={[styles.filterSelectBtn, lightInput]}
                     onPress={() => {
@@ -1150,7 +1152,7 @@ export const NeedsScreen = () => {
                             setShowVolunteerLocationDropdown(false);
                           }}
                         >
-                          <Text style={[styles.filterOptionText, lightPrimary]}>{locationOption === "all" ? "All locations" : locationOption}</Text>
+                          <Text style={[styles.filterOptionText, lightPrimary]}>{locationOption === "all" ? t("All locations") : locationOption}</Text>
                         </Pressable>
                       ))}
                     </View>
@@ -1158,7 +1160,7 @@ export const NeedsScreen = () => {
                 </View>
 
                 <View style={styles.volunteerFilterCol}>
-                  <Text style={[styles.filterLabel, lightSecondary]}>Organization</Text>
+                  <Text style={[styles.filterLabel, lightSecondary]}>{t("Organization")}</Text>
                   <Pressable
                     style={[styles.filterSelectBtn, lightInput]}
                     onPress={() => {
@@ -1183,7 +1185,7 @@ export const NeedsScreen = () => {
                           setShowVolunteerOrganizationDropdown(false);
                         }}
                       >
-                        <Text style={[styles.filterOptionText, lightPrimary]}>All organizations</Text>
+                        <Text style={[styles.filterOptionText, lightPrimary]}>{t("All organizations")}</Text>
                       </Pressable>
                       {volunteerOrganizationOptions.map((organization) => (
                         <Pressable
@@ -1203,7 +1205,7 @@ export const NeedsScreen = () => {
                 </View>
 
                 <View style={styles.volunteerFilterCol}>
-                  <Text style={[styles.filterLabel, lightSecondary]}>Branch</Text>
+                  <Text style={[styles.filterLabel, lightSecondary]}>{t("Branch")}</Text>
                   <Pressable
                     style={[styles.filterSelectBtn, lightInput]}
                     onPress={() => {
@@ -1227,7 +1229,7 @@ export const NeedsScreen = () => {
                           setShowVolunteerBranchDropdown(false);
                         }}
                       >
-                        <Text style={[styles.filterOptionText, lightPrimary]}>All branches</Text>
+                        <Text style={[styles.filterOptionText, lightPrimary]}>{t("All branches")}</Text>
                       </Pressable>
                       {volunteerBranchOptions.map((branch) => (
                         <Pressable
@@ -1253,31 +1255,34 @@ export const NeedsScreen = () => {
             return (
             <Pressable key={n.id} style={[styles.needCard, lightCard]} onPress={() => nav.navigate("NeedDetail", { needId: n.id })}>
               <View style={styles.needHeader}>
-                <Text style={[styles.needTitle, lightPrimary]} numberOfLines={1}>{n.title}</Text>
+                <Text style={[styles.needTitle, lightPrimary]} numberOfLines={2}>{translateText(n.title)}</Text>
                 <View style={[styles.urgencyBadge, { backgroundColor: `${urgencyColor(n.urgency)}20`, borderColor: urgencyColor(n.urgency) }]}>
-                  <Text style={[styles.urgencyText, { color: urgencyColor(n.urgency) }]}>{n.urgency}</Text>
+                  <Text style={[styles.urgencyText, { color: urgencyColor(n.urgency) }]}>{translateCategory(n.urgency)}</Text>
                 </View>
               </View>
               {n.description ? (
-                <Text style={[styles.needDesc, lightSecondary]} numberOfLines={2}>{n.description}</Text>
+                <Text style={[styles.needDesc, lightSecondary]} numberOfLines={2}>{translateText(n.description)}</Text>
               ) : null}
               <View style={styles.needMeta}>
                 <Text style={[styles.needMetaText, lightSecondary]}>
-                  {n.category.replace("_", " ")} · {n.status} · {n.address}
+                  {t("Category")}: {translateCategory(n.category)} · {t("Status")}: {translateStatus(n.status)}
+                </Text>
+                <Text style={[styles.needMetaText, lightSecondary]} numberOfLines={2}>
+                  {t("Address")}: {translateAddress(n.address)}
                 </Text>
               </View>
               {n.priority_score != null ? (
                 <View style={styles.scoreRow}>
-                  <Text style={[styles.scoreLabel, lightSecondary]}>Priority Score:</Text>
+                  <Text style={[styles.scoreLabel, lightSecondary]}>{t("Priority Score")}:</Text>
                   <Text style={[styles.scoreValue, lightPrimary]}>{n.priority_score.toFixed(2)}</Text>
                 </View>
               ) : null}
 
               {assignedVolunteerCount > 0 ? (
                 <View style={styles.assigneeRow}>
-                  <Text style={styles.assigneeLabel}>Assigned Volunteers:</Text>
+                  <Text style={styles.assigneeLabel}>{t("Assigned Volunteers")}:</Text>
                   <Text style={styles.assigneeValue}>{assignedVolunteerCount}</Text>
-                  <Text style={styles.assigneeMeta}>{assignedVolunteerCount === 1 ? "volunteer assigned" : "volunteers assigned"}</Text>
+                  <Text style={styles.assigneeMeta}>{assignedVolunteerCount === 1 ? t("volunteer assigned") : t("volunteers assigned")}</Text>
                 </View>
               ) : null}
 
@@ -1287,9 +1292,9 @@ export const NeedsScreen = () => {
 
           {displayedItems.length === 0 && !refreshing ? (
             <View style={styles.emptyCard}>
-              <Text style={styles.emptyTitle}>No needs found</Text>
+              <Text style={styles.emptyTitle}>{t("No needs found")}</Text>
               <Text style={styles.emptySubtitle}>
-                {isOrgManager ? "Create your first need using the form above." : "Pull to refresh for latest needs."}
+                {isOrgManager ? t("Create your first need using the form above.") : t("Pull to refresh for latest needs.")}
               </Text>
             </View>
           ) : null}
@@ -1548,15 +1553,17 @@ const styles = StyleSheet.create({
   needHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
     marginBottom: 6,
+    gap: 8,
   },
-  needTitle: { flex: 1, fontSize: 15, fontWeight: "700", color: "#FFFFFF", marginRight: 8 },
+  needTitle: { flex: 1, flexShrink: 1, minWidth: 0, fontSize: 15, fontWeight: "700", color: "#FFFFFF", lineHeight: 21 },
   urgencyBadge: {
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 3,
+    flexShrink: 0,
   },
   urgencyText: { fontSize: 10, fontWeight: "700", textTransform: "uppercase" },
   needDesc: { fontSize: 12, color: "#8B8DA3", marginBottom: 6, lineHeight: 18 },

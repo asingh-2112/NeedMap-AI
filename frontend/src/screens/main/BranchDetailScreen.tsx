@@ -14,6 +14,7 @@ import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp, NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useAccessibility } from "../../context/AccessibilityContext";
 import { useAuth } from "../../context/AuthContext";
+import { useLanguage } from "../../context/LanguageContext";
 import { useThemeMode } from "../../context/ThemeModeContext";
 import { moduleApi } from "../../services/api";
 import type { RootStackParamList } from "../../navigation/types";
@@ -27,6 +28,7 @@ export const BranchDetailScreen = ({ route }: Props) => {
   const { branchId } = route.params;
   const { baseUrl, token, user } = useAuth();
   const { reduceMotion } = useAccessibility();
+  const { t, translateAddress, translateStatus, translateText } = useLanguage();
   const { theme } = useThemeMode();
 
   const [branch, setBranch] = useState<Organization | null>(null);
@@ -92,9 +94,9 @@ export const BranchDetailScreen = ({ route }: Props) => {
 
       <View style={styles.header}>
         <Pressable onPress={goBack} style={styles.backBtn}>
-          <Text style={styles.backBtnText}>← Back</Text>
+          <Text style={styles.backBtnText}>← {t("Back")}</Text>
         </Pressable>
-        <Text style={styles.headerTitle}>Branch Details</Text>
+        <Text style={styles.headerTitle}>{t("Branch Details")}</Text>
         <View style={{ width: 50 }} />
       </View>
 
@@ -102,13 +104,13 @@ export const BranchDetailScreen = ({ route }: Props) => {
         {loading ? (
           <View style={styles.centerContainer}>
             <ActivityIndicator size="large" color="#667EEA" />
-            <Text style={styles.loadingText}>Loading branch details...</Text>
+            <Text style={styles.loadingText}>{t("Loading branch details...")}</Text>
           </View>
         ) : error ? (
           <View style={styles.centerContainer}>
             <Text style={styles.errorText}>{error}</Text>
             <Pressable style={styles.retryBtn} onPress={goBack}>
-              <Text style={styles.retryBtnText}>Go Back</Text>
+              <Text style={styles.retryBtnText}>{t("Go Back")}</Text>
             </Pressable>
           </View>
         ) : branch ? (
@@ -120,7 +122,7 @@ export const BranchDetailScreen = ({ route }: Props) => {
           >
             <View style={styles.titleCard}>
               <View style={styles.titleRow}>
-                <Text style={styles.branchTitle} numberOfLines={2}>{branch.organization_name}</Text>
+                <Text style={styles.branchTitle} numberOfLines={2}>{translateText(branch.organization_name)}</Text>
                 <View
                   style={[
                     styles.statusBadge,
@@ -128,79 +130,79 @@ export const BranchDetailScreen = ({ route }: Props) => {
                   ]}
                 >
                   <Text style={[styles.statusBadgeText, { color: branch.is_active ? "#2ED573" : "#FF6B6B" }]}>
-                    {branch.is_active ? "ACTIVE" : "INACTIVE"}
+                    {translateStatus(branch.is_active ? "ACTIVE" : "INACTIVE")}
                   </Text>
                 </View>
               </View>
             </View>
 
             <View style={styles.infoCard}>
-              <Text style={styles.cardTitle}>Branch Information</Text>
+              <Text style={styles.cardTitle}>{t("Branch Information")}</Text>
               <View style={styles.refRow}>
-                <Text style={styles.refLabel}>Branch ID:</Text>
+                <Text style={styles.refLabel}>{t("Branch ID")}:</Text>
                 <Text style={styles.refValue}>#{branch.id}</Text>
               </View>
               <View style={styles.refRow}>
-                <Text style={styles.refLabel}>Location:</Text>
-                <Text style={styles.refValue}>{branch.branch_location || "No location"}</Text>
+                <Text style={styles.refLabel}>{t("Location")}:</Text>
+                <Text style={styles.refValue}>{branch.branch_location ? translateAddress(branch.branch_location) : t("No location")}</Text>
               </View>
               <View style={styles.refRow}>
-                <Text style={styles.refLabel}>Address:</Text>
-                <Text style={styles.refValue}>{branch.address || "No address"}</Text>
+                <Text style={styles.refLabel}>{t("Address")}:</Text>
+                <Text style={styles.refValue}>{branch.address ? translateAddress(branch.address) : t("No address")}</Text>
               </View>
               <View style={styles.refRow}>
-                <Text style={styles.refLabel}>Phone:</Text>
-                <Text style={styles.refValue}>{branch.phone || "No phone"}</Text>
+                <Text style={styles.refLabel}>{t("Phone")}:</Text>
+                <Text style={styles.refValue}>{branch.phone || t("No phone")}</Text>
               </View>
             </View>
 
             <View style={styles.infoCard}>
-              <Text style={styles.cardTitle}>Admin Details</Text>
+              <Text style={styles.cardTitle}>{t("Admin Details")}</Text>
               {branchAdmin ? (
                 <>
                   <View style={styles.refRow}>
-                    <Text style={styles.refLabel}>Name:</Text>
+                    <Text style={styles.refLabel}>{t("Name")}:</Text>
                     <Text style={styles.refValue}>{branchAdmin.user_name}</Text>
                   </View>
                   <View style={styles.refRow}>
-                    <Text style={styles.refLabel}>Email:</Text>
+                    <Text style={styles.refLabel}>{t("Email")}:</Text>
                     <Text style={styles.refValue}>{branchAdmin.email}</Text>
                   </View>
                   <View style={styles.refRow}>
-                    <Text style={styles.refLabel}>Phone:</Text>
-                    <Text style={styles.refValue}>{branchAdmin.phone || "No phone"}</Text>
+                    <Text style={styles.refLabel}>{t("Phone")}:</Text>
+                    <Text style={styles.refValue}>{branchAdmin.phone || t("No phone")}</Text>
                   </View>
                   <View style={styles.refRow}>
-                    <Text style={styles.refLabel}>User ID:</Text>
+                    <Text style={styles.refLabel}>{t("User ID")}:</Text>
                     <Text style={styles.refValue}>#{branchAdmin.id}</Text>
                   </View>
                 </>
               ) : (
-                <Text style={styles.emptyText}>No admin assigned to this branch.</Text>
+                <Text style={styles.emptyText}>{t("No admin assigned to this branch.")}</Text>
               )}
             </View>
 
             <View style={styles.infoCard}>
-              <Text style={styles.cardTitle}>Reference</Text>
+              <Text style={styles.cardTitle}>{t("Reference")}</Text>
               <View style={styles.refRow}>
-                <Text style={styles.refLabel}>Parent Organization ID:</Text>
-                <Text style={styles.refValue}>{branch.parent_organization_id ? `#${branch.parent_organization_id}` : "N/A"}</Text>
+                <Text style={styles.refLabel}>{t("Parent Organization ID")}:</Text>
+                <Text style={styles.refValue}>{branch.parent_organization_id ? `#${branch.parent_organization_id}` : t("N/A")}</Text>
               </View>
               <View style={styles.refRow}>
-                <Text style={styles.refLabel}>Owner User ID:</Text>
+                <Text style={styles.refLabel}>{t("Owner User ID")}:</Text>
                 <Text style={styles.refValue}>#{branch.user_id}</Text>
               </View>
               <View style={styles.refRow}>
-                <Text style={styles.refLabel}>Created:</Text>
+                <Text style={styles.refLabel}>{t("Created")}:</Text>
                 <Text style={styles.refValue}>{new Date(branch.created_at).toLocaleString()}</Text>
               </View>
             </View>
           </ScrollView>
         ) : (
           <View style={styles.centerContainer}>
-            <Text style={styles.errorText}>Branch not found.</Text>
+            <Text style={styles.errorText}>{t("Branch not found.")}</Text>
             <Pressable style={styles.retryBtn} onPress={goBack}>
-              <Text style={styles.retryBtnText}>Go Back</Text>
+              <Text style={styles.retryBtnText}>{t("Go Back")}</Text>
             </Pressable>
           </View>
         )}

@@ -10,6 +10,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { useAccessibility } from "../../context/AccessibilityContext";
 import { useAuth } from "../../context/AuthContext";
+import { useLanguage } from "../../context/LanguageContext";
 import { moduleApi } from "../../services/api";
 import type { Volunteer } from "../../types/api";
 import { colors } from "../../theme";
@@ -17,6 +18,7 @@ import { colors } from "../../theme";
 export const VolunteersScreen = () => {
   const { baseUrl, token } = useAuth();
   const { highContrast, reduceMotion, textScale } = useAccessibility();
+  const { t } = useLanguage();
   const [items, setItems] = useState<Volunteer[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -79,39 +81,39 @@ export const VolunteersScreen = () => {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={load} />}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={[styles.title, textStyle(32, 38)]}>Volunteers</Text>
-        <Text style={[styles.subtitle, textStyle(14, 20)]}>Live volunteer roster and availability</Text>
+        <Text style={[styles.title, textStyle(32, 38)]}>{t("Volunteers")}</Text>
+        <Text style={[styles.subtitle, textStyle(14, 20)]}>{t("Live volunteer roster and availability")}</Text>
 
         {items.map((v) => (
           <View key={v.id} style={[styles.card, highContrast ? styles.highContrastCard : null]}>
             <View style={styles.headerRow}>
-              <Text style={[styles.name, textStyle(16, 21)]}>Volunteer #{v.id}</Text>
+              <Text style={[styles.name, textStyle(16, 21)]}>{t("Volunteer")} #{v.id}</Text>
               <View style={[styles.badge, v.availability ? styles.availableBadge : styles.unavailableBadge]}>
                 <Text style={[styles.badgeText, v.availability ? styles.availableText : styles.unavailableText, textStyle(11, 15)]}>
-                  {v.availability ? "Available" : "Busy"}
+                  {v.availability ? t("Available") : t("Busy")}
                 </Text>
               </View>
             </View>
 
             <Text style={[styles.metaLine, textStyle(13, 19)]}>
-              <Text style={styles.metaStrong}>Verified:</Text> {v.verified ? "Yes" : "No"}
+              <Text style={styles.metaStrong}>{t("Verified")}:</Text> {v.verified ? t("Yes") : t("No")}
             </Text>
             <Text style={[styles.metaLine, textStyle(13, 19)]}>
-              <Text style={styles.metaStrong}>Tasks completed:</Text> {v.tasks_completed}
+              <Text style={styles.metaStrong}>{t("Tasks completed")}:</Text> {v.tasks_completed}
             </Text>
             <Text style={[styles.metaLine, textStyle(13, 19)]}>
-              <Text style={styles.metaStrong}>Active tasks:</Text> {v.active_tasks}
+              <Text style={styles.metaStrong}>{t("Active tasks")}:</Text> {v.active_tasks}
             </Text>
             <Text style={[styles.metaLine, textStyle(13, 19)]}>
-              <Text style={styles.metaStrong}>Organization ID:</Text> {v.organization_id ?? "-"}
+              <Text style={styles.metaStrong}>{t("Organization ID")}:</Text> {v.organization_id ?? "-"}
             </Text>
           </View>
         ))}
 
         {items.length === 0 && !refreshing ? (
           <View style={[styles.emptyCard, highContrast ? styles.highContrastCard : null]}>
-            <Text style={[styles.emptyTitle, textStyle(16, 21)]}>No volunteers found</Text>
-            <Text style={[styles.emptyMeta, textStyle(13, 18)]}>Pull to refresh and load volunteer profiles.</Text>
+            <Text style={[styles.emptyTitle, textStyle(16, 21)]}>{t("No volunteers found")}</Text>
+            <Text style={[styles.emptyMeta, textStyle(13, 18)]}>{t("Pull to refresh and load volunteer profiles.")}</Text>
           </View>
         ) : null}
       </ScrollView>

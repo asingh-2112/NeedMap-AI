@@ -14,6 +14,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { useAccessibility } from "../../context/AccessibilityContext";
 import { useAuth } from "../../context/AuthContext";
+import { useLanguage } from "../../context/LanguageContext";
 import { useRealtime } from "../../context/RealtimeContext";
 import { moduleApi } from "../../services/api";
 import type { Assignment, Organization } from "../../types/api";
@@ -32,6 +33,7 @@ export const AssignmentsScreen = () => {
   const { baseUrl, token, user } = useAuth();
   const { assignmentsVersion } = useRealtime();
   const { reduceMotion } = useAccessibility();
+  const { t, translateAddress, translateStatus, translateText } = useLanguage();
   const scopedOrganizationId = user?.role === "admin" ? user?.managed_branch_id ?? user?.organization_id : user?.organization_id;
   const [items, setItems] = useState<Assignment[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
@@ -111,7 +113,7 @@ export const AssignmentsScreen = () => {
       await moduleApi.updateAssignmentStatus(baseUrl, token, assignmentId, nextStatus);
       await load();
     } catch (err) {
-      Alert.alert("Assignment", err instanceof Error ? err.message : "Unable to update status");
+      Alert.alert(t("Assignment"), err instanceof Error ? err.message : t("Unable to update status"));
     } finally {
       setBusyId(null);
     }
@@ -142,7 +144,7 @@ export const AssignmentsScreen = () => {
   const submitFeedback = async () => {
     if (!feedbackAssignment) return;
     if (feedbackRating < 1) {
-      Alert.alert("Feedback", "Please select a rating from 1 to 5 stars.");
+      Alert.alert(t("Feedback"), t("Please select a rating from 1 to 5 stars."));
       return;
     }
 
@@ -155,7 +157,7 @@ export const AssignmentsScreen = () => {
       closeFeedback();
       await load();
     } catch (err) {
-      Alert.alert("Assignment", err instanceof Error ? err.message : "Unable to submit feedback");
+      Alert.alert(t("Assignment"), err instanceof Error ? err.message : t("Unable to submit feedback"));
     } finally {
       setBusyId(null);
     }
@@ -174,7 +176,7 @@ export const AssignmentsScreen = () => {
   const submitVolunteerRating = async () => {
     if (!volunteerRatingAssignment) return;
     if (volunteerRating < 1) {
-      Alert.alert("Volunteer Rating", "Please select a rating from 1 to 5 stars.");
+      Alert.alert(t("Volunteer Rating"), t("Please select a rating from 1 to 5 stars."));
       return;
     }
 
@@ -184,7 +186,7 @@ export const AssignmentsScreen = () => {
       closeVolunteerRating();
       await load();
     } catch (err) {
-      Alert.alert("Volunteer Rating", err instanceof Error ? err.message : "Unable to update volunteer rating");
+      Alert.alert(t("Volunteer Rating"), err instanceof Error ? err.message : t("Unable to update volunteer rating"));
     } finally {
       setBusyId(null);
     }
@@ -205,22 +207,22 @@ export const AssignmentsScreen = () => {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={load} />}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.title}>Assignments</Text>
-        <Text style={styles.subtitle}>Lifecycle actions, status transitions, and feedback</Text>
+        <Text style={styles.title}>{t("Assignments")}</Text>
+        <Text style={styles.subtitle}>{t("Lifecycle actions, status transitions, and feedback")}</Text>
 
         {items.map((a) => (
           <View key={a.id} style={styles.card}>
             <View style={styles.headerRow}>
-              <Text style={styles.cardTitle}>Assignment #{a.id}</Text>
+              <Text style={styles.cardTitle} numberOfLines={2}>{t("Assignment")} #{a.id}</Text>
               <View style={[styles.statusBadge, { borderColor: statusColor(a.status), backgroundColor: `${statusColor(a.status)}22` }]}>
-                <Text style={[styles.statusText, { color: statusColor(a.status) }]}>{a.status}</Text>
+                <Text style={[styles.statusText, { color: statusColor(a.status) }]}>{translateStatus(a.status)}</Text>
               </View>
             </View>
 
-            <Text style={styles.meta}><Text style={styles.metaStrong}>Need ID:</Text> {a.need_id}</Text>
-            <Text style={styles.meta}><Text style={styles.metaStrong}>Volunteer ID:</Text> {a.volunteer_id}</Text>
-            <Text style={styles.meta}><Text style={styles.metaStrong}>Org ID:</Text> {a.organization_id}</Text>
-            <Text style={styles.meta}><Text style={styles.metaStrong}>Match Score:</Text> {a.match_score ?? "-"}</Text>
+            <Text style={styles.meta}><Text style={styles.metaStrong}>{t("Need ID")}:</Text> {a.need_id}</Text>
+            <Text style={styles.meta}><Text style={styles.metaStrong}>{t("Volunteer ID")}:</Text> {a.volunteer_id}</Text>
+            <Text style={styles.meta}><Text style={styles.metaStrong}>{t("Org ID")}:</Text> {a.organization_id}</Text>
+            <Text style={styles.meta}><Text style={styles.metaStrong}>{t("Match Score")}:</Text> {a.match_score ?? "-"}</Text>
 
             {a.status === "completed" && a.rating ? (
               <View style={styles.savedFeedbackBox}>
@@ -237,7 +239,7 @@ export const AssignmentsScreen = () => {
                   disabled={busyId === a.id}
                   onPress={() => updateStatus(a.id, next)}
                 >
-                  <Text style={styles.actionText}>{next}</Text>
+                  <Text style={styles.actionText}>{translateStatus(next)}</Text>
                 </Pressable>
               ))}
               {a.status === "completed" && user?.role === "volunteer" ? (
@@ -246,7 +248,7 @@ export const AssignmentsScreen = () => {
                   disabled={busyId === a.id}
                   onPress={() => openFeedback(a)}
                 >
-                  <Text style={styles.feedbackText}>{a.rating ? "Edit Feedback" : "Submit Feedback"}</Text>
+                  <Text style={styles.feedbackText}>{a.rating ? t("Edit Feedback") : t("Submit Feedback")}</Text>
                 </Pressable>
               ) : null}
               {a.status === "completed" && user?.role !== "volunteer" ? (
@@ -255,7 +257,7 @@ export const AssignmentsScreen = () => {
                   disabled={busyId === a.id}
                   onPress={() => openVolunteerRating(a)}
                 >
-                  <Text style={styles.feedbackText}>Rate Volunteer</Text>
+                  <Text style={styles.feedbackText}>{t("Rate Volunteer")}</Text>
                 </Pressable>
               ) : null}
             </View>
@@ -264,8 +266,8 @@ export const AssignmentsScreen = () => {
 
         {items.length === 0 && !refreshing ? (
           <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>No assignments available</Text>
-            <Text style={styles.emptyMeta}>Create assignments from backend/admin panel first.</Text>
+            <Text style={styles.emptyTitle}>{t("No assignments available")}</Text>
+            <Text style={styles.emptyMeta}>{t("Create assignments from backend/admin panel first.")}</Text>
           </View>
         ) : null}
       </ScrollView>
@@ -275,8 +277,8 @@ export const AssignmentsScreen = () => {
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
               <View style={styles.modalTitleWrap}>
-                <Text style={styles.modalTitle}>Submit Feedback</Text>
-                <Text style={styles.modalSubtitle}>Assignment #{feedbackAssignment?.id ?? "-"}</Text>
+                <Text style={styles.modalTitle}>{t("Submit Feedback")}</Text>
+                <Text style={styles.modalSubtitle}>{t("Assignment")} #{feedbackAssignment?.id ?? "-"}</Text>
               </View>
               <Pressable style={styles.modalCloseBtn} onPress={closeFeedback}>
                 <Text style={styles.modalCloseText}>X</Text>
@@ -284,23 +286,23 @@ export const AssignmentsScreen = () => {
             </View>
 
             <View style={styles.detailBox}>
-              <Text style={styles.detailLabel}>Organization Branch</Text>
-              <Text style={styles.detailValue}>{feedbackOrganization?.organization_name ?? `Branch #${feedbackAssignment?.organization_id ?? "-"}`}</Text>
-              <Text style={styles.detailMeta}>{feedbackOrganization?.address || "Branch address not available"}</Text>
+              <Text style={styles.detailLabel}>{t("Organization Branch")}</Text>
+              <Text style={styles.detailValue}>{feedbackOrganization?.organization_name ? translateText(feedbackOrganization.organization_name) : `${t("Branch")} #${feedbackAssignment?.organization_id ?? "-"}`}</Text>
+              <Text style={styles.detailMeta}>{feedbackOrganization?.address ? translateAddress(feedbackOrganization.address) : t("Branch address not available")}</Text>
             </View>
 
             <View style={styles.detailGrid}>
               <View style={styles.detailTile}>
-                <Text style={styles.detailLabel}>Branch Admin</Text>
-                <Text style={styles.detailValue} numberOfLines={1}>{feedbackOrganization?.branch_admin_name || "Not assigned"}</Text>
+                <Text style={styles.detailLabel}>{t("Branch Admin")}</Text>
+                <Text style={styles.detailValue} numberOfLines={1}>{feedbackOrganization?.branch_admin_name || t("Not assigned")}</Text>
               </View>
               <View style={styles.detailTile}>
-                <Text style={styles.detailLabel}>Need</Text>
+                <Text style={styles.detailLabel}>{t("Need")}</Text>
                 <Text style={styles.detailValue}>#{feedbackAssignment?.need_id ?? "-"}</Text>
               </View>
             </View>
 
-            <Text style={styles.ratingLabel}>Rating</Text>
+            <Text style={styles.ratingLabel}>{t("Rating")}</Text>
             <View style={styles.starRow}>
               {[1, 2, 3, 4, 5].map((star) => (
                 <Pressable key={star} style={styles.starBtn} onPress={() => setFeedbackRating(star)}>
@@ -313,7 +315,7 @@ export const AssignmentsScreen = () => {
               style={styles.feedbackInput}
               value={feedbackText}
               onChangeText={setFeedbackText}
-              placeholder="Write feedback for this organization branch"
+              placeholder={t("Write feedback for this organization branch")}
               placeholderTextColor="#7F9AAA"
               multiline
               textAlignVertical="top"
@@ -321,14 +323,14 @@ export const AssignmentsScreen = () => {
 
             <View style={styles.modalActions}>
               <Pressable style={styles.cancelBtn} onPress={closeFeedback} disabled={busyId === feedbackAssignment?.id}>
-                <Text style={styles.cancelText}>Cancel</Text>
+                <Text style={styles.cancelText}>{t("Cancel")}</Text>
               </Pressable>
               <Pressable
                 style={[styles.submitFeedbackBtn, busyId === feedbackAssignment?.id && styles.disabledBtn]}
                 onPress={submitFeedback}
                 disabled={busyId === feedbackAssignment?.id}
               >
-                <Text style={styles.submitFeedbackText}>{busyId === feedbackAssignment?.id ? "Saving..." : "Submit Feedback"}</Text>
+                <Text style={styles.submitFeedbackText}>{busyId === feedbackAssignment?.id ? t("Saving...") : t("Submit Feedback")}</Text>
               </Pressable>
             </View>
           </View>
@@ -340,8 +342,8 @@ export const AssignmentsScreen = () => {
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
               <View style={styles.modalTitleWrap}>
-                <Text style={styles.modalTitle}>Rate Volunteer</Text>
-                <Text style={styles.modalSubtitle}>Assignment #{volunteerRatingAssignment?.id ?? "-"}</Text>
+                <Text style={styles.modalTitle}>{t("Rate Volunteer")}</Text>
+                <Text style={styles.modalSubtitle}>{t("Assignment")} #{volunteerRatingAssignment?.id ?? "-"}</Text>
               </View>
               <Pressable style={styles.modalCloseBtn} onPress={closeVolunteerRating}>
                 <Text style={styles.modalCloseText}>X</Text>
@@ -349,12 +351,12 @@ export const AssignmentsScreen = () => {
             </View>
 
             <View style={styles.detailBox}>
-              <Text style={styles.detailLabel}>Volunteer ID</Text>
+              <Text style={styles.detailLabel}>{t("Volunteer ID")}</Text>
               <Text style={styles.detailValue}>#{volunteerRatingAssignment?.volunteer_id ?? "-"}</Text>
-              <Text style={styles.detailMeta}>This updates the volunteer rating shown on their Home screen.</Text>
+              <Text style={styles.detailMeta}>{t("This updates the volunteer rating shown on their Home screen.")}</Text>
             </View>
 
-            <Text style={styles.ratingLabel}>Volunteer Rating</Text>
+            <Text style={styles.ratingLabel}>{t("Volunteer Rating")}</Text>
             <View style={styles.starRow}>
               {[1, 2, 3, 4, 5].map((star) => (
                 <Pressable key={star} onPress={() => setVolunteerRating(star)} style={styles.starBtn}>
@@ -365,14 +367,14 @@ export const AssignmentsScreen = () => {
 
             <View style={styles.modalActions}>
               <Pressable style={styles.cancelBtn} onPress={closeVolunteerRating}>
-                <Text style={styles.cancelText}>Cancel</Text>
+                <Text style={styles.cancelText}>{t("Cancel")}</Text>
               </Pressable>
               <Pressable
                 style={[styles.submitFeedbackBtn, busyId === volunteerRatingAssignment?.id && styles.disabledBtn]}
                 disabled={busyId === volunteerRatingAssignment?.id}
                 onPress={submitVolunteerRating}
               >
-                <Text style={styles.submitFeedbackText}>Save Rating</Text>
+                <Text style={styles.submitFeedbackText}>{t("Save Rating")}</Text>
               </Pressable>
             </View>
           </View>
@@ -402,9 +404,9 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 10,
   },
-  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8, gap: 8 },
-  cardTitle: { color: colors.textStrong, fontSize: 16, fontWeight: "900" },
-  statusBadge: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", marginBottom: 8, gap: 8 },
+  cardTitle: { color: colors.textStrong, flex: 1, flexShrink: 1, minWidth: 0, fontSize: 16, fontWeight: "900", lineHeight: 22 },
+  statusBadge: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, flexShrink: 0 },
   statusText: { fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
 
   meta: { color: colors.muted, fontSize: 13, lineHeight: 19 },

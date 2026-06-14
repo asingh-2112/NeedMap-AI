@@ -3,6 +3,7 @@ import { Platform, RefreshControl, ScrollView, StyleSheet, Text, View } from "re
 import { LinearGradient } from "expo-linear-gradient";
 import { useAccessibility } from "../../context/AccessibilityContext";
 import { useAuth } from "../../context/AuthContext";
+import { useLanguage } from "../../context/LanguageContext";
 import { useRealtime } from "../../context/RealtimeContext";
 import { useThemeMode } from "../../context/ThemeModeContext";
 import { moduleApi } from "../../services/api";
@@ -97,6 +98,7 @@ export const StatisticsScreen = () => {
   const { baseUrl, token, user } = useAuth();
   const { statisticsVersion } = useRealtime();
   const { highContrast, textScale } = useAccessibility();
+  const { t, translateAddress, translateCategory, translateStatus, translateText } = useLanguage();
   const { theme } = useThemeMode();
   const isLight = theme.mode === "light";
   const isAdmin = user?.role === "admin";
@@ -179,10 +181,10 @@ export const StatisticsScreen = () => {
   }, [needs]);
 
   const statusMix = useMemo<DistItem[]>(() => [
-    { label: "Active", value: summary.active, color: STATUS_COLORS.active },
-    { label: "In Progress", value: summary.inProgress, color: STATUS_COLORS.in_progress },
-    { label: "Completed", value: summary.completed, color: STATUS_COLORS.completed },
-  ], [summary.active, summary.completed, summary.inProgress]);
+    { label: t("Active"), value: summary.active, color: STATUS_COLORS.active },
+    { label: t("In Progress"), value: summary.inProgress, color: STATUS_COLORS.in_progress },
+    { label: t("Completed"), value: summary.completed, color: STATUS_COLORS.completed },
+  ], [summary.active, summary.completed, summary.inProgress, t]);
 
   const needsByUrgency = useMemo(() => {
     const order = ["critical", "high", "medium", "low"];
@@ -191,8 +193,8 @@ export const StatisticsScreen = () => {
       const key = (need.urgency || "").toLowerCase();
       if (map.has(key)) map.set(key, (map.get(key) ?? 0) + 1);
     });
-    return order.map((label) => ({ label, value: map.get(label) ?? 0, color: URGENCY_COLORS[label] }));
-  }, [needs]);
+    return order.map((label) => ({ label: translateCategory(label), value: map.get(label) ?? 0, color: URGENCY_COLORS[label] }));
+  }, [needs, translateCategory]);
 
   const needsByCategory = useMemo(() => {
     const map = new Map<string, number>();
@@ -202,15 +204,15 @@ export const StatisticsScreen = () => {
     });
 
     const sorted = Array.from(map.entries())
-      .map(([label, value], index) => ({ label: formatLabel(label), value, color: CATEGORY_COLORS[index % CATEGORY_COLORS.length] }))
+      .map(([label, value], index) => ({ label: translateCategory(label), value, color: CATEGORY_COLORS[index % CATEGORY_COLORS.length] }))
       .sort((a, b) => b.value - a.value);
 
     if (sorted.length <= 5) return sorted;
     return [
       ...sorted.slice(0, 5),
-      { label: "others", value: sorted.slice(5).reduce((sum, item) => sum + item.value, 0), color: "#94A3B8" },
+      { label: translateCategory("other"), value: sorted.slice(5).reduce((sum, item) => sum + item.value, 0), color: "#94A3B8" },
     ];
-  }, [needs]);
+  }, [needs, translateCategory]);
 
   const areaBreakdown = useMemo<AreaItem[]>(() => {
     const buckets = new Map<string, AreaItem>();
@@ -260,7 +262,7 @@ export const StatisticsScreen = () => {
       return {
         id: organization.id,
         name: organization.organization_name,
-        location: organization.branch_location || organization.address || "No location set",
+        location: organization.branch_location ? translateAddress(organization.branch_location) : organization.address ? translateAddress(organization.address) : t("No location set"),
         total,
         active,
         inProgress,
@@ -269,7 +271,7 @@ export const StatisticsScreen = () => {
         completionRate: total > 0 ? Math.round((completed / total) * 100) : 0,
       };
     }).sort((a, b) => b.completed - a.completed || b.total - a.total || a.name.localeCompare(b.name));
-  }, [isAdmin, needs, scopedOrganizationId, scopeOrganizations]);
+  }, [isAdmin, needs, scopedOrganizationId, scopeOrganizations, t, translateAddress]);
 
   const lastSevenDays = useMemo<TrendItem[]>(() => {
     const now = new Date();
@@ -290,14 +292,14 @@ export const StatisticsScreen = () => {
 
   const statusGradient = useMemo(() => buildConicGradient(statusMix), [statusMix]);
   const categoryGradient = useMemo(() => buildConicGradient(needsByCategory), [needsByCategory]);
-  const headerTitle = isAdmin ? "Branch Analytics" : isOwner ? "Owner Branch Analytics" : "Statistics";
+  const headerTitle = isAdmin ? t("Branch Analytics") : isOwner ? t("Owner Branch Analytics") : t("Statistics");
   const headerSubtitle = isAdmin
-    ? "Only needs from your assigned branch are included."
-    : "All owner branches and completed need performance are included.";
+    ? t("Only needs from your assigned branch are included.")
+    : t("All owner branches and completed need performance are included.");
   const scopeLabel = isAdmin
-    ? adminBranchId ? `Branch #${adminBranchId}` : "No branch"
-    : isOwner ? `${Math.max(scopeOrganizations.length - 1, 0)} branches` : null;
-  const scopeNoun = isOwner ? "Organization" : "Branch";
+    ? adminBranchId ? `${t("Branch")} #${adminBranchId}` : t("No branch")
+    : isOwner ? `${Math.max(scopeOrganizations.length - 1, 0)} ${t("branches")}` : null;
+  const scopeNoun = isOwner ? t("Organization") : t("Branch");
   const scaledText = (fontSize: number, lineHeight?: number) => ({
     fontSize: fontSize * textScale,
     ...(lineHeight ? { lineHeight: lineHeight * textScale } : {}),
@@ -329,30 +331,30 @@ export const StatisticsScreen = () => {
 
         {!hasScope && isAdmin ? (
           <View style={[styles.emptyPanel, lightPanel, highContrastPanel]}>
-            <Text style={[styles.emptyTitle, lightPrimary, scaledText(17, 22)]}>No branch assigned</Text>
-            <Text style={[styles.empty, lightSecondary, scaledText(13, 19)]}>Ask the owner to assign this admin account to a branch before viewing branch statistics.</Text>
+            <Text style={[styles.emptyTitle, lightPrimary, scaledText(17, 22)]}>{t("No branch assigned")}</Text>
+            <Text style={[styles.empty, lightSecondary, scaledText(13, 19)]}>{t("Ask the owner to assign this admin account to a branch before viewing branch statistics.")}</Text>
           </View>
         ) : (
           <>
             <View style={styles.kpiRow}>
-              <Kpi label={isOwner ? "All Needs" : "Branch Needs"} value={summary.total} accent="#3B82F6" isLight={isLight} />
-              <Kpi label="Open Load" value={`${summary.activeLoadRate}%`} accent="#F59E0B" isLight={isLight} />
-              <Kpi label="Completed" value={`${summary.completionRate}%`} accent="#22C55E" isLight={isLight} />
-              <Kpi label="Urgent Open" value={summary.urgentOpen} accent="#EF4444" isLight={isLight} />
+              <Kpi label={isOwner ? t("All Needs") : t("Branch Needs")} value={summary.total} accent="#3B82F6" isLight={isLight} />
+              <Kpi label={t("Open Load")} value={`${summary.activeLoadRate}%`} accent="#F59E0B" isLight={isLight} />
+              <Kpi label={t("Completed")} value={`${summary.completionRate}%`} accent="#22C55E" isLight={isLight} />
+              <Kpi label={t("Urgent Open")} value={summary.urgentOpen} accent="#EF4444" isLight={isLight} />
             </View>
 
             <View style={styles.insightGrid}>
-              <InsightPanel label="Affected People" value={summary.affectedPeople.toLocaleString()} detail={`From ${scopeNoun.toLowerCase()} need records`} color="#14B8A6" isLight={isLight} />
-              <InsightPanel label="Average Priority" value={summary.avgPriority || "-"} detail="Based on scored needs" color="#8B5CF6" isLight={isLight} />
+              <InsightPanel label={t("Affected People")} value={summary.affectedPeople.toLocaleString()} detail={t("From need records")} color="#14B8A6" isLight={isLight} />
+              <InsightPanel label={t("Average Priority")} value={summary.avgPriority || "-"} detail={t("Based on scored needs")} color="#8B5CF6" isLight={isLight} />
             </View>
 
             <View style={[styles.panel, lightPanel, highContrastPanel]}>
               <View style={styles.panelHeader}>
-                <Text style={[styles.panelTitle, lightPrimary, scaledText(15, 20)]}>{scopeNoun} Workload Mix</Text>
-                <Text style={[styles.panelMeta, lightSecondary, scaledText(11, 15)]}>{summary.total} total</Text>
+                <Text style={[styles.panelTitle, lightPrimary, scaledText(15, 20)]}>{scopeNoun} {t("Workload Mix")}</Text>
+                <Text style={[styles.panelMeta, lightSecondary, scaledText(11, 15)]}>{summary.total} {t("Total")}</Text>
               </View>
               <View style={styles.chartSplit}>
-                <Donut gradient={statusGradient} center={`${summary.activeLoadRate}%`} label="Open" />
+                <Donut gradient={statusGradient} center={`${summary.activeLoadRate}%`} label={t("Open")} />
                 <View style={styles.legendCol}>
                   {statusMix.map((item) => <LegendItem key={item.label} item={item} total={summary.total} isLight={isLight} />)}
                 </View>
@@ -361,66 +363,66 @@ export const StatisticsScreen = () => {
 
             <View style={[styles.panel, lightPanel, highContrastPanel]}>
               <View style={styles.panelHeader}>
-                <Text style={[styles.panelTitle, lightPrimary, scaledText(15, 20)]}>{isOwner ? "Branch Completion Details" : "Branch Completion"}</Text>
-                <Text style={[styles.panelMeta, lightSecondary, scaledText(11, 15)]}>{summary.completed} completed</Text>
+                <Text style={[styles.panelTitle, lightPrimary, scaledText(15, 20)]}>{isOwner ? t("Branch Completion Details") : t("Branch Completion")}</Text>
+                <Text style={[styles.panelMeta, lightSecondary, scaledText(11, 15)]}>{summary.completed} {t("completed")}</Text>
               </View>
               {branchCompletionBreakdown.length > 0 ? (
                 <View style={styles.branchCompletionList}>
                   {branchCompletionBreakdown.map((branch) => (
-                    <BranchCompletionRow key={branch.id} branch={branch} isLight={isLight} />
+                    <BranchCompletionRow key={branch.id} branch={branch} isLight={isLight} t={t} translateText={translateText} />
                   ))}
                 </View>
               ) : (
-                <Text style={[styles.empty, lightSecondary]}>No branch completion data available.</Text>
+                <Text style={[styles.empty, lightSecondary]}>{t("No branch completion data available.")}</Text>
               )}
             </View>
 
             <View style={[styles.panel, lightPanel, highContrastPanel]}>
               <View style={styles.panelHeader}>
-                <Text style={[styles.panelTitle, lightPrimary]}>Urgency Load</Text>
-                <Text style={[styles.panelMeta, lightSecondary]}>{summary.urgentOpen} urgent open</Text>
+                <Text style={[styles.panelTitle, lightPrimary]}>{t("Urgency Load")}</Text>
+                <Text style={[styles.panelMeta, lightSecondary]}>{summary.urgentOpen} {t("urgent open")}</Text>
               </View>
               <HorizontalBars data={needsByUrgency} isLight={isLight} />
             </View>
 
             <View style={[styles.panel, lightPanel, highContrastPanel]}>
               <View style={styles.panelHeader}>
-                <Text style={[styles.panelTitle, lightPrimary]}>New Needs This Week</Text>
-                <Text style={[styles.panelMeta, lightSecondary]}>Last 7 days</Text>
+                <Text style={[styles.panelTitle, lightPrimary]}>{t("New Needs This Week")}</Text>
+                <Text style={[styles.panelMeta, lightSecondary]}>{t("Last 7 days")}</Text>
               </View>
               <MiniTrend data={lastSevenDays} isLight={isLight} />
             </View>
 
             <View style={[styles.panel, lightPanel, highContrastPanel]}>
               <View style={styles.panelHeader}>
-                <Text style={[styles.panelTitle, lightPrimary]}>Category Distribution</Text>
-                <Text style={[styles.panelMeta, lightSecondary]}>Top categories</Text>
+                <Text style={[styles.panelTitle, lightPrimary]}>{t("Category Distribution")}</Text>
+                <Text style={[styles.panelMeta, lightSecondary]}>{t("Top categories")}</Text>
               </View>
               {needsByCategory.length > 0 ? (
                 <View style={styles.chartSplit}>
-                  <Donut gradient={categoryGradient} center={String(summary.total)} label="Needs" />
+                  <Donut gradient={categoryGradient} center={String(summary.total)} label={t("Needs")} />
                   <View style={styles.legendCol}>
                     {needsByCategory.map((item) => <LegendItem key={item.label} item={item} total={summary.total} isLight={isLight} />)}
                   </View>
                 </View>
               ) : (
-                <Text style={[styles.empty, lightSecondary]}>No category data available.</Text>
+                <Text style={[styles.empty, lightSecondary]}>{t("No category data available.")}</Text>
               )}
             </View>
 
             <View style={[styles.panel, lightPanel, highContrastPanel]}>
               <View style={styles.panelHeader}>
-                <Text style={[styles.panelTitle, lightPrimary]}>{isOwner ? "Top Organization Areas" : "Top Branch Areas"}</Text>
-                <Text style={[styles.panelMeta, lightSecondary]}>Need concentration</Text>
+                <Text style={[styles.panelTitle, lightPrimary]}>{isOwner ? t("Top Organization Areas") : t("Top Branch Areas")}</Text>
+                <Text style={[styles.panelMeta, lightSecondary]}>{t("Need concentration")}</Text>
               </View>
               {areaBreakdown.length > 0 ? (
                 <View style={styles.areaList}>
                   {areaBreakdown.map((area) => (
-                    <AreaRow key={`${area.city}-${area.area}`} area={area} max={areaBreakdown[0]?.total ?? 1} isLight={isLight} />
+                    <AreaRow key={`${area.city}-${area.area}`} area={area} max={areaBreakdown[0]?.total ?? 1} isLight={isLight} t={t} translateAddress={translateAddress} />
                   ))}
                 </View>
               ) : (
-                <Text style={[styles.empty, lightSecondary]}>No area data available.</Text>
+                <Text style={[styles.empty, lightSecondary]}>{t("No area data available.")}</Text>
               )}
             </View>
           </>
@@ -492,7 +494,7 @@ const HorizontalBars = ({ data, isLight }: { data: DistItem[]; isLight: boolean 
         const width = Math.round((item.value / max) * 100);
         return (
           <View key={item.label} style={styles.hBarRow}>
-            <Text style={[styles.hBarLabel, isLight ? { color: "#0B1220", fontWeight: "800" } : null]}>{formatLabel(item.label)}</Text>
+            <Text style={[styles.hBarLabel, isLight ? { color: "#0B1220", fontWeight: "800" } : null]}>{item.label}</Text>
             <View style={[styles.hTrack, isLight ? { backgroundColor: "#E5E7EB", borderColor: "#000000", borderWidth: 1 } : null]}>
               <View style={[styles.hFill, { width: `${Math.max(item.value > 0 ? 5 : 0, width)}%`, backgroundColor: item.color }]} />
             </View>
@@ -524,14 +526,14 @@ const MiniTrend = ({ data, isLight }: { data: TrendItem[]; isLight: boolean }) =
   );
 };
 
-const AreaRow = ({ area, max, isLight }: { area: AreaItem; max: number; isLight: boolean }) => {
+const AreaRow = ({ area, max, isLight, t, translateAddress }: { area: AreaItem; max: number; isLight: boolean; t: (text: string) => string; translateAddress: (text?: string | null) => string }) => {
   const percent = Math.round((area.total / Math.max(max, 1)) * 100);
   return (
     <View style={[styles.areaRow, isLight ? { backgroundColor: "#F8FAFC", borderColor: "#000000" } : null]}>
       <View style={styles.areaTopLine}>
         <View style={styles.areaNameWrap}>
-          <Text style={[styles.areaName, isLight ? { color: "#0B1220" } : null]} numberOfLines={1}>{area.area}</Text>
-          <Text style={[styles.areaCity, isLight ? { color: "#374151" } : null]} numberOfLines={1}>{area.city}</Text>
+          <Text style={[styles.areaName, isLight ? { color: "#0B1220" } : null]} numberOfLines={1}>{translateAddress(area.area)}</Text>
+          <Text style={[styles.areaCity, isLight ? { color: "#374151" } : null]} numberOfLines={1}>{translateAddress(area.city)}</Text>
         </View>
         <Text style={[styles.areaTotal, isLight ? { color: "#0B1220" } : null]}>{area.total}</Text>
       </View>
@@ -539,34 +541,34 @@ const AreaRow = ({ area, max, isLight }: { area: AreaItem; max: number; isLight:
         <View style={[styles.areaFill, { width: `${Math.max(6, percent)}%` }]} />
       </View>
       <View style={styles.areaMetaRow}>
-        <Text style={[styles.areaMeta, isLight ? { color: "#374151" } : null]}>Open {area.active}</Text>
-        <Text style={[styles.areaMeta, isLight ? { color: "#374151" } : null]}>Urgent {area.urgent}</Text>
-        <Text style={[styles.areaMeta, isLight ? { color: "#374151" } : null]}>Done {area.completed}</Text>
+        <Text style={[styles.areaMeta, isLight ? { color: "#374151" } : null]}>{t("Open")} {area.active}</Text>
+        <Text style={[styles.areaMeta, isLight ? { color: "#374151" } : null]}>{t("Urgency")} {area.urgent}</Text>
+        <Text style={[styles.areaMeta, isLight ? { color: "#374151" } : null]}>{t("Done")} {area.completed}</Text>
       </View>
     </View>
   );
 };
 
-const BranchCompletionRow = ({ branch, isLight }: { branch: BranchCompletionItem; isLight: boolean }) => (
+const BranchCompletionRow = ({ branch, isLight, t, translateText }: { branch: BranchCompletionItem; isLight: boolean; t: (text: string) => string; translateText: (text?: string | null) => string }) => (
   <View style={[styles.branchRow, isLight ? { backgroundColor: "#F8FAFC", borderColor: "#000000" } : null]}>
     <View style={styles.branchTopLine}>
       <View style={styles.branchNameWrap}>
-        <Text style={[styles.branchName, isLight ? { color: "#0B1220" } : null]} numberOfLines={1}>{branch.name}</Text>
+        <Text style={[styles.branchName, isLight ? { color: "#0B1220" } : null]} numberOfLines={1}>{translateText(branch.name)}</Text>
         <Text style={[styles.branchLocation, isLight ? { color: "#374151" } : null]} numberOfLines={1}>{branch.location}</Text>
       </View>
       <View style={styles.branchRatePill}>
-        <Text style={styles.branchRateText}>{branch.completionRate}% done</Text>
+        <Text style={styles.branchRateText}>{branch.completionRate}% {t("done")}</Text>
       </View>
     </View>
     <View style={[styles.branchProgressTrack, isLight ? { backgroundColor: "#E5E7EB" } : null]}>
       <View style={[styles.branchProgressFill, { width: `${Math.max(branch.completionRate > 0 ? 6 : 0, branch.completionRate)}%` }]} />
     </View>
     <View style={styles.branchStatsRow}>
-      <Text style={[styles.branchStat, isLight ? { color: "#374151" } : null]}>All {branch.total}</Text>
-      <Text style={[styles.branchStat, isLight ? { color: "#374151" } : null]}>Open {branch.active}</Text>
-      <Text style={[styles.branchStat, isLight ? { color: "#374151" } : null]}>Progress {branch.inProgress}</Text>
-      <Text style={[styles.branchStatDone, isLight ? { color: "#166534" } : null]}>Completed {branch.completed}</Text>
-      <Text style={[styles.branchStatUrgent, isLight ? { color: "#991B1B" } : null]}>Urgent {branch.urgent}</Text>
+      <Text style={[styles.branchStat, isLight ? { color: "#374151" } : null]}>{t("All")} {branch.total}</Text>
+      <Text style={[styles.branchStat, isLight ? { color: "#374151" } : null]}>{t("Open")} {branch.active}</Text>
+      <Text style={[styles.branchStat, isLight ? { color: "#374151" } : null]}>{t("Progress")} {branch.inProgress}</Text>
+      <Text style={[styles.branchStatDone, isLight ? { color: "#166534" } : null]}>{t("Completed")} {branch.completed}</Text>
+      <Text style={[styles.branchStatUrgent, isLight ? { color: "#991B1B" } : null]}>{t("Urgency")} {branch.urgent}</Text>
     </View>
   </View>
 );

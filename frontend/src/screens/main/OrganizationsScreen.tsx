@@ -16,6 +16,7 @@ import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useAccessibility } from "../../context/AccessibilityContext";
 import { useAuth } from "../../context/AuthContext";
+import { useLanguage } from "../../context/LanguageContext";
 import { useThemeMode } from "../../context/ThemeModeContext";
 import { moduleApi } from "../../services/api";
 import type { RootStackParamList } from "../../navigation/types";
@@ -30,6 +31,7 @@ export const OrganizationsScreen = () => {
   const nav = useNavigation<Nav>();
   const { baseUrl, token, user } = useAuth();
   const { reduceMotion } = useAccessibility();
+  const { t, translateAddress, translateStatus, translateText } = useLanguage();
   const { theme } = useThemeMode();
   const isLight = theme.mode === "light";
   const lightPrimary = isLight ? { color: "#0B1220", fontWeight: "800" as const } : null;
@@ -139,7 +141,7 @@ export const OrganizationsScreen = () => {
   const createBranch = async () => {
     if (!user?.organization_id) return;
     if (!newBranchName.trim() || !newBranchLocation.trim()) {
-      setActionMessage("Branch name and location are required");
+      setActionMessage(t("Branch name and location are required"));
       return;
     }
 
@@ -152,14 +154,14 @@ export const OrganizationsScreen = () => {
         address: newBranchAddress.trim() || undefined,
         phone: newBranchPhone.trim() || undefined,
       });
-      setActionMessage("Branch created successfully");
+      setActionMessage(t("Branch created successfully"));
       setNewBranchName("");
       setNewBranchLocation("");
       setNewBranchAddress("");
       setNewBranchPhone("");
       await load();
     } catch (err) {
-      setActionMessage(err instanceof Error ? err.message : "Unable to create branch");
+      setActionMessage(err instanceof Error ? err.message : t("Unable to create branch"));
     } finally {
       setActionLoading(false);
     }
@@ -171,7 +173,7 @@ export const OrganizationsScreen = () => {
 
     const branchIdNum = Number(adminBranchId);
     if (!branchIdNum || !adminName.trim() || !adminEmail.trim() || adminPassword.length < 8) {
-      setActionMessage("Branch id, admin name, email and password (min 8) are required");
+      setActionMessage(t("Branch id, admin name, email and password (min 8) are required"));
       return;
     }
 
@@ -200,11 +202,11 @@ export const OrganizationsScreen = () => {
     try {
       await overwriteAdminForBranch();
 
-      setActionMessage(`Admin updated for branch #${branchIdNum}`);
+      setActionMessage(`${t("Admin updated for branch")} #${branchIdNum}`);
       clearAdminForm();
       await load();
     } catch (err) {
-      setActionMessage(err instanceof Error ? err.message : "Unable to update admin");
+      setActionMessage(err instanceof Error ? err.message : t("Unable to update admin"));
     } finally {
       setActionLoading(false);
     }
@@ -213,7 +215,7 @@ export const OrganizationsScreen = () => {
   const deleteBranch = async () => {
     const branchIdNum = Number(deleteBranchId);
     if (!branchIdNum) {
-      setActionMessage("Enter a valid branch id");
+      setActionMessage(t("Enter a valid branch id"));
       return;
     }
 
@@ -222,25 +224,25 @@ export const OrganizationsScreen = () => {
       setActionMessage("");
       try {
         await moduleApi.deactivateOrganization(baseUrl, token, branchIdNum);
-        setActionMessage("Branch deleted successfully");
+        setActionMessage(t("Branch deleted successfully"));
         setDeleteBranchId("");
         await load();
       } catch (err) {
-        setActionMessage(err instanceof Error ? err.message : "Unable to delete branch");
+        setActionMessage(err instanceof Error ? err.message : t("Unable to delete branch"));
       } finally {
         setActionLoading(false);
       }
     };
 
     if (Platform.OS === "web") {
-      const ok = window.confirm(`Delete branch #${branchIdNum}?`);
+      const ok = window.confirm(`${t("Delete branch")} #${branchIdNum}?`);
       if (ok) await doDelete();
       return;
     }
 
-    Alert.alert("Delete Branch", `Delete branch #${branchIdNum}?`, [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => void doDelete() },
+    Alert.alert(t("Delete Branch"), `${t("Delete branch")} #${branchIdNum}?`, [
+      { text: t("Cancel"), style: "cancel" },
+      { text: t("Delete"), style: "destructive", onPress: () => void doDelete() },
     ]);
   };
 
@@ -262,14 +264,14 @@ export const OrganizationsScreen = () => {
         >
           <View style={styles.headerRow}>
             <View>
-              <Text style={[styles.pageTitle, lightPrimary]}>Organizations</Text>
-              <Text style={[styles.pageSubtitle, lightSecondary]}>Manage branches and branch admins</Text>
+              <Text style={[styles.pageTitle, lightPrimary]}>{t("Organizations")}</Text>
+              <Text style={[styles.pageSubtitle, lightSecondary]}>{t("Manage branches and branch admins")}</Text>
             </View>
           </View>
 
           {canManage ? (
             <View style={[styles.formCard, lightCard]}>
-              <Text style={[styles.formTitle, lightPrimary]}>Branch Actions</Text>
+              <Text style={[styles.formTitle, lightPrimary]}>{t("Branch Actions")}</Text>
               <View style={styles.actionRow}>
                 <Pressable
                   style={[styles.actionBtn, showCreateForm && styles.actionBtnActive]}
@@ -280,7 +282,7 @@ export const OrganizationsScreen = () => {
                     setActionMessage("");
                   }}
                 >
-                  <Text style={[styles.actionBtnText, lightPrimary]}>Create Branch</Text>
+                  <Text style={[styles.actionBtnText, lightPrimary]}>{t("Create Branch")}</Text>
                 </Pressable>
 
                 <Pressable
@@ -292,7 +294,7 @@ export const OrganizationsScreen = () => {
                     setActionMessage("");
                   }}
                 >
-                  <Text style={[styles.actionBtnText, lightPrimary]}>Update Admin Details</Text>
+                  <Text style={[styles.actionBtnText, lightPrimary]}>{t("Update Admin Details")}</Text>
                 </Pressable>
 
                 <Pressable
@@ -304,27 +306,27 @@ export const OrganizationsScreen = () => {
                     setActionMessage("");
                   }}
                 >
-                  <Text style={[styles.actionBtnText, lightPrimary]}>Delete Branch</Text>
+                  <Text style={[styles.actionBtnText, lightPrimary]}>{t("Delete Branch")}</Text>
                 </Pressable>
               </View>
 
               {showCreateForm && canCreateOrDeleteBranch ? (
                 <View style={styles.formFields}>
-                  <Text style={[styles.label, lightSecondary]}>Branch Name</Text>
-                  <TextInput style={[styles.input, lightInput]} value={newBranchName} onChangeText={setNewBranchName} placeholder="NeedMap East Branch" placeholderTextColor={isLight ? "#374151" : "#6B6B8A"} />
+                  <Text style={[styles.label, lightSecondary]}>{t("Branch Name")}</Text>
+                  <TextInput style={[styles.input, lightInput]} value={newBranchName} onChangeText={setNewBranchName} placeholder={t("NeedMap East Branch")} placeholderTextColor={isLight ? "#374151" : "#6B6B8A"} />
 
-                  <Text style={[styles.label, lightSecondary]}>Branch Location</Text>
-                  <TextInput style={[styles.input, lightInput]} value={newBranchLocation} onChangeText={setNewBranchLocation} placeholder="Naini, Prayagraj" placeholderTextColor={isLight ? "#374151" : "#6B6B8A"} />
+                  <Text style={[styles.label, lightSecondary]}>{t("Branch Location")}</Text>
+                  <TextInput style={[styles.input, lightInput]} value={newBranchLocation} onChangeText={setNewBranchLocation} placeholder={t("Naini, Prayagraj")} placeholderTextColor={isLight ? "#374151" : "#6B6B8A"} />
 
-                  <Text style={[styles.label, lightSecondary]}>Branch Address</Text>
-                  <TextInput style={[styles.input, lightInput]} value={newBranchAddress} onChangeText={setNewBranchAddress} placeholder="Full branch address" placeholderTextColor={isLight ? "#374151" : "#6B6B8A"} />
+                  <Text style={[styles.label, lightSecondary]}>{t("Branch Address")}</Text>
+                  <TextInput style={[styles.input, lightInput]} value={newBranchAddress} onChangeText={setNewBranchAddress} placeholder={t("Full branch address")} placeholderTextColor={isLight ? "#374151" : "#6B6B8A"} />
 
-                  <Text style={[styles.label, lightSecondary]}>Branch Phone</Text>
+                  <Text style={[styles.label, lightSecondary]}>{t("Branch Phone")}</Text>
                   <TextInput style={[styles.input, lightInput]} value={newBranchPhone} onChangeText={setNewBranchPhone} placeholder="+91XXXXXXXXXX" placeholderTextColor={isLight ? "#374151" : "#6B6B8A"} />
 
                   <Pressable style={[styles.submitBtn, actionLoading && styles.disabledBtn]} disabled={actionLoading} onPress={createBranch}>
                     <LinearGradient colors={["#667EEA", "#764BA2"]} style={styles.submitGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-                      <Text style={[styles.submitText, isLight ? { color: "#0B1220", fontWeight: "900" } : null]}>{actionLoading ? "Creating..." : "Create Branch"}</Text>
+                      <Text style={[styles.submitText, isLight ? { color: "#0B1220", fontWeight: "900" } : null]}>{actionLoading ? t("Creating...") : t("Create Branch")}</Text>
                     </LinearGradient>
                   </Pressable>
                 </View>
@@ -332,24 +334,24 @@ export const OrganizationsScreen = () => {
 
               {showUpdateAdminForm ? (
                 <View style={styles.formFields}>
-                  <Text style={[styles.label, lightSecondary]}>Branch ID</Text>
-                  <TextInput style={[styles.input, lightInput]} value={adminBranchId} onChangeText={setAdminBranchId} keyboardType="numeric" placeholder="Enter branch id" placeholderTextColor={isLight ? "#374151" : "#6B6B8A"} />
+                  <Text style={[styles.label, lightSecondary]}>{t("Branch ID")}</Text>
+                  <TextInput style={[styles.input, lightInput]} value={adminBranchId} onChangeText={setAdminBranchId} keyboardType="numeric" placeholder={t("Enter branch id")} placeholderTextColor={isLight ? "#374151" : "#6B6B8A"} />
 
-                  <Text style={[styles.label, lightSecondary]}>Admin Name</Text>
-                  <TextInput style={[styles.input, lightInput]} value={adminName} onChangeText={setAdminName} placeholder="Admin full name" placeholderTextColor={isLight ? "#374151" : "#6B6B8A"} />
+                  <Text style={[styles.label, lightSecondary]}>{t("Admin Name")}</Text>
+                  <TextInput style={[styles.input, lightInput]} value={adminName} onChangeText={setAdminName} placeholder={t("Admin full name")} placeholderTextColor={isLight ? "#374151" : "#6B6B8A"} />
 
-                  <Text style={[styles.label, lightSecondary]}>Admin Email</Text>
+                  <Text style={[styles.label, lightSecondary]}>{t("Admin Email")}</Text>
                   <TextInput style={[styles.input, lightInput]} value={adminEmail} onChangeText={setAdminEmail} autoCapitalize="none" keyboardType="email-address" placeholder="admin@example.com" placeholderTextColor={isLight ? "#374151" : "#6B6B8A"} />
 
-                  <Text style={[styles.label, lightSecondary]}>Admin Password</Text>
-                  <TextInput style={[styles.input, lightInput]} value={adminPassword} onChangeText={setAdminPassword} secureTextEntry placeholder="Minimum 8 characters" placeholderTextColor={isLight ? "#374151" : "#6B6B8A"} />
+                  <Text style={[styles.label, lightSecondary]}>{t("Admin Password")}</Text>
+                  <TextInput style={[styles.input, lightInput]} value={adminPassword} onChangeText={setAdminPassword} secureTextEntry placeholder={t("Minimum 8 characters")} placeholderTextColor={isLight ? "#374151" : "#6B6B8A"} />
 
-                  <Text style={[styles.label, lightSecondary]}>Admin Phone (optional)</Text>
+                  <Text style={[styles.label, lightSecondary]}>{t("Admin Phone (optional)")}</Text>
                   <TextInput style={[styles.input, lightInput]} value={adminPhone} onChangeText={setAdminPhone} placeholder="+91XXXXXXXXXX" placeholderTextColor={isLight ? "#374151" : "#6B6B8A"} />
 
                   <Pressable style={[styles.submitBtn, actionLoading && styles.disabledBtn]} disabled={actionLoading} onPress={updateBranchAdmin}>
                     <LinearGradient colors={["#667EEA", "#764BA2"]} style={styles.submitGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-                      <Text style={[styles.submitText, isLight ? { color: "#0B1220", fontWeight: "900" } : null]}>{actionLoading ? "Updating..." : "Update Admin"}</Text>
+                      <Text style={[styles.submitText, isLight ? { color: "#0B1220", fontWeight: "900" } : null]}>{actionLoading ? t("Updating...") : t("Update Admin")}</Text>
                     </LinearGradient>
                   </Pressable>
                 </View>
@@ -357,11 +359,11 @@ export const OrganizationsScreen = () => {
 
               {showDeleteForm && canCreateOrDeleteBranch ? (
                 <View style={styles.formFields}>
-                  <Text style={[styles.label, lightSecondary]}>Branch ID</Text>
-                  <TextInput style={[styles.input, lightInput]} value={deleteBranchId} onChangeText={setDeleteBranchId} keyboardType="numeric" placeholder="Enter branch id to delete" placeholderTextColor={isLight ? "#374151" : "#6B6B8A"} />
+                  <Text style={[styles.label, lightSecondary]}>{t("Branch ID")}</Text>
+                  <TextInput style={[styles.input, lightInput]} value={deleteBranchId} onChangeText={setDeleteBranchId} keyboardType="numeric" placeholder={t("Enter branch id to delete")} placeholderTextColor={isLight ? "#374151" : "#6B6B8A"} />
 
                   <Pressable style={[styles.deleteBtn, actionLoading && styles.disabledBtn]} disabled={actionLoading} onPress={deleteBranch}>
-                    <Text style={styles.deleteBtnText}>{actionLoading ? "Deleting..." : "Delete Branch"}</Text>
+                    <Text style={styles.deleteBtnText}>{actionLoading ? t("Deleting...") : t("Delete Branch")}</Text>
                   </Pressable>
                 </View>
               ) : null}
@@ -371,29 +373,29 @@ export const OrganizationsScreen = () => {
           ) : null}
 
           <View style={styles.listHeader}>
-            <Text style={[styles.listTitle, lightPrimary]}>Branch List</Text>
-            <Text style={[styles.listCount, lightSecondary]}>{filteredBranches.length} shown</Text>
+            <Text style={[styles.listTitle, lightPrimary]}>{t("Branch List")}</Text>
+            <Text style={[styles.listCount, lightSecondary]}>{filteredBranches.length} {t("shown")}</Text>
           </View>
 
           <View style={styles.filterRow}>
             <View style={[styles.filterCol, { flex: 1.4 }]}> 
-              <Text style={[styles.filterLabel, lightSecondary]}>Search</Text>
+              <Text style={[styles.filterLabel, lightSecondary]}>{t("Search")}</Text>
               <TextInput
                 style={[styles.filterInput, lightInput]}
                 value={filterText}
                 onChangeText={setFilterText}
-                placeholder="Name, location or address"
+                placeholder={t("Name, location or address")}
                 placeholderTextColor={isLight ? "#374151" : "#6B6B8A"}
               />
             </View>
 
             <View style={styles.filterCol}>
-              <Text style={[styles.filterLabel, lightSecondary]}>Status</Text>
+              <Text style={[styles.filterLabel, lightSecondary]}>{t("Status")}</Text>
               <Pressable
                 style={[styles.filterSelectBtn, lightInput]}
                 onPress={() => setShowStatusDropdown((prev) => !prev)}
               >
-                <Text style={[styles.filterSelectText, lightPrimary]}>{statusFilter}</Text>
+                <Text style={[styles.filterSelectText, lightPrimary]}>{t(statusFilter)}</Text>
                 <Text style={[styles.filterChevron, lightPrimary]}>▼</Text>
               </Pressable>
               {showStatusDropdown ? (
@@ -407,7 +409,7 @@ export const OrganizationsScreen = () => {
                         setShowStatusDropdown(false);
                       }}
                     >
-                      <Text style={[styles.filterOptionText, lightPrimary]}>{s}</Text>
+                      <Text style={[styles.filterOptionText, lightPrimary]}>{t(s)}</Text>
                     </Pressable>
                   ))}
                 </View>
@@ -420,26 +422,26 @@ export const OrganizationsScreen = () => {
             return (
               <Pressable key={branch.id} style={[styles.branchCard, lightCard]} onPress={() => nav.navigate("BranchDetail", { branchId: branch.id })}>
                 <View style={styles.branchHeader}>
-                  <Text style={[styles.branchTitle, lightPrimary]} numberOfLines={1}>{branch.organization_name}</Text>
+                  <Text style={[styles.branchTitle, lightPrimary]} numberOfLines={2}>{translateText(branch.organization_name)}</Text>
                   <View style={[styles.statusBadge, branch.is_active ? styles.activeBadge : styles.inactiveBadge]}>
                     <Text style={[styles.statusText, branch.is_active ? styles.activeText : styles.inactiveText]}>
-                      {branch.is_active ? "ACTIVE" : "INACTIVE"}
+                      {translateStatus(branch.is_active ? "ACTIVE" : "INACTIVE")}
                     </Text>
                   </View>
                 </View>
-                <Text style={[styles.branchMeta, lightSecondary]}><Text style={[styles.branchMetaStrong, lightPrimary]}>Branch ID:</Text> #{branch.id}</Text>
-                <Text style={[styles.branchMeta, lightSecondary]}><Text style={[styles.branchMetaStrong, lightPrimary]}>Location:</Text> {branch.branch_location || "No location"}</Text>
-                <Text style={[styles.branchMeta, lightSecondary]}><Text style={[styles.branchMetaStrong, lightPrimary]}>Address:</Text> {branch.address || "No address"}</Text>
-                <Text style={[styles.branchMeta, lightSecondary]}><Text style={[styles.branchMetaStrong, lightPrimary]}>Admin:</Text> {admin ? `${admin.user_name} (${admin.email})` : "Not assigned"}</Text>
-                <Text style={[styles.branchHint, lightPrimary]}>Tap to view branch details</Text>
+                <Text style={[styles.branchMeta, lightSecondary]}><Text style={[styles.branchMetaStrong, lightPrimary]}>{t("Branch ID")}:</Text> #{branch.id}</Text>
+                <Text style={[styles.branchMeta, lightSecondary]}><Text style={[styles.branchMetaStrong, lightPrimary]}>{t("Location")}:</Text> {branch.branch_location ? translateAddress(branch.branch_location) : t("No location")}</Text>
+                <Text style={[styles.branchMeta, lightSecondary]}><Text style={[styles.branchMetaStrong, lightPrimary]}>{t("Address")}:</Text> {branch.address ? translateAddress(branch.address) : t("No address")}</Text>
+                <Text style={[styles.branchMeta, lightSecondary]}><Text style={[styles.branchMetaStrong, lightPrimary]}>{t("Admin")}:</Text> {admin ? `${admin.user_name} (${admin.email})` : t("Not assigned")}</Text>
+                <Text style={[styles.branchHint, lightPrimary]}>{t("Tap to view branch details")}</Text>
               </Pressable>
             );
           })}
 
           {filteredBranches.length === 0 && !refreshing ? (
             <View style={[styles.emptyCard, lightCard]}>
-              <Text style={[styles.emptyTitle, lightPrimary]}>No branches found</Text>
-              <Text style={[styles.emptyMeta, lightSecondary]}>Try changing filters or create a new branch.</Text>
+              <Text style={[styles.emptyTitle, lightPrimary]}>{t("No branches found")}</Text>
+              <Text style={[styles.emptyMeta, lightSecondary]}>{t("Try changing filters or create a new branch.")}</Text>
             </View>
           ) : null}
         </ScrollView>
@@ -579,13 +581,14 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 10,
   },
-  branchHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
-  branchTitle: { color: "#FFFFFF", fontSize: 17, fontWeight: "800", flex: 1 },
+  branchHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 },
+  branchTitle: { color: "#FFFFFF", fontSize: 17, fontWeight: "800", lineHeight: 23, flex: 1, flexShrink: 1, minWidth: 0 },
   statusBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
     borderWidth: 1,
+    flexShrink: 0,
   },
   statusText: { fontSize: 11, fontWeight: "800", letterSpacing: 0.4 },
   activeBadge: { backgroundColor: "rgba(46,204,113,0.18)", borderColor: "rgba(46,204,113,0.5)" },

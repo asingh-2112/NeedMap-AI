@@ -12,6 +12,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { useAccessibility } from "../../context/AccessibilityContext";
 import { useAuth } from "../../context/AuthContext";
+import { useLanguage } from "../../context/LanguageContext";
 import { colors, fonts } from "../../theme";
 
 type Props = {
@@ -20,6 +21,7 @@ type Props = {
 
 export const OrganizationSignupScreen = ({ onBack }: Props) => {
   const { registerOrganization, loading, baseUrl } = useAuth();
+  const { t } = useLanguage();
   const { highContrast, reduceMotion, screenReaderOptimized, textScale, touchTarget } = useAccessibility();
 
   const [organizationName, setOrganizationName] = useState("");
@@ -86,8 +88,8 @@ export const OrganizationSignupScreen = ({ onBack }: Props) => {
         ownerPassword,
       });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Organization signup failed";
-      Alert.alert("Organization signup failed", `${msg}\n\nBackend URL: ${baseUrl}`);
+      const msg = err instanceof Error ? err.message : t("Organization signup failed");
+      Alert.alert(t("Organization signup failed"), `${msg}\n\n${t("Backend URL")}: ${baseUrl}`);
     }
   };
 
@@ -103,33 +105,33 @@ export const OrganizationSignupScreen = ({ onBack }: Props) => {
       <Animated.View style={[styles.blob, styles.blobB, { transform: [{ translateY: lift }] }]} />
 
       <View style={styles.container}>
-        <Text style={[styles.title, textStyle(34, 40)]}>Register Organization</Text>
-        <Text style={[styles.subtitle, textStyle(14, 20)]}>Create org + first owner account in one step.</Text>
+        <Text style={[styles.title, textStyle(34, 40)]}>{t("Register Organization")}</Text>
+        <Text style={[styles.subtitle, textStyle(14, 20)]}>{t("Create org + first owner account in one step.")}</Text>
 
-        <Text style={[styles.label, textStyle(14, 19)]}>Organization Name</Text>
-        <TextInput style={[styles.input, touchStyle, highContrastInput, textStyle(14, 19)]} value={organizationName} onChangeText={setOrganizationName} placeholder="Hope Foundation" placeholderTextColor={colors.muted} accessibilityLabel="Organization name" />
+        <Text style={[styles.label, textStyle(14, 19)]}>{t("Organization Name")}</Text>
+        <TextInput style={[styles.input, touchStyle, highContrastInput, textStyle(14, 19)]} value={organizationName} onChangeText={setOrganizationName} placeholder={t("Hope Foundation")} placeholderTextColor={colors.muted} accessibilityLabel={t("Organization name")} />
 
-        <Text style={[styles.label, textStyle(14, 19)]}>Address (optional)</Text>
-        <TextInput style={[styles.input, touchStyle, highContrastInput, textStyle(14, 19)]} value={address} onChangeText={setAddress} placeholder="12 Main Street" placeholderTextColor={colors.muted} accessibilityLabel="Organization address" />
+        <Text style={[styles.label, textStyle(14, 19)]}>{t("Address (optional)")}</Text>
+        <TextInput style={[styles.input, touchStyle, highContrastInput, textStyle(14, 19)]} value={address} onChangeText={setAddress} placeholder={t("12 Main Street")} placeholderTextColor={colors.muted} accessibilityLabel={t("Organization address")} />
 
-        <Text style={[styles.label, textStyle(14, 19)]}>Phone (optional)</Text>
-        <TextInput style={[styles.input, touchStyle, highContrastInput, textStyle(14, 19)]} value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholder="+91XXXXXXXXXX" placeholderTextColor={colors.muted} accessibilityLabel="Organization phone" />
+        <Text style={[styles.label, textStyle(14, 19)]}>{t("Phone (optional)")}</Text>
+        <TextInput style={[styles.input, touchStyle, highContrastInput, textStyle(14, 19)]} value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholder="+91XXXXXXXXXX" placeholderTextColor={colors.muted} accessibilityLabel={t("Organization phone")} />
 
-        <Text style={[styles.label, textStyle(14, 19)]}>Owner Name</Text>
-        <TextInput style={[styles.input, touchStyle, highContrastInput, textStyle(14, 19)]} value={ownerName} onChangeText={setOwnerName} placeholder="Owner full name" placeholderTextColor={colors.muted} accessibilityLabel="Owner full name" />
+        <Text style={[styles.label, textStyle(14, 19)]}>{t("Owner Name")}</Text>
+        <TextInput style={[styles.input, touchStyle, highContrastInput, textStyle(14, 19)]} value={ownerName} onChangeText={setOwnerName} placeholder={t("Owner full name")} placeholderTextColor={colors.muted} accessibilityLabel={t("Owner full name")} />
 
-        <Text style={[styles.label, textStyle(14, 19)]}>Owner Email</Text>
-        <TextInput style={[styles.input, touchStyle, highContrastInput, textStyle(14, 19)]} value={ownerEmail} onChangeText={setOwnerEmail} autoCapitalize="none" keyboardType="email-address" placeholder="owner@example.com" placeholderTextColor={colors.muted} accessibilityLabel="Owner email" />
+        <Text style={[styles.label, textStyle(14, 19)]}>{t("Owner Email")}</Text>
+        <TextInput style={[styles.input, touchStyle, highContrastInput, textStyle(14, 19)]} value={ownerEmail} onChangeText={setOwnerEmail} autoCapitalize="none" keyboardType="email-address" placeholder="owner@example.com" placeholderTextColor={colors.muted} accessibilityLabel={t("Owner email")} />
 
-        <Text style={[styles.label, textStyle(14, 19)]}>Owner Password</Text>
-        <TextInput style={[styles.input, touchStyle, highContrastInput, textStyle(14, 19)]} value={ownerPassword} onChangeText={setOwnerPassword} secureTextEntry placeholder="Min 8 characters" placeholderTextColor={colors.muted} accessibilityLabel="Owner password" />
+        <Text style={[styles.label, textStyle(14, 19)]}>{t("Owner Password")}</Text>
+        <TextInput style={[styles.input, touchStyle, highContrastInput, textStyle(14, 19)]} value={ownerPassword} onChangeText={setOwnerPassword} secureTextEntry placeholder={t("Min 8 characters")} placeholderTextColor={colors.muted} accessibilityLabel={t("Owner password")} />
 
-        <Pressable style={[styles.primary, touchStyle, disabled && styles.disabled]} disabled={disabled} onPress={onSubmit} accessibilityRole="button" accessibilityLabel={screenReaderOptimized ? "Register organization" : undefined}>
-          {loading ? <ActivityIndicator color={colors.textStrong} /> : <Text style={[styles.primaryText, textStyle(16, 21)]}>Register Organization</Text>}
+        <Pressable style={[styles.primary, touchStyle, disabled && styles.disabled]} disabled={disabled} onPress={onSubmit} accessibilityRole="button" accessibilityLabel={screenReaderOptimized ? t("Register organization") : undefined}>
+          {loading ? <ActivityIndicator color={colors.textStrong} /> : <Text style={[styles.primaryText, textStyle(16, 21)]}>{t("Register Organization")}</Text>}
         </Pressable>
 
         <Pressable style={[styles.secondary, touchStyle]} onPress={onBack} accessibilityRole="button">
-          <Text style={[styles.secondaryText, textStyle(14, 19)]}>Back</Text>
+          <Text style={[styles.secondaryText, textStyle(14, 19)]}>{t("Back")}</Text>
         </Pressable>
       </View>
     </View>

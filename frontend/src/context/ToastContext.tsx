@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { useAccessibility } from "./AccessibilityContext";
 import { colors } from "../theme";
@@ -7,36 +7,48 @@ import { subscribeToToasts, type ToastPayload } from "../services/toast";
 type VisibleToast = ToastPayload & { id: number };
 
 export const ToastProvider = ({ children }: { children: ReactNode }) => {
-  const { highContrast, screenReaderOptimized, textScale, touchTarget } = useAccessibility();
+  const { highContrast, reduceMotion, screenReaderOptimized, textScale, touchTarget } = useAccessibility();
   const [toast, setToast] = useState<VisibleToast | null>(null);
   const fade = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(-12)).current;
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const hideToast = () => {
+  const hideToast = useCallback(() => {
     if (timerRef.current) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
     }
+    if (reduceMotion) {
+      fade.setValue(0);
+      translateY.setValue(0);
+      setToast(null);
+      return;
+    }
+
     Animated.parallel([
       Animated.timing(fade, { toValue: 0, duration: 160, useNativeDriver: true }),
       Animated.timing(translateY, { toValue: -12, duration: 160, useNativeDriver: true }),
     ]).start(() => setToast(null));
-  };
+  }, [fade, reduceMotion, translateY]);
 
   useEffect(() => subscribeToToasts((nextToast) => {
     if (timerRef.current) clearTimeout(timerRef.current);
 
     setToast({ ...nextToast, id: Date.now() });
-    fade.setValue(0);
-    translateY.setValue(-12);
+    fade.setValue(reduceMotion ? 1 : 0);
+    translateY.setValue(reduceMotion ? 0 : -12);
+    if (reduceMotion) {
+      timerRef.current = setTimeout(hideToast, nextToast.durationMs ?? 3200);
+      return;
+    }
+
     Animated.parallel([
       Animated.timing(fade, { toValue: 1, duration: 180, useNativeDriver: true }),
       Animated.spring(translateY, { toValue: 0, tension: 80, friction: 9, useNativeDriver: true }),
     ]).start();
 
     timerRef.current = setTimeout(hideToast, nextToast.durationMs ?? 3200);
-  }), [fade, translateY]);
+  }), [fade, hideToast, reduceMotion, translateY]);
 
   useEffect(() => () => {
     if (timerRef.current) clearTimeout(timerRef.current);

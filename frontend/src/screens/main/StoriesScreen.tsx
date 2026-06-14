@@ -13,6 +13,7 @@ import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { FadeInView } from "../../components/FadeInView";
 import { useAccessibility } from "../../context/AccessibilityContext";
+import { useLanguage } from "../../context/LanguageContext";
 import { STORIES } from "./stories";
 import type { RootStackParamList } from "../../navigation/types";
 import { colors } from "../../theme";
@@ -22,6 +23,7 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 export const StoriesScreen = () => {
   const nav = useNavigation<Nav>();
   const { highContrast, reduceMotion, screenReaderOptimized, textScale, touchTarget } = useAccessibility();
+  const { t } = useLanguage();
   const floatA = useRef(new Animated.Value(0)).current;
   const floatB = useRef(new Animated.Value(0)).current;
 
@@ -66,21 +68,21 @@ export const StoriesScreen = () => {
         showsVerticalScrollIndicator={false}
       >
         <Text style={[styles.brand, textStyle(22, 28)]}>NeedMap AI</Text>
-        <Text style={[styles.title, textStyle(32, 38)]}>Story Highlights</Text>
-        <Text style={[styles.subtitle, textStyle(14, 20)]}>Image + one-line summary. Tap to open full details.</Text>
+        <Text style={[styles.title, textStyle(32, 38)]}>{t("Story Highlights")}</Text>
+        <Text style={[styles.subtitle, textStyle(14, 20)]}>{t("Image + one-line summary. Tap to open full details.")}</Text>
 
         {STORIES.map((story, idx) => (
           <FadeInView key={story.id} delay={60 + idx * 70} style={[styles.card, highContrast ? styles.highContrastCard : null]}>
-            <Pressable onPress={() => nav.navigate("StoryDetail", { storyId: story.id })} style={{ minHeight: touchTarget }} accessibilityRole="button" accessibilityLabel={screenReaderOptimized ? `Open story ${story.title}` : undefined}>
+            <Pressable onPress={() => nav.navigate("StoryDetail", { storyId: story.id })} style={{ minHeight: touchTarget }} accessibilityRole="button" accessibilityLabel={screenReaderOptimized ? `${t("Open")} ${t(story.title)}` : undefined}>
               <Image source={{ uri: story.image }} style={styles.image} />
-              <Text style={[styles.cardTitle, textStyle(18, 23)]}>{story.title}</Text>
+              <Text style={[styles.cardTitle, textStyle(18, 23)]}>{t(story.title)}</Text>
               <Text numberOfLines={1} style={[styles.meta, textStyle(14, 19)]}>
-                {story.shortDescription}
+                {t(story.shortDescription)}
               </Text>
               <Text style={[styles.location, textStyle(12, 17)]}>
-                {story.location} • {story.updatedAt}
+                {t("Location")}: {t(story.location)} · {t("Updated")}: {t(story.updatedAt)}
               </Text>
-              <Text style={[styles.readMore, textStyle(14, 19)]}>Read full story</Text>
+              <Text style={[styles.readMore, textStyle(14, 19)]}>{t("Read full story")}</Text>
             </Pressable>
           </FadeInView>
         ))}

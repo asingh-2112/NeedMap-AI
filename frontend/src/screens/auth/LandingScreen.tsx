@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAccessibility } from "../../context/AccessibilityContext";
+import { useLanguage } from "../../context/LanguageContext";
 import { fonts } from "../../theme";
 
 type Props = {
@@ -19,6 +20,7 @@ type Props = {
 
 export const LandingScreen = ({ onLogin, onVolunteerSignup }: Props) => {
   const { highContrast, reduceMotion, screenReaderOptimized, textScale, touchTarget } = useAccessibility();
+  const { t } = useLanguage();
   const fadeIn = useRef(new Animated.Value(0)).current;
   const slideUp = useRef(new Animated.Value(50)).current;
 
@@ -74,43 +76,43 @@ export const LandingScreen = ({ onLogin, onVolunteerSignup }: Props) => {
           <View style={[styles.card, highContrast ? styles.highContrastCard : null]}>
             <Text style={[styles.title, textStyle(28, 34)]}>NeedMap AI</Text>
             <Text style={[styles.subtitle, textStyle(14, 21)]}>
-              Connecting volunteers with communities in need through AI-powered matching
+              {t("Connecting volunteers with communities in need through AI-powered matching")}
             </Text>
 
             {/* Stats Row */}
             <View style={styles.statsRow}>
               <View style={styles.statItem}>
                 <Text style={[styles.statNumber, textStyle(20, 25)]}>500+</Text>
-                <Text style={[styles.statLabel, textStyle(11, 15)]}>Volunteers</Text>
+                <Text style={[styles.statLabel, textStyle(11, 15)]}>{t("Volunteers")}</Text>
               </View>
               <View style={styles.statItem}>
                 <Text style={[styles.statNumber, textStyle(20, 25)]}>1.2K</Text>
-                <Text style={[styles.statLabel, textStyle(11, 15)]}>Needs Met</Text>
+                <Text style={[styles.statLabel, textStyle(11, 15)]}>{t("Needs Met")}</Text>
               </View>
               <View style={styles.statItem}>
                 <Text style={[styles.statNumber, textStyle(20, 25)]}>50+</Text>
-                <Text style={[styles.statLabel, textStyle(11, 15)]}>NGOs</Text>
+                <Text style={[styles.statLabel, textStyle(11, 15)]}>{t("NGOs")}</Text>
               </View>
             </View>
 
             {/* Buttons */}
-            <Pressable style={styles.primaryBtn} onPress={onLogin} accessibilityRole="button" accessibilityLabel={screenReaderOptimized ? "Login to NeedMap AI" : undefined}>
+            <Pressable style={styles.primaryBtn} onPress={onLogin} accessibilityRole="button" accessibilityLabel={screenReaderOptimized ? t("Login to NeedMap AI") : undefined}>
               <LinearGradient
                 colors={["#6C3CE1", "#4A00E0"]}
                 style={[styles.btnGradient, touchStyle]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
               >
-                <Text style={[styles.primaryBtnText, textStyle(16, 21)]}>Login</Text>
+                <Text style={[styles.primaryBtnText, textStyle(16, 21)]}>{t("Login")}</Text>
               </LinearGradient>
             </Pressable>
 
-            <Pressable style={[styles.secondaryBtn, touchStyle]} onPress={onVolunteerSignup} accessibilityRole="button" accessibilityLabel={screenReaderOptimized ? "Create volunteer account" : undefined}>
-              <Text style={[styles.secondaryBtnText, textStyle(16, 21)]}>Create Account</Text>
+            <Pressable style={[styles.secondaryBtn, touchStyle]} onPress={onVolunteerSignup} accessibilityRole="button" accessibilityLabel={screenReaderOptimized ? t("Create volunteer account") : undefined}>
+              <Text style={[styles.secondaryBtnText, textStyle(16, 21)]}>{t("Create Account")}</Text>
             </Pressable>
 
             <Text style={[styles.footerText, textStyle(12, 17)]}>
-              Making a difference, together 🌍
+              {t("Making a difference, together")}
             </Text>
           </View>
         </Animated.View>

@@ -16,6 +16,7 @@ import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useAccessibility } from "../../context/AccessibilityContext";
 import { useAuth } from "../../context/AuthContext";
+import { useLanguage } from "../../context/LanguageContext";
 import { useRealtime } from "../../context/RealtimeContext";
 import { useThemeMode } from "../../context/ThemeModeContext";
 import { apiRequest, moduleApi } from "../../services/api";
@@ -57,6 +58,7 @@ export const HomeScreen = () => {
   const { baseUrl, token, user } = useAuth();
   const { assignmentsVersion, needsVersion, volunteerRatingVersion } = useRealtime();
   const { reduceMotion } = useAccessibility();
+  const { t, translateAddress, translateCategory, translateStatus, translateText } = useLanguage();
   const { theme } = useThemeMode();
   const adminBranchId = user?.role === "admin" ? user?.managed_branch_id ?? null : null;
   const scopedOrganizationId = user?.role === "admin" ? adminBranchId ?? user?.organization_id : user?.organization_id;
@@ -317,14 +319,14 @@ export const HomeScreen = () => {
 
     const parseAreaFromAddress = (address: string | null | undefined) => {
       const parts = (address || "").split(",").map((part) => part.trim()).filter(Boolean);
-      return parts[0] || "Unknown Area";
+      return parts[0] || t("Unknown Area");
     };
 
     const parseCityFromAddress = (address: string | null | undefined) => {
       const parts = (address || "").split(",").map((part) => part.trim()).filter(Boolean);
       if (parts.length >= 3) return parts[parts.length - 3];
       if (parts.length >= 2) return parts[parts.length - 2];
-      return "Unknown City";
+      return t("Unknown City");
     };
 
     const buckets = new Map<string, AreaPreview>();
@@ -363,7 +365,7 @@ export const HomeScreen = () => {
     });
 
     return [...buckets.values()].sort((a, b) => b.total - a.total).slice(0, 4);
-  }, [mapNeeds, showNeedsOrganizationMap]);
+  }, [mapNeeds, showNeedsOrganizationMap, t]);
 
   const validBranchMarkers = useMemo(
     () =>
@@ -389,7 +391,7 @@ export const HomeScreen = () => {
   const webMapHtml = useMemo(() => {
     if (!location && !(showNeedsOrganizationMap && mapNeeds.length > 0)) return null;
     const markers = [
-      ...(location ? [{ lat: location.latitude, lng: location.longitude, label: "Headquarter / Current Location" }] : []),
+      ...(location ? [{ lat: location.latitude, lng: location.longitude, label: t("Headquarter / Current Location") }] : []),
       ...(isOrgOwner ? validBranchMarkers : []),
     ];
     const needsForMap = mapNeeds
@@ -399,8 +401,8 @@ export const HomeScreen = () => {
         lat: n.latitude,
         lng: n.longitude,
         status: n.status,
-        title: n.title,
-        description: n.description || "",
+        title: translateText(n.title),
+        description: translateText(n.description || ""),
         category: n.category,
         urgency: n.urgency,
         affected_count: n.affected_count ?? null,
@@ -408,7 +410,7 @@ export const HomeScreen = () => {
         created_at: n.created_at,
         area: (n.colony || n.street || "").trim(),
         city: (n.city || "").trim(),
-        address: n.address || "",
+        address: translateAddress(n.address),
       }));
     const organizationsForMap = mapOrganizations
       .map((organization) => {
@@ -420,8 +422,8 @@ export const HomeScreen = () => {
           id: organization.id,
           lat,
           lng,
-          name: organization.organization_name,
-          address: organization.address || "",
+          name: translateText(organization.organization_name),
+          address: translateAddress(organization.address),
           phone: organization.phone || "",
           is_branch: Boolean(organization.is_branch),
         };
@@ -442,6 +444,45 @@ export const HomeScreen = () => {
         tasks_completed: volunteer.tasks_completed,
         active_tasks: volunteer.active_tasks,
       }));
+    const mapLabels = {
+      need: t("Need"),
+      status: t("Status"),
+      category: t("Category"),
+      urgency: t("Urgency"),
+      affected: t("Affected"),
+      priority: t("Priority"),
+      address: t("Address"),
+      unknownLocation: t("Unknown location"),
+      notAvailable: t("Not available"),
+      openNeedDetails: t("Open need details"),
+      organizationPointer: t("Organization pointer"),
+      volunteerPointer: t("Volunteer pointer"),
+      type: t("Type"),
+      branchOrganization: t("Branch organization"),
+      partnerOrganization: t("Partner organization"),
+      areaOrganization: t("Area organization"),
+      phone: t("Phone"),
+      available: t("Available"),
+      busy: t("Busy"),
+      verified: t("Verified"),
+      area: t("Area"),
+      nearbyArea: t("Nearby area"),
+      tasks: t("Tasks"),
+      completed: t("completed"),
+      active: t("active"),
+      moreNeedsInThisArea: t("more needs in this area."),
+      colony: t("Colony"),
+      progress: t("Progress"),
+      done: t("Done"),
+      total: t("Total"),
+      topCategoryApiFilteredNeeds: t("Top Category: API filtered needs"),
+      needsHeatMap: t("NEEDS HEAT MAP"),
+      activeNeeds: t("Active Needs"),
+      inProgress: t("In Progress"),
+      intensityLowHigh: t("Intensity: Low to High"),
+      currentLocation: t("Current location"),
+      nearbyHighlightedAreas: t("Nearby highlighted areas are outlined in cyan."),
+    };
 
     return `<!doctype html>
 <html>
@@ -515,6 +556,7 @@ export const HomeScreen = () => {
       const needs = ${JSON.stringify(needsForMap)};
       const organizations = ${JSON.stringify(organizationsForMap)};
       const volunteers = ${JSON.stringify(volunteersForMap)};
+      const mapLabels = ${JSON.stringify(mapLabels)};
       const showAdminHeatmap = ${JSON.stringify(showNeedsOrganizationMap)};
       const currentLocation = ${JSON.stringify(location ? { lat: location.latitude, lng: location.longitude } : null)};
       const openFullMapView = false;
@@ -527,17 +569,17 @@ export const HomeScreen = () => {
       };
 
       const parseCityFromAddress = (address) => {
-        if (!address) return 'Unknown City';
+        if (!address) return mapLabels.notAvailable;
         const parts = String(address).split(',').map((p) => p.trim()).filter(Boolean);
         if (parts.length >= 3) return parts[parts.length - 3];
         if (parts.length >= 2) return parts[parts.length - 2];
-        return parts[0] || 'Unknown City';
+        return parts[0] || mapLabels.notAvailable;
       };
 
       const parseAreaFromAddress = (address) => {
-        if (!address) return 'Unknown Area';
+        if (!address) return mapLabels.notAvailable;
         const parts = String(address).split(',').map((p) => p.trim()).filter(Boolean);
-        return parts[0] || 'Unknown Area';
+        return parts[0] || mapLabels.notAvailable;
       };
 
       const hexToRgb = (hex) => {
@@ -556,9 +598,9 @@ export const HomeScreen = () => {
       };
 
       const statusConfig = {
-        active: { label: 'Active', color: '#EF4444', soft: '#FEE2E2', text: '#991B1B' },
-        in_progress: { label: 'In Progress', color: '#F59E0B', soft: '#FEF3C7', text: '#92400E' },
-        completed: { label: 'Completed', color: '#22C55E', soft: '#DCFCE7', text: '#166534' },
+        active: { label: mapLabels.active, color: '#EF4444', soft: '#FEE2E2', text: '#991B1B' },
+        in_progress: { label: mapLabels.inProgress, color: '#F59E0B', soft: '#FEF3C7', text: '#92400E' },
+        completed: { label: mapLabels.completed, color: '#22C55E', soft: '#DCFCE7', text: '#166534' },
       };
 
       const distanceKm = (a, b) => {
@@ -573,7 +615,7 @@ export const HomeScreen = () => {
       };
 
       const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
-      const formatText = (value) => String(value || 'Not available').replace(/_/g, ' ');
+      const formatText = (value) => String(value || mapLabels.notAvailable).replace(/_/g, ' ');
       const openNeedDetail = (needId) => {
         const message = { source: 'needmap-admin-map', type: 'openNeed', needId };
         let openedInAppWindow = false;
@@ -684,6 +726,11 @@ export const HomeScreen = () => {
       };
 
       const map = L.map('map', { zoomControl: true });
+      const hasUsableMapSize = () => {
+        const size = map.getSize();
+        const container = map.getContainer();
+        return size.x > 0 && size.y > 0 && container.clientWidth > 0 && container.clientHeight > 0;
+      };
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
         opacity: showAdminHeatmap ? 0.82 : 1,
@@ -701,7 +748,7 @@ export const HomeScreen = () => {
         );
       };
       const statusColors = { active: '#E63B2E', in_progress: '#F5A623', completed: '#4CAF50' };
-      const statusLabels = { active: 'Active', in_progress: 'In Progress', completed: 'Completed' };
+      const statusLabels = { active: mapLabels.active, in_progress: mapLabels.inProgress, completed: mapLabels.completed };
       const intensityColor = (status, intensity) => {
         const base = statusColors[status] || '#E63B2E';
         return interpolate('#F8FAFC', base, Math.max(0.35, intensity));
@@ -773,18 +820,18 @@ export const HomeScreen = () => {
 
       const needPopupHtml = (need) => {
         const status = normalizeStatus(need.status);
-        const affected = typeof need.affected_count === 'number' ? need.affected_count : 'Not available';
-        const score = typeof need.priority_score === 'number' ? need.priority_score.toFixed(2) : 'Not available';
+        const affected = typeof need.affected_count === 'number' ? need.affected_count : mapLabels.notAvailable;
+        const score = typeof need.priority_score === 'number' ? need.priority_score.toFixed(2) : mapLabels.notAvailable;
         return '<div class="need-popup">' +
-          '<div class="need-popup-title">' + escapeHtml(need.title || 'Need #' + need.id) + '</div>' +
+          '<div class="need-popup-title">' + escapeHtml(need.title || mapLabels.need + ' #' + need.id) + '</div>' +
           '<div class="need-popup-meta">' +
-            '<b>Status:</b> ' + escapeHtml(statusLabels[status] || formatText(need.status)) + '<br/>' +
-            '<b>Category:</b> ' + escapeHtml(formatText(need.category)) + '<br/>' +
-            '<b>Urgency:</b> ' + escapeHtml(formatText(need.urgency)) + '<br/>' +
-            '<b>Affected:</b> ' + escapeHtml(affected) + ' · <b>Priority:</b> ' + escapeHtml(score) + '<br/>' +
-            '<b>Address:</b> ' + escapeHtml(need.address || 'Unknown location') +
+            '<b>' + mapLabels.status + ':</b> ' + escapeHtml(statusLabels[status] || formatText(need.status)) + '<br/>' +
+            '<b>' + mapLabels.category + ':</b> ' + escapeHtml(formatText(need.category)) + '<br/>' +
+            '<b>' + mapLabels.urgency + ':</b> ' + escapeHtml(formatText(need.urgency)) + '<br/>' +
+            '<b>' + mapLabels.affected + ':</b> ' + escapeHtml(affected) + ' · <b>' + mapLabels.priority + ':</b> ' + escapeHtml(score) + '<br/>' +
+            '<b>' + mapLabels.address + ':</b> ' + escapeHtml(need.address || mapLabels.unknownLocation) +
           '</div>' +
-          '<button class="need-detail-btn" type="button" data-need-id="' + need.id + '" onclick="openNeedDetail(' + need.id + '); return false;">Open need details</button>' +
+          '<button class="need-detail-btn" type="button" data-need-id="' + need.id + '" onclick="openNeedDetail(' + need.id + '); return false;">' + mapLabels.openNeedDetails + '</button>' +
         '</div>';
       };
 
@@ -809,11 +856,11 @@ export const HomeScreen = () => {
             .bindPopup(
               '<div class="entity-popup">' +
                 '<div class="entity-title">' + escapeHtml(organization.name) + '</div>' +
-                '<div class="entity-kind">Organization pointer</div>' +
+                '<div class="entity-kind">' + mapLabels.organizationPointer + '</div>' +
                 '<div class="entity-meta">' +
-                  '<b>Type:</b> ' + (organization.is_branch ? 'Branch organization' : 'Partner organization') + '<br/>' +
-                  '<b>Address:</b> ' + escapeHtml(organization.address || 'Area organization') + '<br/>' +
-                  '<b>Phone:</b> ' + escapeHtml(organization.phone || 'Not available') +
+                  '<b>' + mapLabels.type + ':</b> ' + (organization.is_branch ? mapLabels.branchOrganization : mapLabels.partnerOrganization) + '<br/>' +
+                  '<b>' + mapLabels.address + ':</b> ' + escapeHtml(organization.address || mapLabels.areaOrganization) + '<br/>' +
+                  '<b>' + mapLabels.phone + ':</b> ' + escapeHtml(organization.phone || mapLabels.notAvailable) +
                 '</div>' +
               '</div>'
             );
@@ -825,12 +872,12 @@ export const HomeScreen = () => {
             .bindPopup(
               '<div class="entity-popup">' +
                 '<div class="entity-title">' + escapeHtml(volunteer.name) + '</div>' +
-                '<div class="entity-kind">Volunteer pointer</div>' +
+                '<div class="entity-kind">' + mapLabels.volunteerPointer + '</div>' +
                 '<div class="entity-meta">' +
-                  '<b>Status:</b> ' + (volunteer.availability ? 'Available' : 'Busy') + (volunteer.verified ? ' · Verified' : '') + '<br/>' +
-                  '<b>Area:</b> ' + escapeHtml([volunteer.area, volunteer.city].filter(Boolean).join(', ') || 'Nearby area') + '<br/>' +
-                  '<b>Tasks:</b> ' + volunteer.tasks_completed + ' completed · ' + volunteer.active_tasks + ' active<br/>' +
-                  '<b>Phone:</b> ' + escapeHtml(volunteer.phone || 'Not available') +
+                  '<b>' + mapLabels.status + ':</b> ' + (volunteer.availability ? mapLabels.available : mapLabels.busy) + (volunteer.verified ? ' · ' + mapLabels.verified : '') + '<br/>' +
+                  '<b>' + mapLabels.area + ':</b> ' + escapeHtml([volunteer.area, volunteer.city].filter(Boolean).join(', ') || mapLabels.nearbyArea) + '<br/>' +
+                  '<b>' + mapLabels.tasks + ':</b> ' + volunteer.tasks_completed + ' ' + mapLabels.completed + ' · ' + volunteer.active_tasks + ' ' + mapLabels.active + '<br/>' +
+                  '<b>' + mapLabels.phone + ':</b> ' + escapeHtml(volunteer.phone || mapLabels.notAvailable) +
                 '</div>' +
               '</div>'
             );
@@ -841,24 +888,24 @@ export const HomeScreen = () => {
         const sortedNeeds = [...area.needs].sort((a, b) => priorityWeight(b) - priorityWeight(a)).slice(0, 8);
         const rows = sortedNeeds.map((need) => {
           const status = normalizeStatus(need.status);
-          const affected = typeof need.affected_count === 'number' ? need.affected_count : 'Not available';
-          const score = typeof need.priority_score === 'number' ? need.priority_score.toFixed(2) : 'Not available';
+          const affected = typeof need.affected_count === 'number' ? need.affected_count : mapLabels.notAvailable;
+          const score = typeof need.priority_score === 'number' ? need.priority_score.toFixed(2) : mapLabels.notAvailable;
           const description = need.description ? '<div class="area-need-meta">' + escapeHtml(need.description) + '</div>' : '';
           return '<div class="area-need-item">' +
-            '<div class="area-need-title">' + escapeHtml(need.title || 'Need #' + need.id) + '</div>' +
+            '<div class="area-need-title">' + escapeHtml(need.title || mapLabels.need + ' #' + need.id) + '</div>' +
             '<div class="area-need-meta">' +
-              '<b>Status:</b> ' + escapeHtml(statusLabels[status] || formatText(need.status)) + '<br/>' +
-              '<b>Category:</b> ' + escapeHtml(formatText(need.category)) + ' · <b>Urgency:</b> ' + escapeHtml(formatText(need.urgency)) + '<br/>' +
-              '<b>Affected:</b> ' + escapeHtml(affected) + ' · <b>Priority:</b> ' + escapeHtml(score) + '<br/>' +
-              '<b>Address:</b> ' + escapeHtml(need.address || 'Unknown location') +
+              '<b>' + mapLabels.status + ':</b> ' + escapeHtml(statusLabels[status] || formatText(need.status)) + '<br/>' +
+              '<b>' + mapLabels.category + ':</b> ' + escapeHtml(formatText(need.category)) + ' · <b>' + mapLabels.urgency + ':</b> ' + escapeHtml(formatText(need.urgency)) + '<br/>' +
+              '<b>' + mapLabels.affected + ':</b> ' + escapeHtml(affected) + ' · <b>' + mapLabels.priority + ':</b> ' + escapeHtml(score) + '<br/>' +
+              '<b>' + mapLabels.address + ':</b> ' + escapeHtml(need.address || mapLabels.unknownLocation) +
             '</div>' +
             description +
-            '<button class="need-detail-btn" type="button" data-need-id="' + need.id + '" onclick="openNeedDetail(' + need.id + '); return false;">Open need details</button>' +
+            '<button class="need-detail-btn" type="button" data-need-id="' + need.id + '" onclick="openNeedDetail(' + need.id + '); return false;">' + mapLabels.openNeedDetails + '</button>' +
           '</div>';
         }).join('');
 
         const remaining = area.needs.length > sortedNeeds.length
-          ? '<div class="area-need-meta">+' + (area.needs.length - sortedNeeds.length) + ' more needs in this area.</div>'
+          ? '<div class="area-need-meta">+' + (area.needs.length - sortedNeeds.length) + ' ' + mapLabels.moreNeedsInThisArea + '</div>'
           : '';
         return '<div class="area-needs-list">' + rows + remaining + '</div>';
       };
@@ -872,13 +919,13 @@ export const HomeScreen = () => {
         const panel = document.getElementById('areaInfoPanel');
         if (!panel) return;
         panel.innerHTML =
-          '<div class="info-title">Colony: ' + escapeHtml(area.area) + '</div>' +
+          '<div class="info-title">' + mapLabels.colony + ': ' + escapeHtml(area.area) + '</div>' +
           '<div class="info-city">' + escapeHtml(area.city) + '</div>' +
-          row('Active', area.active, statusColors.active) +
-          row('Progress', area.in_progress, statusColors.in_progress) +
-          row('Done', area.completed, statusColors.completed) +
-          '<div style="border-top:1px solid #E2E8F0;margin-top:10px;padding-top:9px;font-weight:900;">Total: ' + area.total + '</div>' +
-          '<div style="color:#64748B;font-size:10px;font-weight:800;margin-top:5px;">Top Category: API filtered needs</div>';
+          row(mapLabels.active, area.active, statusColors.active) +
+          row(mapLabels.progress, area.in_progress, statusColors.in_progress) +
+          row(mapLabels.done, area.completed, statusColors.completed) +
+          '<div style="border-top:1px solid #E2E8F0;margin-top:10px;padding-top:9px;font-weight:900;">' + mapLabels.total + ': ' + area.total + '</div>' +
+          '<div style="color:#64748B;font-size:10px;font-weight:800;margin-top:5px;">' + mapLabels.topCategoryApiFilteredNeeds + '</div>';
       };
 
       const updateLegend = (sourceNeeds) => {
@@ -889,13 +936,13 @@ export const HomeScreen = () => {
         const legend = document.getElementById('heatLegend');
         if (!legend) return;
         legend.innerHTML =
-          '<div style="font-weight:900;margin-bottom:9px;">NEEDS HEAT MAP</div>' +
+          '<div style="font-weight:900;margin-bottom:9px;">' + mapLabels.needsHeatMap + '</div>' +
           '<div style="display:grid;gap:7px;">' +
-            '<div><span style="background:' + statusColors.active + ';display:inline-block;height:12px;margin-right:7px;width:12px;"></span>Active Needs <strong>(' + summary.active + ')</strong></div>' +
-            '<div><span style="background:' + statusColors.in_progress + ';display:inline-block;height:12px;margin-right:7px;width:12px;"></span>In Progress <strong>(' + summary.in_progress + ')</strong></div>' +
-            '<div><span style="background:' + statusColors.completed + ';display:inline-block;height:12px;margin-right:7px;width:12px;"></span>Completed <strong>(' + summary.completed + ')</strong></div>' +
+            '<div><span style="background:' + statusColors.active + ';display:inline-block;height:12px;margin-right:7px;width:12px;"></span>' + mapLabels.activeNeeds + ' <strong>(' + summary.active + ')</strong></div>' +
+            '<div><span style="background:' + statusColors.in_progress + ';display:inline-block;height:12px;margin-right:7px;width:12px;"></span>' + mapLabels.inProgress + ' <strong>(' + summary.in_progress + ')</strong></div>' +
+            '<div><span style="background:' + statusColors.completed + ';display:inline-block;height:12px;margin-right:7px;width:12px;"></span>' + statusConfig.completed.label + ' <strong>(' + summary.completed + ')</strong></div>' +
           '</div>' +
-          '<div style="margin-top:10px;font-size:11px;font-weight:800;">Intensity: Low ░░▒▒▓▓ High</div>';
+          '<div style="margin-top:10px;font-size:11px;font-weight:800;">' + mapLabels.intensityLowHigh + '</div>';
       };
 
       const renderAdminMap = () => {
@@ -910,14 +957,19 @@ export const HomeScreen = () => {
         }
         updateLegend(sourceNeeds);
 
-        if (L.heatLayer) {
-          heatLayer = L.heatLayer(sourceNeeds.map((need) => [need.lat, need.lng, priorityWeight(need)]), {
-            radius: 54,
-            blur: 30,
-            maxZoom: 16,
-            minOpacity: 0.42,
-            gradient: { 0.12: '#166534', 0.38: '#B45309', 0.68: '#C2410C', 1: '#7F1D1D' },
-          }).addTo(map);
+        if (L.heatLayer && sourceNeeds.length > 0 && hasUsableMapSize()) {
+          try {
+            heatLayer = L.heatLayer(sourceNeeds.map((need) => [need.lat, need.lng, priorityWeight(need)]), {
+              radius: 54,
+              blur: 30,
+              maxZoom: 16,
+              minOpacity: 0.42,
+              gradient: { 0.12: '#166534', 0.38: '#B45309', 0.68: '#C2410C', 1: '#7F1D1D' },
+            }).addTo(map);
+          } catch (error) {
+            heatLayer = null;
+            console.warn('NeedMap heat layer skipped until the map has a drawable canvas size.', error);
+          }
         }
 
         if (firstRender) sourceNeeds.forEach((need) => bounds.push([need.lat, need.lng]));
@@ -933,8 +985,8 @@ export const HomeScreen = () => {
         if (currentLocation) {
           L.marker([currentLocation.lat, currentLocation.lng], { icon: currentLocationIcon(), zIndexOffset: 900 })
             .addTo(map)
-            .bindTooltip('Current location', { className: 'current-location-label', direction: 'top', offset: [0, -10], permanent: true, opacity: 0.95 })
-            .bindPopup('<b>Current location</b><br/>Nearby highlighted areas are outlined in cyan.');
+            .bindTooltip(mapLabels.currentLocation, { className: 'current-location-label', direction: 'top', offset: [0, -10], permanent: true, opacity: 0.95 })
+            .bindPopup('<b>' + mapLabels.currentLocation + '</b><br/>' + mapLabels.nearbyHighlightedAreas);
           bounds.push([currentLocation.lat, currentLocation.lng]);
         }
 
@@ -965,11 +1017,15 @@ export const HomeScreen = () => {
         map.setView([20.5937, 78.9629], 4);
       }
 
-      if (showAdminHeatmap) renderNeedDots(needs);
+      window.requestAnimationFrame(() => {
+        map.invalidateSize(false);
+        if (showAdminHeatmap && !heatLayer && hasUsableMapSize()) renderAdminMap();
+        if (showAdminHeatmap) renderNeedDots(needs);
+      });
     </script>
   </body>
 </html>`;
-  }, [location, isOrgOwner, showNeedsOrganizationMap, validBranchMarkers, mapNeeds, mapOrganizations, mapVolunteers]);
+  }, [location, isOrgOwner, showNeedsOrganizationMap, validBranchMarkers, mapNeeds, mapOrganizations, mapVolunteers, t, translateAddress, translateText]);
 
   const openMap = () => {
     if (!location && !(showNeedsOrganizationMap && webMapHtml)) return;
@@ -1071,10 +1127,10 @@ export const HomeScreen = () => {
           <Animated.View style={[styles.header, { transform: [{ translateY: slideUp }] }]}>
             <View style={styles.headerLeft}>
               <Text style={[styles.greeting, lightPrimary]}>
-                Welcome, {user?.user_name || "User"}
+                {t("Welcome")}, {user?.user_name || t("User")}
               </Text>
               <Text style={[styles.role, lightMuted]}>
-                {isOrgManager ? "Organization Admin" : "Volunteer"}
+                {isOrgManager ? t("Organization Admin") : t("Volunteer")}
               </Text>
             </View>
             <Pressable style={styles.avatarBtn} onPress={() => nav.navigate("Profile")}>
@@ -1092,42 +1148,42 @@ export const HomeScreen = () => {
               <View style={styles.orgHeader}>
                 <LinearGradient colors={["#667EEA", "#764BA2"]} style={styles.orgIcon}>
                   <Text style={styles.orgIconText}>
-                    {orgInfo.organization_name.charAt(0).toUpperCase()}
+                    {translateText(orgInfo.organization_name).charAt(0).toUpperCase()}
                   </Text>
                 </LinearGradient>
                 <View style={styles.orgHeaderInfo}>
-                  <Text style={[styles.orgName, lightPrimary]}>{orgInfo.organization_name}</Text>
+                  <Text style={[styles.orgName, lightPrimary]}>{translateText(orgInfo.organization_name)}</Text>
                   <View style={[styles.orgStatusBadge, orgInfo.is_active ? styles.activeBadge : styles.inactiveBadge]}>
-                    <Text style={styles.orgStatusText}>{orgInfo.is_active ? "Active" : "Inactive"}</Text>
+                    <Text style={styles.orgStatusText}>{orgInfo.is_active ? t("Active") : t("Inactive")}</Text>
                   </View>
                 </View>
               </View>
 
               <View style={styles.orgDetails}>
                 <View style={styles.orgDetailRow}>
-                  <Text style={[styles.orgDetailLabel, lightSecondary]}>Org ID</Text>
+                  <Text style={[styles.orgDetailLabel, lightSecondary]}>{t("Org ID")}</Text>
                   <Text style={[styles.orgDetailValue, lightPrimary]}>#{user?.organization_id ?? orgInfo.id}</Text>
                 </View>
 
                 {isAdmin ? (
                   <>
                     <View style={styles.orgDetailRow}>
-                      <Text style={[styles.orgDetailLabel, lightSecondary]}>Branch ID</Text>
+                      <Text style={[styles.orgDetailLabel, lightSecondary]}>{t("Branch ID")}</Text>
                       <Text style={[styles.orgDetailValue, lightPrimary]}>#{scopedOrganizationId ?? orgInfo.id}</Text>
                     </View>
                     <View style={styles.orgDetailRow}>
-                      <Text style={[styles.orgDetailLabel, lightSecondary]}>Branch Address</Text>
-                      <Text style={[styles.orgDetailValue, lightPrimary]}>{orgInfo.address || orgInfo.branch_location || "Not specified"}</Text>
+                      <Text style={[styles.orgDetailLabel, lightSecondary]}>{t("Branch Address")}</Text>
+                      <Text style={[styles.orgDetailValue, lightPrimary]}>{orgInfo.address || orgInfo.branch_location ? translateAddress(orgInfo.address || orgInfo.branch_location) : t("Not specified")}</Text>
                     </View>
                   </>
                 ) : (
                   <>
                     <View style={styles.orgDetailRow}>
-                      <Text style={[styles.orgDetailLabel, lightSecondary]}>Headquarter</Text>
-                      <Text style={[styles.orgDetailValue, lightPrimary]}>{orgInfo.address || "Not specified"}</Text>
+                      <Text style={[styles.orgDetailLabel, lightSecondary]}>{t("Headquarter")}</Text>
+                      <Text style={[styles.orgDetailValue, lightPrimary]}>{orgInfo.address ? translateAddress(orgInfo.address) : t("Not specified")}</Text>
                     </View>
                     <View style={styles.orgDetailRow}>
-                      <Text style={[styles.orgDetailLabel, lightSecondary]}>Total Branches</Text>
+                      <Text style={[styles.orgDetailLabel, lightSecondary]}>{t("Total Branches")}</Text>
                       <Text style={[styles.orgDetailValue, lightPrimary]}>{branches.length}</Text>
                     </View>
                   </>
@@ -1138,15 +1194,15 @@ export const HomeScreen = () => {
               <View style={styles.orgStatsRow}>
                 <View style={styles.orgStatItem}>
                   <Text style={[styles.orgStatNum, lightPrimary]}>{orgNeedsCount}</Text>
-                  <Text style={[styles.orgStatLabel, lightSecondary]}>{isAdmin ? "Total" : "Total Created"}</Text>
+                  <Text style={[styles.orgStatLabel, lightSecondary]}>{isAdmin ? t("Total") : t("Total Created")}</Text>
                 </View>
                 <View style={styles.orgStatItem}>
                   <Text style={[styles.orgStatNum, lightPrimary]}>{orgActiveNeedsCount}</Text>
-                    <Text style={[styles.orgStatLabel, lightSecondary]}>Active</Text>
+                    <Text style={[styles.orgStatLabel, lightSecondary]}>{t("Active")}</Text>
                 </View>
                 <View style={styles.orgStatItem}>
                   <Text style={[styles.orgStatNum, lightPrimary]}>{orgCompletedNeedsCount}</Text>
-                    <Text style={[styles.orgStatLabel, lightSecondary]}>Completed</Text>
+                    <Text style={[styles.orgStatLabel, lightSecondary]}>{t("Completed")}</Text>
                 </View>
               </View>
             </View>
@@ -1156,20 +1212,20 @@ export const HomeScreen = () => {
           {isVolunteer ? (
             <View style={[styles.section, lightCard]}>
               <View style={styles.sectionHeader}>
-                <Text style={[styles.sectionTitle, lightPrimary]}>Your Volunteer Rating</Text>
+                <Text style={[styles.sectionTitle, lightPrimary]}>{t("Your Volunteer Rating")}</Text>
                 <Pressable onPress={() => goToMainTab("Assignments")}>
-                  <Text style={[styles.seeAll, lightPrimary]}>Details</Text>
+                  <Text style={[styles.seeAll, lightPrimary]}>{t("Details")}</Text>
                 </Pressable>
               </View>
               {volunteerAverageRating === null ? (
                 <Text style={[styles.emptyText, lightSecondary]}>
-                  Organization or branch rating for your volunteer work will appear here.
+                  {t("Organization or branch rating for your volunteer work will appear here.")}
                 </Text>
               ) : (
                 <View style={styles.volunteerRatingCard}>
                   <View style={styles.volunteerRatingTopRow}>
                     <View>
-                      <Text style={[styles.volunteerRatingLabel, lightSecondary]}>Organization rating</Text>
+                      <Text style={[styles.volunteerRatingLabel, lightSecondary]}>{t("Organization rating")}</Text>
                       <View style={styles.volunteerRatingScoreRow}>
                         <Text style={[styles.volunteerRatingScore, lightPrimary]}>
                           {volunteerAverageRating.toFixed(1)}
@@ -1178,7 +1234,7 @@ export const HomeScreen = () => {
                       </View>
                     </View>
                     <View style={styles.volunteerRatingBadge}>
-                      <Text style={styles.volunteerRatingBadgeText}>Branch Rated</Text>
+                      <Text style={styles.volunteerRatingBadgeText}>{t("Branch Rated")}</Text>
                     </View>
                   </View>
                   <View style={styles.volunteerRatingStars}>
@@ -1192,7 +1248,7 @@ export const HomeScreen = () => {
                     ))}
                   </View>
                   <Text style={[styles.volunteerRatingMeta, lightSecondary]}>
-                    Given by the organization and its branch for your completed work
+                    {t("Given by the organization and its branch for your completed work")}
                   </Text>
                 </View>
               )}
@@ -1201,11 +1257,11 @@ export const HomeScreen = () => {
 
           {/* Location Section */}
           <View style={[styles.section, lightCard]}>
-            <Text style={[styles.sectionTitle, lightPrimary]}>Your Location</Text>
+            <Text style={[styles.sectionTitle, lightPrimary]}>{t("Your Location")}</Text>
             {locationLoading ? (
               <View style={styles.loadingBox}>
                 <ActivityIndicator color="#667EEA" size="small" />
-                <Text style={[styles.loadingText, lightSecondary]}>Fetching location...</Text>
+                <Text style={[styles.loadingText, lightSecondary]}>{t("Fetching location...")}</Text>
               </View>
             ) : location || (showNeedsOrganizationMap && webMapHtml) ? (
               <>
@@ -1216,7 +1272,7 @@ export const HomeScreen = () => {
                       {createElement("iframe", {
                         srcDoc: webMapHtml,
                         style: { width: "100%", height: "100%", border: "none", borderRadius: 12 },
-                        title: "Branch Map",
+                        title: t("Branch Details"),
                         loading: "lazy",
                       })}
                     </View>
@@ -1233,8 +1289,8 @@ export const HomeScreen = () => {
                   {showNeedsOrganizationMap && needAreaPreview.length > 0 ? (
                     <View style={styles.areaPreviewWrap}>
                       <View style={styles.areaPreviewHeader}>
-                        <Text style={[styles.areaPreviewTitle, lightPrimary]}>Area preview</Text>
-                        <Text style={[styles.areaPreviewHint, lightSecondary]}>Top need clusters</Text>
+                        <Text style={[styles.areaPreviewTitle, lightPrimary]}>{t("Area preview")}</Text>
+                        <Text style={[styles.areaPreviewHint, lightSecondary]}>{t("Top need clusters")}</Text>
                       </View>
                       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.areaPreviewList}>
                         {needAreaPreview.map((area) => (
@@ -1250,15 +1306,15 @@ export const HomeScreen = () => {
                             <View style={styles.areaPreviewStats}>
                               <View style={styles.areaMiniStat}>
                                 <Text style={[styles.areaMiniValue, { color: "#EF4444" }]}>{area.active}</Text>
-                                <Text style={[styles.areaMiniLabel, lightSecondary]}>Active</Text>
+                                <Text style={[styles.areaMiniLabel, lightSecondary]}>{t("Active")}</Text>
                               </View>
                               <View style={styles.areaMiniStat}>
                                 <Text style={[styles.areaMiniValue, { color: "#F59E0B" }]}>{area.inProgress}</Text>
-                                <Text style={[styles.areaMiniLabel, lightSecondary]}>Progress</Text>
+                                <Text style={[styles.areaMiniLabel, lightSecondary]}>{t("Progress")}</Text>
                               </View>
                               <View style={styles.areaMiniStat}>
                                 <Text style={[styles.areaMiniValue, { color: "#22C55E" }]}>{area.completed}</Text>
-                                <Text style={[styles.areaMiniLabel, lightSecondary]}>Done</Text>
+                                <Text style={[styles.areaMiniLabel, lightSecondary]}>{t("Done")}</Text>
                               </View>
                             </View>
                           </View>
@@ -1268,13 +1324,13 @@ export const HomeScreen = () => {
                   ) : null}
 
                   <Pressable onPress={openMap} style={styles.mapBtn}>
-                    <Text style={[styles.mapBtnText, lightPrimary]}>Open Full Map</Text>
+                    <Text style={[styles.mapBtnText, lightPrimary]}>{t("Open Full Map")}</Text>
                   </Pressable>
                 </View>
               </>
             ) : (
               <Text style={[styles.errorText, isLight ? { color: "#B91C1C", fontWeight: "700" } : null]}>
-                Location unavailable. Please enable location permissions.
+                {t("Location unavailable. Please enable location permissions.")}
               </Text>
             )}
           </View>
@@ -1283,15 +1339,15 @@ export const HomeScreen = () => {
           <View style={[styles.section, lightCard]}>
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, lightPrimary]}>
-                {isOrgManager ? "Organization Needs" : "Nearby Campaigns"}
+                {isOrgManager ? t("Organization Needs") : t("Nearby Campaigns")}
               </Text>
               <Pressable onPress={() => goToMainTab("Needs")}>
-                <Text style={[styles.seeAll, lightPrimary]}>See All</Text>
+                <Text style={[styles.seeAll, lightPrimary]}>{t("See All")}</Text>
               </Pressable>
             </View>
             {nearbyNeeds.length === 0 ? (
               <Text style={[styles.emptyText, lightSecondary]}>
-                {isOrgManager ? "No needs created yet. Go to Needs tab to create one." : "No active campaigns nearby"}
+                {isOrgManager ? t("No needs created yet. Go to Needs tab to create one.") : t("No active campaigns nearby")}
               </Text>
             ) : (
               nearbyNeeds.slice(0, 3).map((need) => (
@@ -1303,15 +1359,15 @@ export const HomeScreen = () => {
                   <View style={[styles.urgencyDot, { backgroundColor: getUrgencyColor(need.urgency) }]} />
                   <View style={styles.campaignContent}>
                     <Text style={[styles.campaignTitle, lightPrimary]} numberOfLines={1}>
-                      {need.title}
+                      {translateText(need.title)}
                     </Text>
-                    <Text style={[styles.campaignMeta, lightSecondary]}>
-                      {need.category} · {need.urgency} priority · {need.address || "Unknown location"}
+                    <Text style={[styles.campaignMeta, lightSecondary]} numberOfLines={2}>
+                      {t("Category")}: {translateCategory(need.category)} · {t("Urgency")}: {translateCategory(need.urgency)} · {t("Address")}: {translateAddress(need.address)}
                     </Text>
                   </View>
                   <View style={[styles.statusBadge, { backgroundColor: getStatusBgColor(need.status) }, isLight ? { borderColor: "#000", borderWidth: 1 } : null]}>
                     <Text style={[styles.statusText, { color: getStatusColor(need.status) }]}>
-                      {need.status}
+                      {translateStatus(need.status)}
                     </Text>
                   </View>
                 </Pressable>
@@ -1322,15 +1378,15 @@ export const HomeScreen = () => {
           {/* Articles */}
           <View style={[styles.section, lightCard]}>
             <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, lightPrimary]}>Articles</Text>
+              <Text style={[styles.sectionTitle, lightPrimary]}>{t("Articles")}</Text>
               <Pressable onPress={() => goToMainTab("Feeds")}>
-                <Text style={[styles.seeAll, lightPrimary]}>View All</Text>
+                <Text style={[styles.seeAll, lightPrimary]}>{t("View All")}</Text>
               </Pressable>
             </View>
             {storiesLoading ? (
               <ActivityIndicator color="#667EEA" />
             ) : impactStories.length === 0 ? (
-              <Text style={[styles.emptyText, lightSecondary]}>No articles found for this organization.</Text>
+              <Text style={[styles.emptyText, lightSecondary]}>{t("No articles found for this organization.")}</Text>
             ) : (
               impactStories.map((story) => (
                 <Pressable
@@ -1342,18 +1398,18 @@ export const HomeScreen = () => {
                     <Image source={{ uri: getStoryImage(story) }} style={styles.storyImage} resizeMode="cover" />
                   ) : (
                     <View style={[styles.storyImage, styles.storyImageFallback]}>
-                      <Text style={[styles.storyImageFallbackText, lightSecondary]}>No Image</Text>
+                      <Text style={[styles.storyImageFallbackText, lightSecondary]}>{t("No Image")}</Text>
                     </View>
                   )}
                   <View style={styles.storyContent}>
                     <Text style={[styles.storyTitle, lightPrimary]} numberOfLines={2}>
-                      {story.title}
+                      {translateText(story.title)}
                     </Text>
                     <Text style={[styles.storyDesc, lightSecondary]} numberOfLines={2}>
-                      {story.narrative}
+                      {t("Description")}: {translateText(story.narrative)}
                     </Text>
                     <Text style={[styles.storyLocation, lightPrimary]}>
-                      {new Date(story.created_at).toLocaleDateString()}
+                      {t("Date")}: {new Date(story.created_at).toLocaleDateString()}
                     </Text>
                   </View>
                 </Pressable>

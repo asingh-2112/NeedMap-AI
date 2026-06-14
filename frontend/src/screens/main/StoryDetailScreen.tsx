@@ -2,6 +2,7 @@ import { ScrollView, StyleSheet, Text, View, Image } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { RouteProp, useRoute } from "@react-navigation/native";
 import { useAccessibility } from "../../context/AccessibilityContext";
+import { useLanguage } from "../../context/LanguageContext";
 import type { RootStackParamList } from "../../navigation/types";
 import { STORIES } from "./stories";
 import { colors } from "../../theme";
@@ -11,6 +12,7 @@ type StoryDetailRoute = RouteProp<RootStackParamList, "StoryDetail">;
 export const StoryDetailScreen = () => {
   const route = useRoute<StoryDetailRoute>();
   const { highContrast, textScale } = useAccessibility();
+  const { t } = useLanguage();
   const story = STORIES.find((s) => s.id === route.params.storyId);
   const scaledText = (fontSize: number, lineHeight?: number) => ({
     fontSize: fontSize * textScale,
@@ -20,7 +22,7 @@ export const StoryDetailScreen = () => {
   if (!story) {
     return (
       <View style={styles.center}>
-        <Text style={[styles.notFound, scaledText(16, 21)]}>Story not found.</Text>
+        <Text style={[styles.notFound, scaledText(16, 21)]}>{t("Story not found.")}</Text>
       </View>
     );
   }
@@ -29,10 +31,10 @@ export const StoryDetailScreen = () => {
     <View style={styles.page}>
       <LinearGradient colors={[colors.bg, colors.bgSoft, colors.bgWarm]} style={StyleSheet.absoluteFillObject} />
       <ScrollView contentContainerStyle={[styles.content, highContrast ? styles.highContrastContent : null]}>
-        <Text style={[styles.title, scaledText(28, 34)]}>{story.title}</Text>
+        <Text style={[styles.title, scaledText(28, 34)]}>{t(story.title)}</Text>
         <Image source={{ uri: story.image }} style={styles.hero} />
-        <Text style={[styles.section, scaledText(16, 22)]}>{story.shortDescription}</Text>
-        <Text style={[styles.body, scaledText(15, 22)]}>{story.fullDescription}</Text>
+        <Text style={[styles.section, scaledText(16, 22)]}>{t(story.shortDescription)}</Text>
+        <Text style={[styles.body, scaledText(15, 22)]}>{t(story.fullDescription)}</Text>
       </ScrollView>
     </View>
   );

@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { Animated, ScrollView, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAccessibility } from "../../context/AccessibilityContext";
+import { useLanguage } from "../../context/LanguageContext";
 import { colors } from "../../theme";
 
 const schemes = [
@@ -12,6 +13,7 @@ const schemes = [
 
 export const SchemesScreen = () => {
   const { highContrast, reduceMotion, textScale } = useAccessibility();
+  const { t } = useLanguage();
   const floatA = useRef(new Animated.Value(0)).current;
   const floatB = useRef(new Animated.Value(0)).current;
 
@@ -53,16 +55,16 @@ export const SchemesScreen = () => {
       <Animated.View style={[styles.blob, styles.blobB, { transform: [{ translateY: yB }] }]} />
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={[styles.title, textStyle(32, 38)]}>Schemes</Text>
-        <Text style={[styles.subtitle, textStyle(14, 20)]}>Support programs mapped for quick action</Text>
+        <Text style={[styles.title, textStyle(32, 38)]}>{t("Schemes")}</Text>
+        <Text style={[styles.subtitle, textStyle(14, 20)]}>{t("Support programs mapped for quick action")}</Text>
 
         {schemes.map((s) => (
           <View key={s.title} style={[styles.card, highContrast ? styles.highContrastCard : null]}>
             <View style={styles.cardHeader}>
               <View style={[styles.dot, { backgroundColor: s.tone }]} />
-              <Text style={[styles.cardTitle, textStyle(17, 22)]}>{s.title}</Text>
+              <Text style={[styles.cardTitle, textStyle(17, 22)]}>{t(s.title)}</Text>
             </View>
-            <Text style={[styles.meta, textStyle(13, 20)]}>{s.desc}</Text>
+            <Text style={[styles.meta, textStyle(13, 20)]}>{t(s.desc)}</Text>
           </View>
         ))}
       </ScrollView>

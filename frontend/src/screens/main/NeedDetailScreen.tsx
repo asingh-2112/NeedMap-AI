@@ -15,6 +15,7 @@ import { useRoute, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useAccessibility } from "../../context/AccessibilityContext";
 import { useAuth } from "../../context/AuthContext";
+import { useLanguage } from "../../context/LanguageContext";
 import { moduleApi } from "../../services/api";
 import type { RootStackParamList } from "../../navigation/types";
 import type { Assignment, Need, Volunteer } from "../../types/api";
@@ -27,6 +28,7 @@ export const NeedDetailScreen = () => {
   const route = useRoute<Route>();
   const { baseUrl, token, user } = useAuth();
   const { reduceMotion } = useAccessibility();
+  const { t, translateAddress, translateCategory, translateStatus, translateText } = useLanguage();
   const { needId } = route.params || {};
 
   const [need, setNeed] = useState<Need | null>(null);
@@ -114,17 +116,17 @@ export const NeedDetailScreen = () => {
       try {
         setDeletingNeed(true);
         await moduleApi.closeNeed(baseUrl, token, need.id);
-        Alert.alert("Success", "Need deleted successfully.");
+        Alert.alert(t("Success"), t("Need deleted successfully."));
         nav.goBack();
       } catch (err) {
-        Alert.alert("Error", err instanceof Error ? err.message : "Failed to delete need.");
+        Alert.alert(t("Error"), err instanceof Error ? err.message : t("Failed to delete need."));
       } finally {
         setDeletingNeed(false);
       }
     };
 
     if (Platform.OS === "web") {
-      const confirmed = window.confirm("Are you sure you want to delete this need?");
+      const confirmed = window.confirm(t("Are you sure you want to delete this need?"));
       if (confirmed) {
         void performDelete();
       }
@@ -132,12 +134,12 @@ export const NeedDetailScreen = () => {
     }
 
     Alert.alert(
-      "Delete Need",
-      "Are you sure you want to delete this need?",
+      t("Delete Need"),
+      t("Are you sure you want to delete this need?"),
       [
-        { text: "Cancel", style: "cancel" },
+        { text: t("Cancel"), style: "cancel" },
         {
-          text: "Yes, Delete",
+          text: t("Yes, Delete"),
           style: "destructive",
           onPress: () => { void performDelete(); },
         },
@@ -183,9 +185,9 @@ export const NeedDetailScreen = () => {
       {/* Header with Back Button */}
       <View style={styles.header}>
         <Pressable onPress={goBack} style={styles.backBtn}>
-          <Text style={styles.backBtnText}>← Back</Text>
+          <Text style={styles.backBtnText}>← {t("Back")}</Text>
         </Pressable>
-        <Text style={styles.headerTitle}>Need Details</Text>
+        <Text style={styles.headerTitle}>{t("Need Details")}</Text>
         <View style={{ width: 50 }} />
       </View>
 
@@ -193,13 +195,13 @@ export const NeedDetailScreen = () => {
         {loading ? (
           <View style={styles.centerContainer}>
             <ActivityIndicator size="large" color="#667EEA" />
-            <Text style={styles.loadingText}>Loading need details...</Text>
+            <Text style={styles.loadingText}>{t("Loading need details...")}</Text>
           </View>
         ) : error ? (
           <View style={styles.centerContainer}>
             <Text style={styles.errorText}>{error}</Text>
             <Pressable style={styles.retryBtn} onPress={goBack}>
-              <Text style={styles.retryBtnText}>Go Back</Text>
+              <Text style={styles.retryBtnText}>{t("Go Back")}</Text>
             </Pressable>
           </View>
         ) : need ? (
@@ -211,10 +213,10 @@ export const NeedDetailScreen = () => {
             {/* Need Title Card */}
             <View style={styles.titleCard}>
               <View style={styles.titleRow}>
-                <Text style={styles.needTitle} numberOfLines={2}>{need.title}</Text>
+                <Text style={styles.needTitle} numberOfLines={2}>{translateText(need.title)}</Text>
                 <View style={[styles.urgencyBadge, { backgroundColor: `${urgencyColor(need.urgency)}20`, borderColor: urgencyColor(need.urgency) }]}>
                   <Text style={[styles.urgencyText, { color: urgencyColor(need.urgency) }]}>
-                    {need.urgency.toUpperCase()}
+                    {translateCategory(need.urgency).toUpperCase()}
                   </Text>
                 </View>
               </View>
@@ -222,10 +224,10 @@ export const NeedDetailScreen = () => {
 
             {/* Status Card */}
             <View style={styles.infoCard}>
-              <Text style={styles.cardTitle}>Status</Text>
+              <Text style={styles.cardTitle}>{t("Status")}</Text>
               <View style={[styles.statusBadge, { backgroundColor: `${statusColor(need.status)}20`, borderColor: statusColor(need.status) }]}>
                 <Text style={[styles.statusText, { color: statusColor(need.status) }]}>
-                  {need.status.replace("_", " ").toUpperCase()}
+                  {translateStatus(need.status).toUpperCase()}
                 </Text>
               </View>
 
@@ -235,114 +237,114 @@ export const NeedDetailScreen = () => {
                   onPress={confirmDeleteNeed}
                   disabled={deletingNeed}
                 >
-                  <Text style={styles.closeNeedBtnText}>{deletingNeed ? "Deleting..." : "Delete Need"}</Text>
+                  <Text style={styles.closeNeedBtnText}>{deletingNeed ? t("Deleting...") : t("Delete Need")}</Text>
                 </Pressable>
               ) : null}
             </View>
 
             {/* Assignment Details */}
             <View style={styles.infoCard}>
-              <Text style={styles.cardTitle}>Assignment Details</Text>
+              <Text style={styles.cardTitle}>{t("Assignment Details")}</Text>
               <View style={styles.refRow}>
-                <Text style={styles.refLabel}>Active Assigned Volunteers:</Text>
+                <Text style={styles.refLabel}>{t("Active Assigned Volunteers")}:</Text>
                 <Text style={styles.refValue}>{activeAssignments.length}</Text>
               </View>
 
               <View style={styles.refRow}>
-                <Text style={styles.refLabel}>Completed Assignments:</Text>
+                <Text style={styles.refLabel}>{t("Completed Assignments")}:</Text>
                 <Text style={styles.refValue}>{completedAssignments.length}</Text>
               </View>
 
               <View style={styles.refRow}>
-                <Text style={styles.refLabel}>Total Assignment Records:</Text>
+                <Text style={styles.refLabel}>{t("Total Assignment Records")}:</Text>
                 <Text style={styles.refValue}>{needAssignments.length}</Text>
               </View>
             </View>
 
             {/* Assigned Volunteers */}
             <View style={styles.infoCard}>
-              <Text style={styles.cardTitle}>Assigned Volunteers</Text>
+              <Text style={styles.cardTitle}>{t("Assigned Volunteers")}</Text>
 
               {assignedVolunteerAssignments.length > 0 ? (
                 <View style={styles.volunteerList}>
                   {assignedVolunteerAssignments.map((assignment) => {
                     const volunteer = assignedVolunteers.get(assignment.volunteer_id);
                     const volunteerName = volunteer?.user_name || `Volunteer #${assignment.volunteer_id}`;
-                    const volunteerLocation = [volunteer?.colony, volunteer?.city].filter(Boolean).join(", ");
+                    const volunteerLocation = translateAddress([volunteer?.colony, volunteer?.city].filter(Boolean).join(", "));
                     return (
                       <View key={assignment.id} style={styles.volunteerCard}>
                         <View style={styles.volunteerHeader}>
                           <View style={styles.volunteerTitleWrap}>
                             <Text style={styles.volunteerName}>{volunteerName}</Text>
-                            <Text style={styles.volunteerSubline}>Volunteer ID #{assignment.volunteer_id}</Text>
+                            <Text style={styles.volunteerSubline}>{t("Volunteer ID")} #{assignment.volunteer_id}</Text>
                           </View>
                           <View style={[styles.assignmentStatusBadge, { borderColor: assignmentStatusColor(assignment.status), backgroundColor: `${assignmentStatusColor(assignment.status)}20` }]}>
-                            <Text style={[styles.assignmentStatusText, { color: assignmentStatusColor(assignment.status) }]}>{assignment.status.replace("_", " ")}</Text>
+                            <Text style={[styles.assignmentStatusText, { color: assignmentStatusColor(assignment.status) }]}>{translateStatus(assignment.status)}</Text>
                           </View>
                         </View>
 
                         <View style={styles.volunteerDetailGrid}>
                           <View style={styles.volunteerDetailItem}>
-                            <Text style={styles.volunteerDetailLabel}>Phone</Text>
-                            <Text style={styles.volunteerDetailValue}>{volunteer?.phone || "Not available"}</Text>
+                            <Text style={styles.volunteerDetailLabel}>{t("Phone")}</Text>
+                            <Text style={styles.volunteerDetailValue}>{volunteer?.phone || t("Not available")}</Text>
                           </View>
                           <View style={styles.volunteerDetailItem}>
-                            <Text style={styles.volunteerDetailLabel}>Email</Text>
-                            <Text style={styles.volunteerDetailValue}>{volunteer?.email || "Not available"}</Text>
+                            <Text style={styles.volunteerDetailLabel}>{t("Email")}</Text>
+                            <Text style={styles.volunteerDetailValue}>{volunteer?.email || t("Not available")}</Text>
                           </View>
                           <View style={styles.volunteerDetailItem}>
-                            <Text style={styles.volunteerDetailLabel}>Location</Text>
-                            <Text style={styles.volunteerDetailValue}>{volunteerLocation || "Not available"}</Text>
+                            <Text style={styles.volunteerDetailLabel}>{t("Location")}</Text>
+                            <Text style={styles.volunteerDetailValue}>{volunteerLocation || t("Not available")}</Text>
                           </View>
                           <View style={styles.volunteerDetailItem}>
-                            <Text style={styles.volunteerDetailLabel}>Availability</Text>
-                            <Text style={styles.volunteerDetailValue}>{volunteer ? (volunteer.availability ? "Available" : "Busy") : "Not available"}</Text>
+                            <Text style={styles.volunteerDetailLabel}>{t("Availability")}</Text>
+                            <Text style={styles.volunteerDetailValue}>{volunteer ? (volunteer.availability ? t("Available") : t("Busy")) : t("Not available")}</Text>
                           </View>
                           <View style={styles.volunteerDetailItem}>
-                            <Text style={styles.volunteerDetailLabel}>Tasks</Text>
-                            <Text style={styles.volunteerDetailValue}>{volunteer ? `${volunteer.tasks_completed} completed · ${volunteer.active_tasks} active` : "Not available"}</Text>
+                            <Text style={styles.volunteerDetailLabel}>{t("Tasks")}</Text>
+                            <Text style={styles.volunteerDetailValue}>{volunteer ? `${volunteer.tasks_completed} ${t("completed")} · ${volunteer.active_tasks} ${t("Active")}` : t("Not available")}</Text>
                           </View>
                           <View style={styles.volunteerDetailItem}>
-                            <Text style={styles.volunteerDetailLabel}>Verified</Text>
-                            <Text style={styles.volunteerDetailValue}>{volunteer ? (volunteer.verified ? "Yes" : "No") : "Not available"}</Text>
+                            <Text style={styles.volunteerDetailLabel}>{t("Verified")}</Text>
+                            <Text style={styles.volunteerDetailValue}>{volunteer ? (volunteer.verified ? t("Yes") : t("No")) : t("Not available")}</Text>
                           </View>
                         </View>
 
                         <View style={styles.assignmentMetaRow}>
-                          <Text style={styles.assignmentMetaText}>Assigned: {new Date(assignment.assigned_at).toLocaleString()}</Text>
-                          {assignment.match_score != null ? <Text style={styles.assignmentMetaText}>Match: {assignment.match_score.toFixed(2)}</Text> : null}
+                          <Text style={styles.assignmentMetaText}>{t("Assigned")}: {new Date(assignment.assigned_at).toLocaleString()}</Text>
+                          {assignment.match_score != null ? <Text style={styles.assignmentMetaText}>{t("Match")}: {assignment.match_score.toFixed(2)}</Text> : null}
                         </View>
                       </View>
                     );
                   })}
                 </View>
               ) : (
-                <Text style={styles.emptyAssignmentText}>No volunteers assigned yet.</Text>
+                <Text style={styles.emptyAssignmentText}>{t("No volunteers assigned yet.")}</Text>
               )}
             </View>
 
             {/* Description */}
             {need.description ? (
               <View style={styles.infoCard}>
-                <Text style={styles.cardTitle}>Description</Text>
-                <Text style={styles.descriptionText}>{need.description}</Text>
+                <Text style={styles.cardTitle}>{t("Description")}</Text>
+                <Text style={styles.descriptionText}>{translateText(need.description)}</Text>
               </View>
             ) : null}
 
             {/* Category */}
             <View style={styles.infoCard}>
-              <Text style={styles.cardTitle}>Category</Text>
+              <Text style={styles.cardTitle}>{t("Category")}</Text>
               <View style={styles.infoRow}>
-                <Text style={styles.infoValue}>{need.category.replace("_", " ")}</Text>
+                <Text style={styles.infoValue}>{translateCategory(need.category)}</Text>
               </View>
             </View>
 
             {/* Location */}
             <View style={styles.infoCard}>
-              <Text style={styles.cardTitle}>Location</Text>
+              <Text style={styles.cardTitle}>{t("Location")}</Text>
               <View style={styles.locationInfo}>
-                <Text style={styles.locationLabel}>Address:</Text>
-                <Text style={styles.locationValue}>{need.address}</Text>
+                <Text style={styles.locationLabel}>{t("Address")}:</Text>
+                <Text style={styles.locationValue}>{translateAddress(need.address)}</Text>
               </View>
               {need.latitude && need.longitude ? (
                 <View style={styles.coordInfo}>
@@ -354,7 +356,7 @@ export const NeedDetailScreen = () => {
             {/* Priority Score */}
             {need.priority_score != null ? (
               <View style={styles.infoCard}>
-                <Text style={styles.cardTitle}>Priority Score</Text>
+                <Text style={styles.cardTitle}>{t("Priority Score")}</Text>
                 <View style={styles.scoreContainer}>
                   <View style={styles.scoreBar}>
                     <View
@@ -372,7 +374,7 @@ export const NeedDetailScreen = () => {
             {/* Created Date */}
             {need.created_at ? (
               <View style={styles.infoCard}>
-                <Text style={styles.cardTitle}>Created</Text>
+                <Text style={styles.cardTitle}>{t("Created")}</Text>
                 <Text style={styles.dateText}>
                   {new Date(need.created_at).toLocaleDateString()} {new Date(need.created_at).toLocaleTimeString()}
                 </Text>
@@ -382,7 +384,7 @@ export const NeedDetailScreen = () => {
             {/* Updated Date */}
             {need.updated_at ? (
               <View style={styles.infoCard}>
-                <Text style={styles.cardTitle}>Last Updated</Text>
+                <Text style={styles.cardTitle}>{t("Last Updated")}</Text>
                 <Text style={styles.dateText}>
                   {new Date(need.updated_at).toLocaleDateString()} {new Date(need.updated_at).toLocaleTimeString()}
                 </Text>
@@ -392,16 +394,16 @@ export const NeedDetailScreen = () => {
             {/* Meta Information */}
             {(need.id || need.organization_id) ? (
               <View style={styles.infoCard}>
-                <Text style={styles.cardTitle}>Reference</Text>
+                <Text style={styles.cardTitle}>{t("Reference")}</Text>
                 {need.id ? (
                   <View style={styles.refRow}>
-                    <Text style={styles.refLabel}>Need ID:</Text>
+                    <Text style={styles.refLabel}>{t("Need ID")}:</Text>
                     <Text style={styles.refValue}>#{need.id}</Text>
                   </View>
                 ) : null}
                 {need.organization_id ? (
                   <View style={styles.refRow}>
-                    <Text style={styles.refLabel}>Organization ID:</Text>
+                    <Text style={styles.refLabel}>{t("Organization ID")}:</Text>
                     <Text style={styles.refValue}>#{need.organization_id}</Text>
                   </View>
                 ) : null}

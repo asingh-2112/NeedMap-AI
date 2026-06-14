@@ -16,6 +16,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { useAccessibility } from "../../context/AccessibilityContext";
 import { useAuth } from "../../context/AuthContext";
+import { useLanguage } from "../../context/LanguageContext";
 
 const LOGIN_GIF = "https://cdn.dribbble.com/users/1162077/screenshots/3848914/programmer.gif";
 
@@ -26,6 +27,7 @@ type Props = {
 
 export const LoginScreen = ({ onBack, onSignup }: Props) => {
   const { login, loading } = useAuth();
+  const { t } = useLanguage();
   const { highContrast, reduceMotion, screenReaderOptimized, textScale, touchTarget } = useAccessibility();
   const [emailOrUsername, setEmailOrUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -75,12 +77,12 @@ export const LoginScreen = ({ onBack, onSignup }: Props) => {
   const validate = (): boolean => {
     const newErrors: { email?: string; password?: string } = {};
     if (!emailOrUsername.trim()) {
-      newErrors.email = "Email or username is required";
+      newErrors.email = t("Email or username is required");
     }
     if (!password.trim()) {
-      newErrors.password = "Password is required";
+      newErrors.password = t("Password is required");
     } else if (password.length < 8) {
-      newErrors.password = "Password must be at least 8 characters";
+      newErrors.password = t("Password must be at least 8 characters");
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -91,8 +93,8 @@ export const LoginScreen = ({ onBack, onSignup }: Props) => {
     try {
       await login(emailOrUsername.trim(), password);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Login failed";
-      Alert.alert("Login Failed", msg);
+      const msg = err instanceof Error ? err.message : t("Login failed");
+      Alert.alert(t("Login Failed"), msg);
     }
   };
 
@@ -120,8 +122,8 @@ export const LoginScreen = ({ onBack, onSignup }: Props) => {
             </Animated.View>
 
             {/* Title */}
-            <Text style={[styles.title, textStyle(32, 38)]}>Welcome Back</Text>
-            <Text style={[styles.subtitle, textStyle(15, 21)]}>Sign in to your account</Text>
+            <Text style={[styles.title, textStyle(32, 38)]}>{t("Welcome Back")}</Text>
+            <Text style={[styles.subtitle, textStyle(15, 21)]}>{t("Sign in to your account")}</Text>
 
             {/* Glass card */}
             <View style={[styles.glassCard, highContrastCard]}>
@@ -135,9 +137,9 @@ export const LoginScreen = ({ onBack, onSignup }: Props) => {
                     onChangeText={(t) => { setEmailOrUsername(t); setErrors((e) => ({ ...e, email: undefined })); }}
                     autoCapitalize="none"
                     keyboardType="email-address"
-                    placeholder="Email or Username"
+                    placeholder={t("Email or Username")}
                     placeholderTextColor="#8B8DA3"
-                    accessibilityLabel="Email or username"
+                    accessibilityLabel={t("Email or username")}
                   />
                 </View>
                 {errors.email && <Text style={[styles.errorText, textStyle(12, 17)]}>{errors.email}</Text>}
@@ -152,12 +154,12 @@ export const LoginScreen = ({ onBack, onSignup }: Props) => {
                     value={password}
                     onChangeText={(t) => { setPassword(t); setErrors((e) => ({ ...e, password: undefined })); }}
                     secureTextEntry={!showPassword}
-                    placeholder="Password"
+                    placeholder={t("Password")}
                     placeholderTextColor="#8B8DA3"
-                    accessibilityLabel="Password"
+                    accessibilityLabel={t("Password")}
                   />
-                  <Pressable onPress={() => setShowPassword(!showPassword)} style={[styles.toggleBtn, touchStyle]} accessibilityRole="button" accessibilityLabel={screenReaderOptimized ? `${showPassword ? "Hide" : "Show"} password` : undefined}>
-                    <Text style={[styles.toggleText, textStyle(13, 18)]}>{showPassword ? "Hide" : "Show"}</Text>
+                  <Pressable onPress={() => setShowPassword(!showPassword)} style={[styles.toggleBtn, touchStyle]} accessibilityRole="button" accessibilityLabel={screenReaderOptimized ? `${showPassword ? t("Hide") : t("Show")} ${t("password")}` : undefined}>
+                    <Text style={[styles.toggleText, textStyle(13, 18)]}>{showPassword ? t("Hide") : t("Show")}</Text>
                   </Pressable>
                 </View>
                 {errors.password && <Text style={[styles.errorText, textStyle(12, 17)]}>{errors.password}</Text>}
@@ -165,11 +167,11 @@ export const LoginScreen = ({ onBack, onSignup }: Props) => {
 
               {/* Forgot password */}
               <Pressable style={[styles.forgotBtn, touchStyle]} accessibilityRole="button">
-                <Text style={[styles.forgotText, textStyle(13, 18)]}>Forgot Password?</Text>
+                <Text style={[styles.forgotText, textStyle(13, 18)]}>{t("Forgot Password?")}</Text>
               </Pressable>
 
               {/* Login Button */}
-              <Pressable style={[styles.loginBtn, loading && styles.disabled]} onPress={onSubmit} disabled={loading} accessibilityRole="button" accessibilityLabel={screenReaderOptimized ? "Sign in" : undefined}>
+              <Pressable style={[styles.loginBtn, loading && styles.disabled]} onPress={onSubmit} disabled={loading} accessibilityRole="button" accessibilityLabel={screenReaderOptimized ? t("Sign in") : undefined}>
                 <LinearGradient
                   colors={["#667EEA", "#764BA2"]}
                   style={[styles.btnGradient, touchStyle]}
@@ -179,7 +181,7 @@ export const LoginScreen = ({ onBack, onSignup }: Props) => {
                   {loading ? (
                     <ActivityIndicator color="#FFFFFF" />
                   ) : (
-                    <Text style={[styles.loginBtnText, textStyle(16, 21)]}>Sign In</Text>
+                    <Text style={[styles.loginBtnText, textStyle(16, 21)]}>{t("Sign In")}</Text>
                   )}
                 </LinearGradient>
               </Pressable>
@@ -187,9 +189,9 @@ export const LoginScreen = ({ onBack, onSignup }: Props) => {
 
             {/* Sign Up link */}
             <View style={styles.bottomLink}>
-              <Text style={[styles.bottomLinkText, textStyle(14, 19)]}>Don't have an account? </Text>
+              <Text style={[styles.bottomLinkText, textStyle(14, 19)]}>{t("Don't have an account?")} </Text>
               <Pressable onPress={onSignup || onBack} accessibilityRole="button">
-                <Text style={[styles.bottomLinkAction, textStyle(14, 19)]}>Sign Up</Text>
+                <Text style={[styles.bottomLinkAction, textStyle(14, 19)]}>{t("Sign Up")}</Text>
               </Pressable>
             </View>
           </Animated.View>
