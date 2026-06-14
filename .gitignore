@@ -17,7 +17,6 @@ venv/
 
 # Secrets
 .env
-.env.example
 *.env
 service-account.json
 *-service-account.json
