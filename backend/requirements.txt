@@ -17,4 +17,3 @@ pypdf
 websockets
 email-validator
 certifi
-google-cloud-secret-manager
