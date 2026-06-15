@@ -19,6 +19,7 @@ venv/
 .env
 *.env
 service-account.json
+service_account.json
 *-service-account.json
 *credentials*.json
 
