@@ -25,6 +25,12 @@ type Props = {
   onSignup?: () => void;
 };
 
+const DEMO_ACCOUNTS = [
+  { role: "Owner", emoji: "👑", email: "owner.phase2@needmap.org", password: "Owner@1234", color: "#FF6B6B", bgColor: "rgba(255,107,107,0.15)" },
+  { role: "Admin", emoji: "🛡️", email: "admin.phase2@needmap.org", password: "Admin@1234", color: "#667EEA", bgColor: "rgba(102,126,234,0.15)" },
+  { role: "Volunteer", emoji: "🙋", email: "volunteer.phase2@needmap.org", password: "Volunteer@1234", color: "#34D399", bgColor: "rgba(52,211,153,0.15)" },
+] as const;
+
 export const LoginScreen = ({ onBack, onSignup }: Props) => {
   const { login, loading } = useAuth();
   const { t } = useLanguage();
@@ -33,6 +39,8 @@ export const LoginScreen = ({ onBack, onSignup }: Props) => {
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   const [showPassword, setShowPassword] = useState(false);
+  const [showDemo, setShowDemo] = useState(false);
+  const [demoLoading, setDemoLoading] = useState<string | null>(null);
 
   const fadeIn = useRef(new Animated.Value(0)).current;
   const slideUp = useRef(new Animated.Value(40)).current;
@@ -98,6 +106,18 @@ export const LoginScreen = ({ onBack, onSignup }: Props) => {
     }
   };
 
+  const onDemoLogin = async (account: typeof DEMO_ACCOUNTS[number]) => {
+    setDemoLoading(account.role);
+    try {
+      await login(account.email, account.password);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : t("Demo login failed");
+      Alert.alert(t("Demo Login Failed"), msg);
+    } finally {
+      setDemoLoading(null);
+    }
+  };
+
   return (
     <View style={styles.page}>
       <LinearGradient
@@ -124,6 +144,65 @@ export const LoginScreen = ({ onBack, onSignup }: Props) => {
             {/* Title */}
             <Text style={[styles.title, textStyle(32, 38)]}>{t("Welcome Back")}</Text>
             <Text style={[styles.subtitle, textStyle(15, 21)]}>{t("Sign in to your account")}</Text>
+
+            {/* Quick Demo Access — highlighted box above login */}
+            <View style={styles.demoBox}>
+              <Pressable
+                style={styles.demoBoxHeader}
+                onPress={() => setShowDemo(!showDemo)}
+                accessibilityRole="button"
+                accessibilityLabel={t("Explore app without login")}
+              >
+                <Text style={[styles.demoBoxIcon, textStyle(18)]}>🚀</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.demoBoxTitle, textStyle(14, 18)]}>{t("Explore App Without Login")}</Text>
+                  <Text style={[styles.demoBoxSub, textStyle(11, 14)]}>{t("Try the app instantly as any role")}</Text>
+                </View>
+                <Text style={[styles.demoBoxArrow, textStyle(16)]}>{showDemo ? "▾" : "▸"}</Text>
+              </Pressable>
+
+              {showDemo && (
+                <View style={styles.demoBoxBody}>
+                  <View style={styles.demoRoles}>
+                    {DEMO_ACCOUNTS.map((account) => (
+                      <Pressable
+                        key={account.role}
+                        style={[styles.demoRoleCard, { borderColor: account.color, backgroundColor: account.bgColor }]}
+                        onPress={() => onDemoLogin(account)}
+                        disabled={!!demoLoading}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${t("Login as")} ${account.role}`}
+                      >
+                        {demoLoading === account.role ? (
+                          <ActivityIndicator color={account.color} size="small" />
+                        ) : (
+                          <>
+                            <Text style={[styles.demoRoleEmoji, textStyle(26)]}>{account.emoji}</Text>
+                            <Text style={[styles.demoRoleLabel, { color: account.color }, textStyle(13, 17)]}>
+                              {t(account.role)}
+                            </Text>
+                          </>
+                        )}
+                      </Pressable>
+                    ))}
+                  </View>
+
+                  <View style={styles.demoBanner}>
+                    <Text style={[styles.demoBannerIcon, textStyle(14)]}>⚠️</Text>
+                    <Text style={[styles.demoBannerText, textStyle(10, 14)]}>
+                      {t("Demo only — these accounts will be removed in production.")}
+                    </Text>
+                  </View>
+                </View>
+              )}
+            </View>
+
+            {/* Divider between demo and login */}
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <Text style={[styles.dividerText, textStyle(11, 15)]}>{t("OR SIGN IN")}</Text>
+              <View style={styles.dividerLine} />
+            </View>
 
             {/* Glass card */}
             <View style={[styles.glassCard, highContrastCard]}>
@@ -294,4 +373,56 @@ const styles = StyleSheet.create({
   bottomLink: { flexDirection: "row", justifyContent: "center", marginTop: 28 },
   bottomLinkText: { color: "rgba(255,255,255,0.5)", fontSize: 14 },
   bottomLinkAction: { color: "#667EEA", fontSize: 14, fontWeight: "700" },
+
+  // Demo highlighted box
+  demoBox: {
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: "rgba(102,126,234,0.5)",
+    backgroundColor: "rgba(102,126,234,0.08)",
+    marginBottom: 16,
+    overflow: "hidden",
+  },
+  demoBoxHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    gap: 12,
+  },
+  demoBoxIcon: { fontSize: 18 },
+  demoBoxTitle: { color: "#FFFFFF", fontSize: 14, fontWeight: "700" },
+  demoBoxSub: { color: "rgba(255,255,255,0.5)", fontSize: 11, marginTop: 2 },
+  demoBoxArrow: { color: "rgba(255,255,255,0.6)", fontSize: 16 },
+  demoBoxBody: { paddingHorizontal: 16, paddingBottom: 16 },
+
+  // Demo role cards
+  demoRoles: { flexDirection: "row", justifyContent: "space-between", gap: 10, marginBottom: 12 },
+  demoRoleCard: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 16,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    minHeight: 80,
+  },
+  demoRoleEmoji: { fontSize: 26, marginBottom: 6 },
+  demoRoleLabel: { fontSize: 13, fontWeight: "700" },
+
+  // Demo warning
+  demoBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(251,191,36,0.08)",
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  demoBannerIcon: { fontSize: 14, marginRight: 8 },
+  demoBannerText: { flex: 1, color: "rgba(251,191,36,0.75)", fontSize: 10, lineHeight: 14 },
+
+  // Divider
+  dividerRow: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: "rgba(255,255,255,0.12)" },
+  dividerText: { color: "rgba(255,255,255,0.35)", fontSize: 11, fontWeight: "600", marginHorizontal: 16 },
 });

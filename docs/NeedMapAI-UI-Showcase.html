@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeedMap AI — UI Showcase</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(160deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+
+        .header h1 {
+            font-size: 2.4rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #4285F4, #34A853, #FBBC05);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            color: #94a3b8;
+            font-size: 1rem;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 40px 30px;
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 10px;
+        }
+
+        .phone-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .phone {
+            width: 280px;
+            background: #1e1e3f;
+            border: 3px solid #374151;
+            border-radius: 36px;
+            padding: 12px;
+            box-shadow: 
+                0 25px 60px rgba(0,0,0,0.5),
+                0 0 0 1px rgba(255,255,255,0.05),
+                inset 0 1px 0 rgba(255,255,255,0.05);
+            position: relative;
+        }
+
+        .phone::before {
+            content: '';
+            position: absolute;
+            top: 7px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 70px;
+            height: 4px;
+            background: #374151;
+            border-radius: 10px;
+        }
+
+        .screen {
+            background: #fff;
+            border-radius: 24px;
+            overflow: hidden;
+            min-height: 480px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 14px;
+            font-size: 0.6rem;
+            font-weight: 600;
+            color: #fff;
+            background: linear-gradient(135deg, #4285F4, #34A853);
+        }
+
+        .header-bar {
+            background: linear-gradient(135deg, #4285F4, #34A853);
+            color: #fff;
+            padding: 12px 14px 14px;
+            font-weight: 700;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .header-bar .icon-group {
+            display: flex;
+            gap: 8px;
+        }
+
+        .header-bar .hicon {
+            width: 22px;
+            height: 22px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 50%;
+        }
+
+        .content {
+            flex: 1;
+            padding: 10px;
+            overflow: hidden;
+        }
+
+        .bottom-nav {
+            display: flex;
+            justify-content: space-around;
+            padding: 8px 0 6px;
+            border-top: 1px solid #e5e7eb;
+            background: #fff;
+        }
+
+        .nav-item {
+            text-align: center;
+            font-size: 0.55rem;
+            color: #9ca3af;
+        }
+
+        .nav-item.active { color: #4285F4; font-weight: 700; }
+
+        .nav-dot {
+            width: 16px;
+            height: 16px;
+            margin: 0 auto 2px;
+            border-radius: 4px;
+            background: #e5e7eb;
+        }
+
+        .nav-item.active .nav-dot { background: #4285F4; }
+
+        /* Content Components */
+        .map-area {
+            background: linear-gradient(135deg, #dcfce7, #bbf7d0, #a7f3d0);
+            border-radius: 10px;
+            height: 130px;
+            margin-bottom: 8px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            color: #166534;
+            font-weight: 600;
+            overflow: hidden;
+        }
+
+        .map-area::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cpath d='M20 80 Q60 40 100 80 T180 80' stroke='%2386efac' fill='none' stroke-width='2'/%3E%3Cpath d='M10 120 Q50 80 90 120 T170 120' stroke='%2386efac' fill='none' stroke-width='1.5'/%3E%3C/svg%3E") center/cover;
+            opacity: 0.4;
+        }
+
+        .heat-dot {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(3px);
+        }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+            margin-bottom: 8px;
+        }
+
+        .stat-box {
+            background: #f0f4ff;
+            border-radius: 8px;
+            padding: 8px;
+            text-align: center;
+        }
+
+        .stat-num {
+            font-size: 1.1rem;
+            font-weight: 800;
+            color: #4285F4;
+        }
+
+        .stat-label {
+            font-size: 0.55rem;
+            color: #6b7280;
+        }
+
+        .card {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            padding: 9px;
+            margin-bottom: 7px;
+        }
+
+        .card-title {
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 3px;
+        }
+
+        .card-text {
+            font-size: 0.6rem;
+            color: #6b7280;
+            line-height: 1.3;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 1px 6px;
+            border-radius: 8px;
+            font-size: 0.55rem;
+            font-weight: 600;
+            margin-right: 3px;
+        }
+
+        .badge-red { background: #fef2f2; color: #dc2626; }
+        .badge-green { background: #f0fdf4; color: #16a34a; }
+        .badge-orange { background: #fff7ed; color: #ea580c; }
+        .badge-blue { background: #eff6ff; color: #2563eb; }
+        .badge-purple { background: #faf5ff; color: #9333ea; }
+
+        .input-field {
+            background: #f3f4f6;
+            border: 1px solid #e5e7eb;
+            border-radius: 7px;
+            padding: 7px 10px;
+            font-size: 0.62rem;
+            color: #9ca3af;
+            margin-bottom: 6px;
+            width: 100%;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #4285F4, #34A853);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 8px;
+            width: 100%;
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-align: center;
+            margin-top: 4px;
+        }
+
+        .avatar {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #4285F4, #34A853);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 0.6rem;
+            font-weight: 700;
+        }
+
+        .list-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 0;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .list-item-text { flex: 1; }
+        .list-item-title { font-size: 0.68rem; font-weight: 600; color: #1f2937; }
+        .list-item-sub { font-size: 0.55rem; color: #9ca3af; }
+
+        .chart-bar-group {
+            display: flex;
+            align-items: flex-end;
+            gap: 5px;
+            height: 55px;
+            margin: 8px 0;
+        }
+
+        .chart-bar {
+            flex: 1;
+            border-radius: 3px 3px 0 0;
+            min-width: 18px;
+        }
+
+        .chart-labels {
+            display: flex;
+            justify-content: space-around;
+            font-size: 0.5rem;
+            color: #9ca3af;
+        }
+
+        .lang-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 10px;
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            margin-bottom: 5px;
+            font-size: 0.65rem;
+            color: #374151;
+        }
+
+        .lang-option.selected {
+            background: #eff6ff;
+            border-color: #4285F4;
+            color: #4285F4;
+            font-weight: 700;
+        }
+
+        .lang-flag {
+            width: 20px;
+            height: 14px;
+            background: #e5e7eb;
+            border-radius: 2px;
+        }
+
+        .toggle-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .toggle-label {
+            font-size: 0.65rem;
+            color: #374151;
+            font-weight: 500;
+        }
+
+        .toggle {
+            width: 32px;
+            height: 18px;
+            background: #4285F4;
+            border-radius: 9px;
+            position: relative;
+        }
+
+        .toggle::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            width: 14px;
+            height: 14px;
+            background: #fff;
+            border-radius: 50%;
+        }
+
+        .toggle.off { background: #d1d5db; }
+        .toggle.off::after { right: auto; left: 2px; }
+
+        .phone-label {
+            margin-top: 14px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: #e2e8f0;
+            text-align: center;
+        }
+
+        .phone-sublabel {
+            font-size: 0.7rem;
+            color: #64748b;
+            text-align: center;
+            margin-top: 2px;
+        }
+
+        .notification-toast {
+            background: #1e293b;
+            border-radius: 10px;
+            padding: 8px 10px;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .notification-toast .nt-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 6px;
+            background: #4285F4;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.65rem;
+        }
+
+        .notification-toast .nt-text {
+            font-size: 0.6rem;
+            color: #e2e8f0;
+            font-weight: 500;
+        }
+
+        .notification-toast .nt-time {
+            font-size: 0.5rem;
+            color: #64748b;
+        }
+
+        .feed-card {
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 8px;
+            border: 1px solid #e5e7eb;
+        }
+
+        .feed-img {
+            height: 60px;
+            background: linear-gradient(135deg, #dbeafe, #e0e7ff);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+
+        .feed-body {
+            padding: 8px;
+        }
+
+        .feed-title {
+            font-size: 0.68rem;
+            font-weight: 700;
+            color: #1f2937;
+        }
+
+        .feed-desc {
+            font-size: 0.55rem;
+            color: #6b7280;
+            margin-top: 2px;
+        }
+
+        @media print {
+            body { background: #fff; padding: 20px; }
+            .phone { box-shadow: 0 2px 10px rgba(0,0,0,0.1); border-color: #ddd; }
+            .phone-label { color: #1f2937; }
+            .phone-sublabel { color: #6b7280; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>🗺️ NeedMap AI</h1>
+    <p>AI-Powered Community Response Platform — UI Screens</p>
+</div>
+
+<div class="grid">
+
+    <!-- Screen 1: Home / Dashboard with Heatmap -->
+    <div class="phone-wrapper">
+        <div class="phone">
+            <div class="screen">
+                <div class="status-bar">
+                    <span>9:41</span>
+                    <span>●●● WiFi 🔋</span>
+                </div>
+                <div class="header-bar">
+                    <span>🗺️ NeedMap AI</span>
+                    <div class="icon-group"><div class="hicon"></div><div class="hicon"></div></div>
+                </div>
+                <div class="content">
+                    <div class="map-area">
+                        <div class="heat-dot" style="width:30px;height:30px;background:rgba(234,67,53,0.5);top:25%;left:30%"></div>
+                        <div class="heat-dot" style="width:22px;height:22px;background:rgba(251,188,5,0.5);top:50%;left:55%"></div>
+                        <div class="heat-dot" style="width:35px;height:35px;background:rgba(234,67,53,0.6);top:35%;left:65%"></div>
+                        <div class="heat-dot" style="width:18px;height:18px;background:rgba(52,168,83,0.5);top:60%;left:25%"></div>
+                        <span style="position:relative;z-index:1;">🗺️ Heatmap — Need Clusters</span>
+                    </div>
+                    <div class="stat-grid">
+                        <div class="stat-box"><div class="stat-num">247</div><div class="stat-label">Total Needs</div></div>
+                        <div class="stat-box"><div class="stat-num" style="color:#34A853">82%</div><div class="stat-label">Completed</div></div>
+                        <div class="stat-box"><div class="stat-num" style="color:#EA4335">12</div><div class="stat-label">Urgent</div></div>
+                        <div class="stat-box"><div class="stat-num" style="color:#9333ea">56</div><div class="stat-label">Volunteers</div></div>
+                    </div>
+                    <div class="card">
+                        <div class="card-title">📍 Ward 3, Bengaluru</div>
+                        <div class="card-text"><span class="badge badge-red">Urgent</span><span class="badge badge-green">Food</span> 15 families need support</div>
+                    </div>
+                </div>
+                <div class="bottom-nav">
+                    <div class="nav-item active"><div class="nav-dot"></div>Home</div>
+                    <div class="nav-item"><div class="nav-dot"></div>Needs</div>
+                    <div class="nav-item"><div class="nav-dot"></div>Tasks</div>
+                    <div class="nav-item"><div class="nav-dot"></div>Stats</div>
+                    <div class="nav-item"><div class="nav-dot"></div>Profile</div>
+                </div>
+            </div>
+        </div>
+        <p class="phone-label">Home Dashboard</p>
+        <p class="phone-sublabel">Heatmap + Live Stats</p>
+    </div>
+
+    <!-- Screen 2: Need Creation (AI-Powered) -->
+    <div class="phone-wrapper">
+        <div class="phone">
+            <div class="screen">
+                <div class="status-bar"><span>9:41</span><span>●●● WiFi 🔋</span></div>
+                <div class="header-bar"><span>➕ Report a Need</span><div class="icon-group"><div class="hicon"></div></div></div>
+                <div class="content">
+                    <div class="input-field">📝 Need Title *</div>
+                    <div class="input-field">📋 Description — What help is needed?</div>
+                    <div style="display:flex;gap:5px;margin-bottom:6px;">
+                        <div class="input-field" style="flex:1;margin:0">Category ▾</div>
+                        <div class="input-field" style="flex:1;margin:0">Urgency ▾</div>
+                    </div>
+                    <div class="input-field">📍 Location / Address</div>
+                    <div class="input-field">👥 People Affected</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:6px;">
+                        <div style="background:#eff6ff;border-radius:7px;padding:8px;text-align:center;font-size:0.6rem;color:#4285F4;font-weight:600;">📷 Image/OCR</div>
+                        <div style="background:#eff6ff;border-radius:7px;padding:8px;text-align:center;font-size:0.6rem;color:#4285F4;font-weight:600;">📄 PDF Upload</div>
+                    </div>
+                    <div style="background:#f0fdf4;border-radius:7px;padding:7px;text-align:center;font-size:0.58rem;color:#16a34a;margin-bottom:8px;">
+                        🤖 AI auto-extracts details & calculates priority score
+                    </div>
+                    <div class="btn-primary">Submit Need</div>
+                </div>
+                <div class="bottom-nav">
+                    <div class="nav-item"><div class="nav-dot"></div>Home</div>
+                    <div class="nav-item active"><div class="nav-dot"></div>Needs</div>
+                    <div class="nav-item"><div class="nav-dot"></div>Tasks</div>
+                    <div class="nav-item"><div class="nav-dot"></div>Stats</div>
+                    <div class="nav-item"><div class="nav-dot"></div>Profile</div>
+                </div>
+            </div>
+        </div>
+        <p class="phone-label">Need Creation</p>
+        <p class="phone-sublabel">AI-Powered Multi-Source Input</p>
+    </div>
+
+    <!-- Screen 3: Volunteer Assignments -->
+    <div class="phone-wrapper">
+        <div class="phone">
+            <div class="screen">
+                <div class="status-bar"><span>9:41</span><span>●●● WiFi 🔋</span></div>
+                <div class="header-bar"><span>📋 My Assignments</span><div class="icon-group"><div class="hicon"></div></div></div>
+                <div class="content">
+                    <div class="card" style="border-left:3px solid #34A853;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <div class="card-title">Food Distribution — Ward 5</div>
+                            <span class="badge badge-green">Active</span>
+                        </div>
+                        <div class="card-text">Match: 92% • 2.3 km</div>
+                        <div style="display:flex;gap:5px;margin-top:5px;">
+                            <div style="background:#f0fdf4;color:#16a34a;padding:3px 8px;border-radius:5px;font-size:0.55rem;font-weight:600;">✓ Complete</div>
+                            <div style="background:#fff7ed;color:#ea580c;padding:3px 8px;border-radius:5px;font-size:0.55rem;font-weight:600;">📍 Navigate</div>
+                        </div>
+                    </div>
+                    <div class="card" style="border-left:3px solid #FBBC05;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <div class="card-title">Medical Aid — Sector 12</div>
+                            <span class="badge badge-orange">Proposed</span>
+                        </div>
+                        <div class="card-text">Match: 87% • 4.1 km</div>
+                        <div style="display:flex;gap:5px;margin-top:5px;">
+                            <div style="background:#f0fdf4;color:#16a34a;padding:3px 8px;border-radius:5px;font-size:0.55rem;font-weight:600;">✓ Accept</div>
+                            <div style="background:#fef2f2;color:#dc2626;padding:3px 8px;border-radius:5px;font-size:0.55rem;font-weight:600;">✗ Decline</div>
+                        </div>
+                    </div>
+                    <div class="card" style="border-left:3px solid #4285F4;opacity:0.7;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <div class="card-title">Shelter Setup — Block A</div>
+                            <span class="badge badge-blue">Done</span>
+                        </div>
+                        <div class="card-text">⭐ 4.8 rating • Completed 2d ago</div>
+                    </div>
+                    <div style="background:#f0f4ff;border-radius:8px;padding:10px;margin-top:6px;text-align:center;">
+                        <div style="font-size:0.65rem;font-weight:700;color:#4285F4;">Your Performance</div>
+                        <div style="display:flex;justify-content:space-around;margin-top:5px;">
+                            <div><div style="font-size:0.9rem;font-weight:800;color:#1f2937;">⭐ 4.7</div><div style="font-size:0.5rem;color:#6b7280;">Rating</div></div>
+                            <div><div style="font-size:0.9rem;font-weight:800;color:#1f2937;">23</div><div style="font-size:0.5rem;color:#6b7280;">Tasks</div></div>
+                            <div><div style="font-size:0.9rem;font-weight:800;color:#1f2937;">96%</div><div style="font-size:0.5rem;color:#6b7280;">Reliability</div></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="bottom-nav">
+                    <div class="nav-item"><div class="nav-dot"></div>Home</div>
+                    <div class="nav-item"><div class="nav-dot"></div>Needs</div>
+                    <div class="nav-item active"><div class="nav-dot"></div>Tasks</div>
+                    <div class="nav-item"><div class="nav-dot"></div>Stats</div>
+                    <div class="nav-item"><div class="nav-dot"></div>Profile</div>
+                </div>
+            </div>
+        </div>
+        <p class="phone-label">Volunteer Assignments</p>
+        <p class="phone-sublabel">Smart Matching + Real-Time</p>
+    </div>
+
+    <!-- Screen 4: Analytics Dashboard -->
+    <div class="phone-wrapper">
+        <div class="phone">
+            <div class="screen">
+                <div class="status-bar"><span>9:41</span><span>●●● WiFi 🔋</span></div>
+                <div class="header-bar"><span>📊 Analytics</span><div class="icon-group"><div class="hicon"></div></div></div>
+                <div class="content">
+                    <div class="stat-grid">
+                        <div class="stat-box"><div class="stat-num">247</div><div class="stat-label">All Needs</div></div>
+                        <div class="stat-box"><div class="stat-num" style="color:#34A853;">82%</div><div class="stat-label">Completion</div></div>
+                        <div class="stat-box"><div class="stat-num" style="color:#EA4335;">18</div><div class="stat-label">Urgent Open</div></div>
+                        <div class="stat-box"><div class="stat-num" style="color:#9333ea;">1,240</div><div class="stat-label">People Helped</div></div>
+                    </div>
+                    <div class="card">
+                        <div class="card-title">📈 Category Distribution</div>
+                        <div class="chart-bar-group">
+                            <div class="chart-bar" style="background:#4285F4;height:80%;"></div>
+                            <div class="chart-bar" style="background:#34A853;height:55%;"></div>
+                            <div class="chart-bar" style="background:#FBBC05;height:40%;"></div>
+                            <div class="chart-bar" style="background:#EA4335;height:90%;"></div>
+                            <div class="chart-bar" style="background:#9333ea;height:30%;"></div>
+                        </div>
+                        <div class="chart-labels"><span>Food</span><span>Health</span><span>Shelter</span><span>Edu</span><span>Other</span></div>
+                    </div>
+                    <div class="card">
+                        <div class="card-title">🏆 Branch Performance</div>
+                        <div class="list-item">
+                            <div class="avatar">B1</div>
+                            <div class="list-item-text"><div class="list-item-title">Bengaluru Central</div><div class="list-item-sub">94% completed</div></div>
+                        </div>
+                        <div class="list-item">
+                            <div class="avatar">B2</div>
+                            <div class="list-item-text"><div class="list-item-title">Mysuru South</div><div class="list-item-sub">89% completed</div></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="bottom-nav">
+                    <div class="nav-item"><div class="nav-dot"></div>Home</div>
+                    <div class="nav-item"><div class="nav-dot"></div>Needs</div>
+                    <div class="nav-item"><div class="nav-dot"></div>Tasks</div>
+                    <div class="nav-item active"><div class="nav-dot"></div>Stats</div>
+                    <div class="nav-item"><div class="nav-dot"></div>Profile</div>
+                </div>
+            </div>
+        </div>
+        <p class="phone-label">Statistics & Analytics</p>
+        <p class="phone-sublabel">Data-Driven Insights</p>
+    </div>
+
+    <!-- Screen 5: Multi-Language + Accessibility -->
+    <div class="phone-wrapper">
+        <div class="phone">
+            <div class="screen">
+                <div class="status-bar"><span>9:41</span><span>●●● WiFi 🔋</span></div>
+                <div class="header-bar"><span>⚙️ Settings</span><div class="icon-group"><div class="hicon"></div></div></div>
+                <div class="content">
+                    <div class="card-title" style="margin-bottom:8px;font-size:0.75rem;">🌐 Language</div>
+                    <div class="lang-option selected"><div class="lang-flag"></div>English</div>
+                    <div class="lang-option"><div class="lang-flag"></div>हिन्दी (Hindi)</div>
+                    <div class="lang-option"><div class="lang-flag"></div>தமிழ் (Tamil)</div>
+                    <div class="lang-option"><div class="lang-flag"></div>ಕನ್ನಡ (Kannada)</div>
+                    <div class="lang-option"><div class="lang-flag"></div>తెలుగు (Telugu)</div>
+                    <div class="lang-option"><div class="lang-flag"></div>मराठी (Marathi)</div>
+
+                    <div class="card-title" style="margin:10px 0 6px;font-size:0.75rem;">♿ Accessibility</div>
+                    <div class="toggle-row"><span class="toggle-label">High Contrast</span><div class="toggle"></div></div>
+                    <div class="toggle-row"><span class="toggle-label">Large Text</span><div class="toggle"></div></div>
+                    <div class="toggle-row"><span class="toggle-label">Reduced Motion</span><div class="toggle off"></div></div>
+
+                    <div class="card-title" style="margin:10px 0 6px;font-size:0.75rem;">🎨 Theme</div>
+                    <div style="display:flex;gap:8px;">
+                        <div style="flex:1;background:#f9fafb;border:2px solid #4285F4;border-radius:8px;padding:8px;text-align:center;font-size:0.6rem;font-weight:600;color:#4285F4;">☀️ Light</div>
+                        <div style="flex:1;background:#1e293b;border:2px solid #374151;border-radius:8px;padding:8px;text-align:center;font-size:0.6rem;font-weight:600;color:#e2e8f0;">🌙 Dark</div>
+                    </div>
+                </div>
+                <div class="bottom-nav">
+                    <div class="nav-item"><div class="nav-dot"></div>Home</div>
+                    <div class="nav-item"><div class="nav-dot"></div>Needs</div>
+                    <div class="nav-item"><div class="nav-dot"></div>Tasks</div>
+                    <div class="nav-item"><div class="nav-dot"></div>Stats</div>
+                    <div class="nav-item active"><div class="nav-dot"></div>Profile</div>
+                </div>
+            </div>
+        </div>
+        <p class="phone-label">Language & Accessibility</p>
+        <p class="phone-sublabel">6 Languages + A11y + Themes</p>
+    </div>
+
+    <!-- Screen 6: Real-Time Notifications -->
+    <div class="phone-wrapper">
+        <div class="phone">
+            <div class="screen">
+                <div class="status-bar"><span>9:41</span><span>●●● WiFi 🔋</span></div>
+                <div class="header-bar"><span>🔔 Notifications</span><div class="icon-group"><div class="hicon"></div></div></div>
+                <div class="content">
+                    <div style="background:#fef3c7;border-radius:8px;padding:8px;margin-bottom:8px;font-size:0.6rem;color:#92400e;font-weight:500;text-align:center;">
+                        ⚡ Live WebSocket Connection Active
+                    </div>
+                    <div class="notification-toast">
+                        <div class="nt-icon">📋</div>
+                        <div style="flex:1;">
+                            <div class="nt-text">New Assignment Proposal</div>
+                            <div class="nt-time">Food Distribution — Ward 7 • Just now</div>
+                        </div>
+                    </div>
+                    <div class="notification-toast">
+                        <div class="nt-icon" style="background:#34A853;">✓</div>
+                        <div style="flex:1;">
+                            <div class="nt-text">Assignment Accepted</div>
+                            <div class="nt-time">Medical Aid — Sector 4 • 2m ago</div>
+                        </div>
+                    </div>
+                    <div class="notification-toast">
+                        <div class="nt-icon" style="background:#FBBC05;">⭐</div>
+                        <div style="flex:1;">
+                            <div class="nt-text">You received a 5-star rating!</div>
+                            <div class="nt-time">Shelter task completed • 15m ago</div>
+                        </div>
+                    </div>
+                    <div class="notification-toast">
+                        <div class="nt-icon" style="background:#EA4335;">🚨</div>
+                        <div style="flex:1;">
+                            <div class="nt-text">Urgent Need Nearby (1.2 km)</div>
+                            <div class="nt-time">Education supplies — Block C • 1h ago</div>
+                        </div>
+                    </div>
+                    <div class="notification-toast">
+                        <div class="nt-icon" style="background:#9333ea;">💬</div>
+                        <div style="flex:1;">
+                            <div class="nt-text">Feedback received on your work</div>
+                            <div class="nt-time">Admin rated you 4.9 • 3h ago</div>
+                        </div>
+                    </div>
+
+                    <div style="background:#f0f4ff;border-radius:8px;padding:8px;margin-top:8px;text-align:center;">
+                        <div style="font-size:0.6rem;color:#4285F4;font-weight:600;">Real-time via WebSocket</div>
+                        <div style="font-size:0.5rem;color:#6b7280;margin-top:2px;">Accept • Decline • Rate • Feedback — Instant</div>
+                    </div>
+                </div>
+                <div class="bottom-nav">
+                    <div class="nav-item"><div class="nav-dot"></div>Home</div>
+                    <div class="nav-item"><div class="nav-dot"></div>Needs</div>
+                    <div class="nav-item"><div class="nav-dot"></div>Tasks</div>
+                    <div class="nav-item"><div class="nav-dot"></div>Stats</div>
+                    <div class="nav-item"><div class="nav-dot"></div>Profile</div>
+                </div>
+            </div>
+        </div>
+        <p class="phone-label">Real-Time Notifications</p>
+        <p class="phone-sublabel">WebSocket Live Updates</p>
+    </div>
+
+</div>
+
+</body>
+</html>
