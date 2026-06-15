@@ -12,6 +12,7 @@ import type {
 import { getErrorMessage, publishToast } from "./toast";
 
 const normalize = (baseUrl: string) => baseUrl.trim().replace(/\/+$/, "");
+const isBypassToken = (token?: string) => token === "dev-bypass-token";
 type ApiPrefix = "" | "/api" | "/api/v1";
 const preferredPrefixByResource: Record<string, ApiPrefix> = {};
 type ApiToastOptions = {
@@ -312,6 +313,24 @@ export const moduleApi = {
       organization_id?: number;
     },
   ) => {
+    if (isBypassToken(token)) {
+      const mockNeeds: Need[] = [
+        {
+          id: 1,
+          title: "Drinking Water Supply",
+          description: "Need clean water packets for 120 families.",
+          category: "water",
+          urgency: "high",
+          status: "open",
+          organization_id: 1,
+          latitude: 25.4358,
+          longitude: 81.8463,
+          address: "Naini, Prayagraj",
+          created_at: new Date().toISOString(),
+        },
+      ];
+      return Promise.resolve(mockNeeds);
+    }
     const params = new URLSearchParams();
     if (filters?.status) params.set("status", filters.status);
     if (filters?.urgency) params.set("urgency", filters.urgency);
@@ -432,6 +451,12 @@ export const moduleApi = {
   },
 
   volunteers: (baseUrl: string, token: string) => {
+    if (isBypassToken(token)) {
+      const mockVolunteers: Volunteer[] = [
+        { id: 1, user_id: 9999, organization_id: 1, availability: true, verified: true, rating: 4.6, tasks_completed: 8, active_tasks: 1 },
+      ];
+      return Promise.resolve(mockVolunteers);
+    }
     return apiRequest<Volunteer[]>(baseUrl, "/volunteers", { method: "GET" }, token);
   },
 
@@ -487,6 +512,20 @@ export const moduleApi = {
     ),
 
   organizations: (baseUrl: string, token: string) => {
+    if (isBypassToken(token)) {
+      const mockOrganizations: Organization[] = [
+        {
+          id: 1,
+          organization_name: "NeedMap Demo Org",
+          address: "Prayagraj, Uttar Pradesh",
+          phone: "+91 9000000000",
+          user_id: 9999,
+          is_active: true,
+          created_at: new Date().toISOString(),
+        },
+      ];
+      return Promise.resolve(mockOrganizations);
+    }
     return apiRequest<Organization[]>(baseUrl, "/organizations", { method: "GET" }, token);
   },
 

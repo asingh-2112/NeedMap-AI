@@ -96,7 +96,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   useEffect(() => {
-    if (!token) {
+    if (!token || token === "dev-bypass-token") {
       socketRef.current?.close();
       socketRef.current = null;
       return;
