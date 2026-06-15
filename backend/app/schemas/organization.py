@@ -1,6 +1,9 @@
 from datetime import datetime
 
 from pydantic import BaseModel, EmailStr, Field, model_validator
+from typing_extensions import Self
+
+from app.schemas.user import _validate_password_strength, _PHONE_RE
 
 
 # ── Organization + Admin registration (public, no token) ─────────────────────
@@ -13,6 +16,17 @@ class OrganizationRegisterRequest(BaseModel):
     owner_name: str = Field(..., min_length=2, max_length=255)
     owner_email: EmailStr
     owner_password: str = Field(..., min_length=8)
+
+    @model_validator(mode="after")
+    def validate_password(self) -> Self:
+        _validate_password_strength(self.owner_password)
+        return self
+
+    @model_validator(mode="after")
+    def validate_phone(self) -> Self:
+        if self.phone and not _PHONE_RE.match(self.phone.strip()):
+            raise ValueError("Invalid phone number format")
+        return self
 
 
 class OrganizationRegisterResponse(BaseModel):

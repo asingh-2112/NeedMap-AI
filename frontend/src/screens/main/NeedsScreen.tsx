@@ -326,14 +326,48 @@ export const NeedsScreen = () => {
       setSubmitMessage({ text: missingAdminBranchMessage, type: "error" });
       return;
     }
-    if (!description.trim() || !address.trim()) {
-      setSubmitMessage({ text: t("Description and Address are required."), type: "error" });
+
+    const trimmedDesc = description.trim();
+    const trimmedAddress = address.trim();
+    const latNum = parseFloat(latitude.trim());
+    const lngNum = parseFloat(longitude.trim());
+
+    if (!trimmedDesc) {
+      setSubmitMessage({ text: t("Description is required."), type: "error" });
+      return;
+    }
+    if (trimmedDesc.length < 10) {
+      setSubmitMessage({ text: t("Description must be at least 10 characters."), type: "error" });
+      return;
+    }
+    if (!trimmedAddress) {
+      setSubmitMessage({ text: t("Address is required."), type: "error" });
+      return;
+    }
+    if (isNaN(latNum) || isNaN(lngNum)) {
+      setSubmitMessage({ text: t("Valid latitude and longitude are required."), type: "error" });
+      return;
+    }
+    if (latNum === 0 && lngNum === 0) {
+      setSubmitMessage({ text: t("Please provide a real location (use the Auto button)."), type: "error" });
+      return;
+    }
+    if (!CATEGORIES.includes(category)) {
+      setSubmitMessage({ text: t("Please select a valid category."), type: "error" });
+      return;
+    }
+    if (!URGENCIES.includes(urgency)) {
+      setSubmitMessage({ text: t("Please select a valid urgency."), type: "error" });
+      return;
+    }
+    if (category === "other" && !customCategory.trim()) {
+      setSubmitMessage({ text: t("Please enter a custom category name."), type: "error" });
       return;
     }
     setSubmitting(true);
     setSubmitMessage(null);
     try {
-      const generatedTitle = title.trim() || description.trim().split(/\s+/).slice(0, 8).join(" ");
+      const generatedTitle = title.trim() || description.trim().split(/\s+/).slice(0, 8).join(" ") || "New Need";
       const finalDescription = category === "other" && customCategory.trim()
         ? `${description.trim()}\n\nCustom Category: ${customCategory.trim()}`
         : description.trim();

@@ -37,6 +37,7 @@ from datetime import datetime, timezone
 from functools import cached_property
 
 from app.core.config import _find_service_account_json, _fetch_secret
+from app.schemas.need import _normalise_category, _normalise_urgency
 
 # Fix SSL cert verification on macOS Homebrew Python
 if 'SSL_CERT_FILE' not in os.environ:
@@ -104,14 +105,12 @@ _VALID_URGENCIES = {"critical", "high", "medium", "low"}
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _sanitise(extracted: dict) -> dict:
-    """Ensure LLM output conforms to our enum values."""
-    category = extracted.get("category", "other")
-    if category not in _VALID_CATEGORIES:
-        category = "other"
+    """Ensure LLM output conforms to our enum values using fuzzy normalisers."""
+    category_raw = str(extracted.get("category") or "other").strip()
+    category = _normalise_category(category_raw).value
 
-    urgency = extracted.get("urgency", "medium")
-    if urgency not in _VALID_URGENCIES:
-        urgency = "medium"
+    urgency_raw = str(extracted.get("urgency") or "medium").strip()
+    urgency = _normalise_urgency(urgency_raw).value
 
     skills = extracted.get("skills_required") or []
     if not isinstance(skills, list):

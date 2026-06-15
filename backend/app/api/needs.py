@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 import os
 import tempfile
 import json
+import re
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session
@@ -106,6 +107,68 @@ def _safe_text_preview(raw: bytes, limit: int = 500) -> str:
     return ""
 
 
+# ── File validation ────────────────────────────────────────────────────────
+
+_MAX_UPLOAD_BYTES = 20 * 1024 * 1024  # 20 MB
+_ALLOWED_MIME_PREFIXES: dict[str, set[str]] = {
+    "image": {"image/", },
+    "voice_note": {"audio/", },
+    "document": {"application/pdf", "application/msword",
+                  "application/vnd.openxmlformats-officedocument.wordprocessingml.document"},
+    "csv_upload": {"text/csv", "text/plain", "application/csv",
+                   "application/vnd.ms-excel",
+                   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"},
+}
+
+_PHONE_REGEX = re.compile(r"^\+?[0-9\-\s()]{7,20}$")
+
+
+def _validate_file_upload(file: UploadFile, source_type: str) -> None:
+    """Raise HTTP 400 if the file is too large or has a disallowed MIME type."""
+    # Size check
+    file.file.seek(0, 2)  # seek end
+    size = file.file.tell()
+    file.file.seek(0)
+    if size > _MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File exceeds maximum size of {_MAX_UPLOAD_BYTES // (1024*1024)} MB",
+        )
+    if size == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded file is empty",
+        )
+
+    # MIME type check
+    allowed = _ALLOWED_MIME_PREFIXES.get(source_type)
+    if allowed is None:
+        return  # no restriction for this source_type
+    content_type = (file.content_type or "").lower()
+    if not content_type:
+        return  # client didn't specify — defer
+    if not any(content_type.startswith(prefix) for prefix in allowed):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported file type '{content_type}' for source type '{source_type}'",
+        )
+
+
+def _validate_phone(value: str | None) -> str | None:
+    """Return the phone string if valid, else raise HTTP 400."""
+    if value is None:
+        return None
+    stripped = value.strip()
+    if not stripped:
+        return None
+    if not _PHONE_REGEX.match(stripped):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid phone number format. Expected 7-20 digits, optionally with +, -, spaces, or parentheses.",
+        )
+    return stripped
+
+
 @router.post("", response_model=NeedResponse, status_code=status.HTTP_201_CREATED)
 async def create_need_route(
     payload: NeedCreateRequest,
@@ -162,6 +225,8 @@ def ingest_upload_route(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="source_type must be one of: image, voice_note, document, csv_upload, web_form",
         )
+
+    _validate_file_upload(file, st)
 
     file_bytes = file.file.read()
     if not file_bytes:
@@ -265,6 +330,8 @@ def add_need_source_upload_route(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid source_type for upload",
         )
+
+    _validate_file_upload(file, st if st != "paper_survey" else "image")
 
     source_map = {
         "image": SourceType.IMAGE,
