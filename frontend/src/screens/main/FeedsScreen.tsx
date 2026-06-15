@@ -17,6 +17,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useAccessibility } from "../../context/AccessibilityContext";
 import { useAuth } from "../../context/AuthContext";
 import { useLanguage } from "../../context/LanguageContext";
+import { translateViaApi } from "../../context/LanguageContext";
 import { useThemeMode } from "../../context/ThemeModeContext";
 import { apiRequest } from "../../services/api";
 
@@ -26,9 +27,9 @@ type Story = {
   id: number;
   organization_id: number;
   title: string;
-  narrative: string;
+  content: string;
   image_url?: string | null;
-  media_urls?: string | null;
+  is_published: boolean;
   created_at: string;
 };
 
@@ -37,16 +38,19 @@ type Campaign = {
   organization_id: number;
   title: string;
   description: string | null;
-  image_url?: string | null;
-  goals?: string | null;
-  status: string;
+  goal_amount?: number | null;
+  raised_amount?: number | null;
+  cover_image_url?: string | null;
+  is_active: boolean;
+  starts_at?: string | null;
+  ends_at?: string | null;
   created_at: string;
 };
 
 export const FeedsScreen = () => {
   const { baseUrl, token, user } = useAuth();
   const { highContrast, screenReaderOptimized, textScale, touchTarget } = useAccessibility();
-  const { t, translateStatus, translateText } = useLanguage();
+  const { t, translateStatus, translateText, language } = useLanguage();
   const { theme } = useThemeMode();
   const scopedOrganizationId =
     user?.role === "admin"
@@ -65,7 +69,7 @@ export const FeedsScreen = () => {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState({
     title: "",
-    narrative: "",
+    content: "",
     imageData: "",
     imageName: "",
   });
@@ -111,6 +115,19 @@ export const FeedsScreen = () => {
   useEffect(() => {
     void load();
   }, [baseUrl, token, scopedOrganizationId]);
+
+  // Pre-fetch translations for all story titles, narratives, and campaign titles/descriptions
+  useEffect(() => {
+    if (!language || language === "en") return;
+    for (const s of stories) {
+      if (s.title) translateViaApi(s.title, language);
+      if (s.content) translateViaApi(s.content, language);
+    }
+    for (const c of campaigns) {
+      if (c.title) translateViaApi(c.title, language);
+      if (c.description) translateViaApi(c.description, language);
+    }
+  }, [stories, campaigns, language]);
 
   const deleteStory = async (storyId: number) => {
     Alert.alert(t("Delete") + " " + t("Article"), t("Are you sure you want to delete this article?"), [
@@ -167,22 +184,20 @@ export const FeedsScreen = () => {
   const openCreateModal = () => {
     setModalType("create");
     setEditingId(null);
-    setFormData({ title: "", narrative: "", imageData: "", imageName: "" });
+    setFormData({ title: "", content: "", imageData: "", imageName: "" });
     setShowModal(true);
   };
 
   const openEditModal = (item: Story | Campaign) => {
     setModalType("edit");
     setEditingId(item.id);
-    const narrative =
-      "narrative" in item ? item.narrative : item.description || "";
-    const imageData =
-      "narrative" in item
-        ? getStoryImage(item)
-        : getCampaignImage(item);
+    // Story has 'content', Campaign has 'description'
+    const isStory = "content" in item && !("goal_amount" in item);
+    const body = isStory ? (item as Story).content : (item as Campaign).description || "";
+    const imageData = isStory ? getStoryImage(item as Story) : getCampaignImage(item as Campaign);
     setFormData({
       title: item.title,
-      narrative,
+      content: body,
       imageData,
       imageName: imageData ? "existing-image" : "",
     });
@@ -222,40 +237,15 @@ export const FeedsScreen = () => {
   };
 
   const getStoryImage = (story: Story): string => {
-    if (story.image_url) {
-      return story.image_url;
-    }
-    if (!story.media_urls) {
-      return "";
-    }
-    try {
-      const parsed = JSON.parse(story.media_urls);
-      if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === "string") {
-        return parsed[0];
-      }
-      return "";
-    } catch {
-      return "";
-    }
+    return story.image_url || "";
   };
 
   const getCampaignImage = (campaign: Campaign): string => {
-    if (campaign.image_url) {
-      return campaign.image_url;
-    }
-    if (!campaign.goals) {
-      return "";
-    }
-    try {
-      const parsed = JSON.parse(campaign.goals) as { image_url?: string };
-      return typeof parsed.image_url === "string" ? parsed.image_url : "";
-    } catch {
-      return "";
-    }
+    return campaign.cover_image_url || "";
   };
 
   const handleSave = async () => {
-    if (!formData.title.trim() || !formData.narrative.trim()) {
+    if (!formData.title.trim() || !formData.content.trim()) {
       Alert.alert(t("Validation"), t("Please fill in title and description"));
       return;
     }
@@ -282,20 +272,14 @@ export const FeedsScreen = () => {
           ? {
               organization_id: scopedOrganizationId,
               title: formData.title,
-              narrative: formData.narrative,
-              media_urls: formData.imageData
-                ? JSON.stringify([formData.imageData])
-                : null,
+              content: formData.content,
               image_url: formData.imageData || null,
             }
           : {
               organization_id: scopedOrganizationId,
               title: formData.title,
-              description: formData.narrative,
-              goals: formData.imageData
-                ? JSON.stringify({ image_url: formData.imageData })
-                : null,
-              image_url: formData.imageData || null,
+              description: formData.content,
+              cover_image_url: formData.imageData || null,
             };
 
       const result = await apiRequest<Story | Campaign>(
@@ -328,7 +312,7 @@ export const FeedsScreen = () => {
         } ${t("successfully")}`
       );
       setShowModal(false);
-      setFormData({ title: "", narrative: "", imageData: "", imageName: "" });
+      setFormData({ title: "", content: "", imageData: "", imageName: "" });
     } catch {
       Alert.alert(
         t("Error"),
@@ -407,7 +391,7 @@ export const FeedsScreen = () => {
                 <View style={styles.cardContent}>
                   <Text style={[styles.cardTitle, scaledText(15, 20)]}>{translateText(story.title)}</Text>
                   <Text style={[styles.cardBody, scaledText(13, 18)]} numberOfLines={3}>
-                    {t("Description")}: {translateText(story.narrative)}
+                    {t("Description")}: {translateText(story.content)}
                   </Text>
                   <Text style={[styles.meta, scaledText(11, 16)]}>
                     {t("Story")} #{story.id} · {t("Date")}: {new Date(story.created_at).toLocaleDateString()}
@@ -444,7 +428,7 @@ export const FeedsScreen = () => {
                   <Text style={[styles.cardBody, scaledText(13, 18)]} numberOfLines={3}>
                     {t("Description")}: {campaign.description ? translateText(campaign.description) : t("No description")}
                   </Text>
-                  <Text style={[styles.meta, scaledText(11, 16)]}>{t("Campaign")} #{campaign.id} · {t("Status")}: {translateStatus(campaign.status)}</Text>
+                  <Text style={[styles.meta, scaledText(11, 16)]}>{t("Campaign")} #{campaign.id} · {t("Status")}: {translateStatus(campaign.is_active ? "Active" : "Inactive")}</Text>
                   {isOrgManager && (
                     <View style={styles.cardActions}>
                       <Pressable style={[styles.actionBtn, touchStyle]} onPress={() => openEditModal(campaign)} accessibilityRole="button" accessibilityLabel={screenReaderOptimized ? `${t("Edit")} ${t("Campaign")} ${translateText(campaign.title)}` : undefined}>
@@ -501,8 +485,8 @@ export const FeedsScreen = () => {
                 style={[styles.input, styles.textArea, highContrastInput, scaledText(14, 19)]}
                 placeholder={t("Enter description")}
                 placeholderTextColor="#8B8DA3"
-                value={formData.narrative}
-                onChangeText={(text) => setFormData({ ...formData, narrative: text })}
+                value={formData.content}
+                onChangeText={(text) => setFormData({ ...formData, content: text })}
                 multiline
                 numberOfLines={4}
                 accessibilityLabel={t("Description")}

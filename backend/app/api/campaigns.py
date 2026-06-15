@@ -4,7 +4,6 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.models.user import User
-from app.models.enums import CampaignStatus
 from app.schemas.campaign import CampaignCreateRequest, CampaignUpdateRequest, CampaignResponse
 from app.services.organization_service import get_accessible_organization_ids
 from app.services import campaign_service
@@ -28,7 +27,6 @@ def create_campaign(
 @router.get("/", response_model=list[CampaignResponse])
 def list_campaigns(
     org_id: int | None = Query(default=None),
-    status: CampaignStatus | None = Query(default=None),
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     current_user: User = Depends(get_current_user),
@@ -42,7 +40,6 @@ def list_campaigns(
         db,
         org_id=org_id,
         org_ids=None if org_id is not None else list(allowed),
-        status=status,
         limit=limit,
         offset=offset,
     )

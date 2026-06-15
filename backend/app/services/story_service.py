@@ -9,12 +9,11 @@ def create_story(db: Session, payload: StoryCreateRequest, user_id: int) -> Stor
     """Create an impact story."""
     story = Story(
         organization_id=payload.organization_id,
-        need_id=payload.need_id,
+        author_id=user_id,
         title=payload.title,
-        narrative=payload.narrative,
-        media_urls=payload.media_urls,
-        metrics=payload.metrics,
-        created_by=user_id,
+        content=payload.content,
+        image_url=payload.image_url,
+        is_published=payload.is_published,
     )
     db.add(story)
     db.commit()

@@ -1,7 +1,27 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
-import MapView, { Callout, Marker, Polygon, type Region } from "react-native-maps";
+import { Platform, StyleSheet, Text, View } from "react-native";
+import { WebView } from "react-native-webview";
 import type { Need, Organization, Volunteer } from "../types/api";
+
+// react-native-maps requires native binary linkage (EAS dev build).
+// In Expo Go or environments without the native module, fall back to placeholder.
+let MapView: any = null;
+let Callout: any = null;
+let Marker: any = null;
+let Polygon: any = null;
+
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const RNMaps = require("react-native-maps");
+  MapView = RNMaps.default;
+  Callout = RNMaps.Callout;
+  Marker = RNMaps.Marker;
+  Polygon = RNMaps.Polygon;
+} catch {
+  // Native module unavailable — will render placeholder
+}
+
+import { buildWebMapHtml } from "./NeedMapViewMapHtml";
 
 export type NeedMapViewProps = {
   needs: Need[];
@@ -192,10 +212,10 @@ export const NeedMapView: React.FC<NeedMapViewProps> = ({
   translateAddress,
   height = 300,
 }) => {
-  const mapRef = useRef<MapView>(null);
+  const mapRef = useRef<any>(null);
   const [zoomLevel, setZoomLevel] = useState(10);
 
-  const onRegionChange = useCallback((region: Region) => {
+  const onRegionChange = useCallback((region: any) => {
     const zoom = Math.round(Math.log2(360 / Math.max(region.longitudeDelta, 0.001)));
     setZoomLevel(zoom);
   }, []);
@@ -279,6 +299,30 @@ export const NeedMapView: React.FC<NeedMapViewProps> = ({
 
   return (
     <View style={[styles.container, { height }]}>
+      {!MapView ? (
+        <WebView
+          style={[styles.map, { borderRadius: 12 }]}
+          source={{
+            html: buildWebMapHtml({ needs, organizations, volunteers, currentLocation, branchMarkers, showHeatmap, labels, translateText, translateAddress }),
+          }}
+          originWhitelist={["*"]}
+          javaScriptEnabled
+          domStorageEnabled
+          mixedContentMode="always"
+          allowsInlineMediaPlayback
+          allowFileAccess
+          allowUniversalAccessFromFileURLs
+          scrollEnabled={false}
+          onMessage={(e) => {
+            try {
+              const data = JSON.parse(e.nativeEvent.data);
+              if (data?.type === "openNeed" && Number.isFinite(data.needId)) {
+                onNeedPress(data.needId);
+              }
+            } catch { /* ignore parse errors */ }
+          }}
+        />
+      ) : (
       <MapView
         ref={mapRef}
         style={styles.map}
@@ -480,6 +524,7 @@ export const NeedMapView: React.FC<NeedMapViewProps> = ({
           </Marker>
         ))}
       </MapView>
+      )}
 
       {/* Legend overlay */}
       {showHeatmap && (

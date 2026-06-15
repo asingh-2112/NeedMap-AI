@@ -4,6 +4,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useAccessibility } from "../../context/AccessibilityContext";
 import { useAuth } from "../../context/AuthContext";
 import { useLanguage } from "../../context/LanguageContext";
+import { translateViaApi } from "../../context/LanguageContext";
 import { moduleApi } from "../../services/api";
 import { colors } from "../../theme";
 import type { Need } from "../../types/api";
@@ -11,7 +12,7 @@ import type { Need } from "../../types/api";
 export const CampsScreen = () => {
   const { baseUrl, token } = useAuth();
   const { highContrast, reduceMotion, textScale } = useAccessibility();
-  const { t, translateAddress, translateCategory, translateStatus, translateText } = useLanguage();
+  const { t, translateAddress, translateCategory, translateStatus, translateText, language } = useLanguage();
   const [items, setItems] = useState<Need[]>([]);
 
   const floatA = useRef(new Animated.Value(0)).current;
@@ -29,6 +30,16 @@ export const CampsScreen = () => {
 
     load();
   }, [baseUrl, token]);
+
+  // Pre-fetch translations for camp need titles, descriptions, addresses
+  useEffect(() => {
+    if (!language || language === "en" || !items.length) return;
+    for (const n of items) {
+      if (n.title) translateViaApi(n.title, language);
+      if (n.description) translateViaApi(n.description, language);
+      if (n.address) translateViaApi(n.address, language);
+    }
+  }, [items, language]);
 
   useEffect(() => {
     if (reduceMotion) {

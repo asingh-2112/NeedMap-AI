@@ -17,6 +17,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useAccessibility } from "../../context/AccessibilityContext";
 import { useAuth } from "../../context/AuthContext";
 import { useLanguage } from "../../context/LanguageContext";
+import { translateViaApi } from "../../context/LanguageContext";
 import { useThemeMode } from "../../context/ThemeModeContext";
 import { moduleApi } from "../../services/api";
 import type { RootStackParamList } from "../../navigation/types";
@@ -31,7 +32,7 @@ export const OrganizationsScreen = () => {
   const nav = useNavigation<Nav>();
   const { baseUrl, token, user } = useAuth();
   const { reduceMotion } = useAccessibility();
-  const { t, translateAddress, translateStatus, translateText } = useLanguage();
+  const { t, translateAddress, translateStatus, translateText, language } = useLanguage();
   const { theme } = useThemeMode();
   const isLight = theme.mode === "light";
   const lightPrimary = isLight ? { color: "#0B1220", fontWeight: "800" as const } : null;
@@ -109,6 +110,15 @@ export const OrganizationsScreen = () => {
   useEffect(() => {
     void load();
   }, [baseUrl, token, user?.organization_id]);
+
+  // Pre-fetch translations for all branch names
+  useEffect(() => {
+    if (!language || language === "en" || !branches.length) return;
+    for (const b of branches) {
+      if (b.organization_name) translateViaApi(b.organization_name, language);
+      if (b.address) translateViaApi(b.address, language);
+    }
+  }, [branches, language]);
 
   const adminByBranch = useMemo(() => {
     const map = new Map<number, AuthUser>();

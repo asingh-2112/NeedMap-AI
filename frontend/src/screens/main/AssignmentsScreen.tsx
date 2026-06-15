@@ -15,6 +15,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useAccessibility } from "../../context/AccessibilityContext";
 import { useAuth } from "../../context/AuthContext";
 import { useLanguage } from "../../context/LanguageContext";
+import { translateViaApi } from "../../context/LanguageContext";
 import { useRealtime } from "../../context/RealtimeContext";
 import { moduleApi } from "../../services/api";
 import type { Assignment, Organization } from "../../types/api";
@@ -33,7 +34,7 @@ export const AssignmentsScreen = () => {
   const { baseUrl, token, user } = useAuth();
   const { assignmentsVersion } = useRealtime();
   const { reduceMotion } = useAccessibility();
-  const { t, translateAddress, translateStatus, translateText } = useLanguage();
+  const { t, translateAddress, translateStatus, translateText, language } = useLanguage();
   const scopedOrganizationId = user?.role === "admin" ? user?.managed_branch_id ?? user?.organization_id : user?.organization_id;
   const [items, setItems] = useState<Assignment[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
@@ -72,6 +73,14 @@ export const AssignmentsScreen = () => {
   useEffect(() => {
     load();
   }, [assignmentsVersion, baseUrl, token, scopedOrganizationId]);
+
+  // Pre-fetch translations for organization names in assignment data
+  useEffect(() => {
+    if (!language || language === "en" || !organizations.length) return;
+    for (const org of organizations) {
+      if (org.organization_name) translateViaApi(org.organization_name, language);
+    }
+  }, [organizations, language]);
 
   useEffect(() => {
     if (reduceMotion) {

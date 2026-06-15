@@ -16,6 +16,7 @@ from app.api.analytics import router as analytics_router
 from app.api.stories import router as stories_router
 from app.api.campaigns import router as campaigns_router
 from app.api.websocket import router as websocket_router
+from app.api.translate import router as translate_router
 from app.core.config import settings
 
 # Import all models so Base knows about them
@@ -57,6 +58,7 @@ app.include_router(analytics_router)
 app.include_router(stories_router)
 app.include_router(campaigns_router)
 app.include_router(websocket_router)
+app.include_router(translate_router)
 
 @app.get("/")
 def root():

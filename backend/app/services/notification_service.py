@@ -59,7 +59,7 @@ def create_notification(
     """Create a notification record in the database."""
     notification = Notification(
         user_id=user_id,
-        type=notification_type,
+        notification_type=notification_type,
         title=title,
         message=message,
         payload_json=json.dumps(payload) if payload else None,
@@ -83,8 +83,8 @@ async def create_and_push_notification(
     # Push via WebSocket
     ws_data = {
         "id": notification.id,
-        "event": notification.type.value,
-        "type": notification.type.value,
+        "event": notification.notification_type,
+        "type": notification.notification_type,
         "title": notification.title,
         "message": notification.message,
         "payload": payload,

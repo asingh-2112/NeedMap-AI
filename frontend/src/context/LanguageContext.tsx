@@ -639,6 +639,56 @@ const translations: TranslationDictionary = {
   "low": { hi: "कम", mr: "कमी", ta: "குறைவு", te: "తక్కువ", kn: "ಕಡಿಮೆ" },
   "priority": { hi: "प्राथमिकता", mr: "प्राधान्य", ta: "முன்னுரிமை", te: "ప్రాధాన్యత", kn: "ಆದ್ಯತೆ" },
   "priorityText": { hi: "प्राथमिकता", mr: "प्राधान्य", ta: "முன்னுரிமை", te: "ప్రాధాన్యత", kn: "ಆದ್ಯತೆ" },
+
+
+  // ── UI labels (previously missing, added for completeness) ──
+  "Login": { hi: "लॉगिन", mr: "लॉगिन", ta: "உள்நுழைவு", te: "లాగిన్", kn: "ಲಾಗಿನ್" },
+  "Sign Up": { hi: "साइन अप", mr: "साइन अप", ta: "பதிவு செய்", te: "నమోదు", kn: "ನೋಂದಣಿ" },
+  "Password": { hi: "पासवर्ड", mr: "पासवर्ड", ta: "கடவுச்சொல்", te: "పాస్‌వర్డ్", kn: "ಪಾಸ್ವರ್ಡ್" },
+  "Create Account": { hi: "खाता बनाएं", mr: "खाते तयार करा", ta: "கணக்கு உருவாக்கு", te: "ఖాతా సృష్టించు", kn: "ಖಾತೆ ರಚಿಸಿ" },
+  "Search": { hi: "खोजें", mr: "शोधा", ta: "தேடு", te: "వెతుకు", kn: "ಹುಡುಕು" },
+  "Filter": { hi: "फ़िल्टर", mr: "फिल्टर", ta: "வடிகட்டி", te: "ఫిల్టర్", kn: "ಫಿಲ್ಟರ್" },
+  "Refresh": { hi: "रिफ्रेश", mr: "रिफ्रेश", ta: "புதுப்பி", te: "రిఫ్రెష్", kn: "ರಿಫ್ರೆಶ್" },
+  "Clear": { hi: "हटाएं", mr: "साफ करा", ta: "அழி", te: "క్లియర్", kn: "ಕ್ಲಿಯರ್" },
+  "Select": { hi: "चुनें", mr: "निवडा", ta: "தேர்வு", te: "ఎంచుకో", kn: "ಆಯ್ಕೆ" },
+  "Submit": { hi: "जमा करें", mr: "सादर करा", ta: "சமர்ப்பி", te: "సమర్పించు", kn: "ಸಲ್ಲಿಸಿ" },
+  "Save": { hi: "सहेजें", mr: "सेव्ह करा", ta: "சேமி", te: "సేవ్", kn: "ಸೇರಿಸಿ" },
+  "Add": { hi: "जोड़ें", mr: "जोडा", ta: "சேர்", te: "జోడించు", kn: "ಸೇರಿಸಿ" },
+  "View": { hi: "देखें", mr: "पहा", ta: "காண", te: "చూడు", kn: "ವೀಕ್ಷಿಸು" },
+  "Confirm": { hi: "पुष्टि", mr: "पुष्टी", ta: "உறுதி", te: "ధ్రువీకరించు", kn: "ಖಚಿತಪಡಿಸಿ" },
+  "Reset": { hi: "रीसेट", mr: "रीसेट", ta: "மீட்டமை", te: "రీసెట్", kn: "ಮರುಹೊಂದಿಸಿ" },
+  "Download": { hi: "डाउनलोड", mr: "डाउनलोड", ta: "பதிவிறக்கம்", te: "డౌన్‌లోడ్", kn: "ಡೌನ್‌ಲೋಡ್" },
+  "Copy": { hi: "कॉपी", mr: "कॉपी", ta: "நகலெடு", te: "కాపీ", kn: "ನಕಲಿಸಿ" },
+  "Admin": { hi: "व्यवस्थापक", mr: "प्रशासक", ta: "நிர்வாகி", te: "నిర్వాహకుడు", kn: "ನಿರ್ವಾಹಕ" },
+  "Need": { hi: "ज़रूरत", mr: "गरज", ta: "தேவை", te: "అవసరం", kn: "ಅವಶ್ಯಕತೆ" },
+  "Rating": { hi: "रेटिंग", mr: "रेटिंग", ta: "மதிப்பீடு", te: "రేటింగ్", kn: "ರೇಟಿಂಗ್" },
+  "Feedback": { hi: "प्रतिक्रिया", mr: "अभिप्राय", ta: "కర", te: "ప్రతిస్పందన", kn: "ಪ್ರತಿಕ್ರಿಯೆ" },
+  "Priority": { hi: "प्राथमिकता", mr: "प्राधान्य", ta: "మுன்னுரிமை", te: "ప్రాధాన్యత", kn: "ಆದ್ಯತೆ" },
+  "Ascending": { hi: "आरोही", mr: "चढता क्रम", ta: "ஏறுவரிசை", te: "ఆరోహణ", kn: "ಆರೋಹಣ" },
+  "Descending": { hi: "अवरोही", mr: "उतरता क्रम", ta: "இறங்குவரிசை", te: "అవరోహణ", kn: "ಅವರೋಹಣ" },
+  "Sort by": { hi: "क्रमबद्ध करें", mr: "क्रमवारी", ta: "வரிசை", te: "క్రమం", kn: "ವಿಂಗಡಿಸು" },
+  "items": { hi: "आइटम", mr: "वस्तू", ta: "பொருட்கள்", te: "అంశాలు", kn: "ಐಟಂಗಳು" },
+  "results": { hi: "परिणाम", mr: "निकाल", ta: "முடிவுகள்", te: "ఫలితాలు", kn: "ಫಲಿತಾಂಶಗಳು" },
+  "Voice Note": { hi: "वॉइस नोट", mr: "व्हॉइस नोट", ta: "குரல் குறிப்பு", te: "వాయిస్ నోట్", kn: "ಧ್ವನಿ ಟಿಪ್ಪಣಿ" },
+  "Manual Form": { hi: "मैनुअल फ़ॉर्म", mr: "मॅन्युअल फॉर्म", ta: "கைமுறை படிவம்", te: "మాన్యువల్ ఫారమ్", kn: "ಮಾನ್ಯತಾ ನಮೂನೆ" },
+  "Text / Field Notes": { hi: "टेक्स्ट / फ़ील्ड नोट्स", mr: "मजकूर / फील्ड नोट्स", ta: "உரை / கள குறிப்புகள்", te: "టెక్స్ట్ / ఫీల్డ్ నోట్స్", kn: "ಪಠ್ಯ / ಕ್ಷೇತ್ರ ನೋಟ್‌ಗಳು" },
+  "Image / OCR": { hi: "इमेज / OCR", mr: "प्रतिमा / OCR", ta: "படம் / OCR", te: "చిత్రం / OCR", kn: "ಚಿತ್ರ / OCR" },
+  "PDF Document": { hi: "PDF दस्तावेज़", mr: "PDF दस्तऐवज", ta: "PDF ஆவணம்", te: "PDF పత్రం", kn: "PDF ದಾಖಲೆ" },
+  "CSV Upload": { hi: "CSV अपलोड", mr: "CSV अपलोड", ta: "CSV பதிவேற்றம்", te: "CSV అప్‌లోడ్", kn: "CSV ಅಪ್‌ಲೋಡ್" },
+  "unknown": { hi: "अज्ञात", mr: "अज्ञात", ta: "தெரியவில்லை", te: "తెలియదు", kn: "ಅಜ್ಞಾತ" },
+  "Auto-extracted": { hi: "स्वतः निकाला गया", mr: "स्वयं काढले", ta: "தானாக பிரித்தெடுக்கப்பட்டது", te: "స్వయంగా సంగ్రహించబడింది", kn: "ಸ್ವಯಂಚಾಲಿತವಾಗಿ ಹೊರತೆಗೆಯಲಾಗಿದೆ" },
+  "Loading...": { hi: "लोड हो रहा है...", mr: "लोड होत आहे...", ta: "ஏற்றுகிறது...", te: "లోడ్ అవుతోంది...", kn: "ಲೋಡ್ ಆಗುತ್ತಿದೆ..." },
+  "Successfully": { hi: "सफलतापूर्वक", mr: "यशस्वीरित्या", ta: "வெற்றிகரமாக", te: "విజయవంతంగా", kn: "ಯಶಸ್ವಿಯಾಗಿ" },
+  "Failed": { hi: "विफल", mr: "अयशस्वी", ta: "தோல்வி", te: "విఫలమైంది", kn: "ವಿಫಲವಾಗಿದೆ" },
+  // validation messages
+  "Description must be at least 10 characters.": { hi: "विवरण कम से कम 10 अक्षर का होना चाहिए।", mr: "वर्णन किमान 10 अक्षरांचे असावे.", ta: "விளக்கம் குறைந்தது 10 எழுத்துகள்.", te: "వివరణ కనీసం 10 అక్షరాలు.", kn: "ವಿವರಣೆ ಕನಿಷ್ಠ 10 ಅಕ್ಷರಗಳು." },
+  "Please select an organization.": { hi: "कृपया एक संगठन चुनें।", mr: "कृपया एक संस्था निवडा.", ta: "தயவுசெய்து ஒரு அமைப்பை தேர்ந்தெடுக்கவும்.", te: "దయచేసి ఒక సంస్థను ఎంచుకోండి.", kn: "ದಯವಿಟ್ಟು ಸಂಸ್ಥೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ." },
+  "Coordinates cannot be 0,0.": { hi: "निर्देशांक 0,0 नहीं हो सकते।", mr: "निर्देशांक 0,0 असू शकत नाहीत.", ta: "ஆயத்தொலைவுகள் 0,0 ஆக இருக்க முடியாது.", te: "అక్షాంశాలు 0,0 కాకూడదు.", kn: "ನಿರ್ದೇಶಾಂಕಗಳು 0,0 ಆಗಿರಬಾರದು." },
+  "Address cannot be empty.": { hi: "पता खाली नहीं हो सकता।", mr: "पत्ता रिक्त असू शकत नाही.", ta: "முகவரி காலியாக இருக்க முடியாது.", te: "చిరునామా ఖాళీగా ఉండకూడదు.", kn: "ವಿಳಾಸ ಖಾಲಿ ಇರಬಾರದು." },
+  "Invalid phone number format.": { hi: "अमान्य फ़ोन नंबर प्रारूप।", mr: "अवैध फोन नंबर स्वरूप.", ta: "தவறான தொலைபேசி எண்.", te: "చెల్లని ఫోన్ నంబర్.", kn: "ಅಮಾನ್ಯ ಫೋನ್ ಸಂಖ್ಯೆ." },
+  "Password must be at least 8 characters with uppercase, digit, and special character.": { hi: "पासवर्ड कम से कम 8 अक्षर का होना चाहिए जिसमें बड़ा अक्षर, अंक और विशेष वर्ण हो।", mr: "पासवर्ड किमान 8 अक्षरांचा, मोठे अक्षर, अंक आणि विशेष चिन्ह असावा.", ta: "கடவுச்சொல் குறைந்தது 8 எழுத்துகள், பெரிய எழுத்து, இலக்கம் மற்றும் சிறப்பு எழுத்துடன் இருக்க வேண்டும்.", te: "పాస్‌వర్డ్ కనీసం 8 అక్షరాలు, క్యాపిటల్, అంకె, ప్రత్యేక అక్షరం ఉండాలి.", kn: "ಪಾಸ್ವರ್ಡ್ ಕನಿಷ್ಠ 8 ಅಕ್ಷರಗಳು, ದೊಡ್ಡಕ್ಷರ, ಅಂಕಿ ಮತ್ತು ವಿಶೇಷ ಅಕ್ಷರ ಹೊಂದಿರಬೇಕು." },
+  "Description is required.": { hi: "विवरण आवश्यक है।", mr: "वर्णन आवश्यक आहे.", ta: "விளக்கம் தேவை.", te: "వివరణ అవసరం.", kn: "ವಿವರಣೆ ಅಗತ್ಯವಿದೆ." },
+  "At least one field must be provided for update.": { hi: "अपडेट के लिए कम से कम एक फ़ील्ड देना होगा।", mr: "अद्यतनासाठी किमान एक फील्ड द्या.", ta: "புதுப்பிப்புக்கு குறைந்தது ஒரு புலமாவது தேவை.", te: "నవీకరణకు కనీసం ఒక ఫీల్డ్.", kn: "ನವೀಕರಣಕ್ಕೆ ಕನಿಷ್ಠ ಒಂದು ಕ್ಷೇತ್ರ." },
 };
 
 const normalizeKey = (text: string) => text.trim();
@@ -648,6 +698,252 @@ const translate = (text: string, language: LanguageCode) => {
   const exact = translations[normalizeKey(text)]?.[language];
   return exact || text;
 };
+
+// ── Cloud Translation API — encrypted client-side cache ──
+// Cache entries stored in localStorage encrypted with AES-GCM.
+// Session key in sessionStorage — survives page refresh, dies on browser close.
+// Cache purged on logout via clearTranslationCache().
+
+let apiBaseUrl = "";
+let sessionKey: CryptoKey | null = null;
+let keyBuffer: ArrayBuffer | null = null;
+
+const encoder = new TextEncoder();
+const decoder = new TextDecoder();
+
+const getOrCreateKey = async (): Promise<{ key: CryptoKey; raw: ArrayBuffer }> => {
+  if (sessionKey && keyBuffer) return { key: sessionKey, raw: keyBuffer };
+
+  const storedRaw = typeof sessionStorage !== "undefined" ? sessionStorage.getItem("__nm_tk") : null;
+  if (storedRaw) {
+    try {
+      const rawBytes = Uint8Array.from(atob(storedRaw), (c) => c.charCodeAt(0));
+      keyBuffer = rawBytes.buffer.slice(rawBytes.byteOffset, rawBytes.byteOffset + rawBytes.byteLength);
+      sessionKey = await crypto.subtle.importKey("raw", keyBuffer, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+      return { key: sessionKey, raw: keyBuffer };
+    } catch { /* fall through */ }
+  }
+
+  sessionKey = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
+  keyBuffer = await crypto.subtle.exportKey("raw", sessionKey);
+
+  if (typeof sessionStorage !== "undefined") {
+    const b64 = btoa(String.fromCharCode(...new Uint8Array(keyBuffer)));
+    sessionStorage.setItem("__nm_tk", b64);
+  }
+
+  return { key: sessionKey, raw: keyBuffer };
+};
+
+const encryptToStorage = async (storageKey: string, plaintext: string): Promise<void> => {
+  if (typeof localStorage === "undefined") return;
+  try {
+    const { key } = await getOrCreateKey();
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, encoder.encode(plaintext));
+    const combined = new Uint8Array(iv.length + encrypted.byteLength);
+    combined.set(iv);
+    combined.set(new Uint8Array(encrypted), iv.length);
+    localStorage.setItem(storageKey, btoa(String.fromCharCode(...combined)));
+  } catch { /* best effort */ }
+};
+
+const decryptFromStorage = async (storageKey: string): Promise<string | null> => {
+  if (typeof localStorage === "undefined") return null;
+  const stored = localStorage.getItem(storageKey);
+  if (!stored) return null;
+  try {
+    const { key } = await getOrCreateKey();
+    const combined = Uint8Array.from(atob(stored), (c) => c.charCodeAt(0));
+    const iv = combined.slice(0, 12);
+    const ciphertext = combined.slice(12);
+    const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ciphertext);
+    return decoder.decode(decrypted);
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Purge all encrypted translation cache entries + session key.
+ * Must be called on logout so the next login starts with a fresh cache.
+ */
+export const clearTranslationCache = (): void => {
+  if (typeof localStorage !== "undefined") {
+    const toRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k?.startsWith("__nm_tx_")) toRemove.push(k);
+    }
+    toRemove.forEach((k) => localStorage.removeItem(k));
+  }
+  if (typeof sessionStorage !== "undefined") {
+    sessionStorage.removeItem("__nm_tk");
+  }
+  sessionKey = null;
+  keyBuffer = null;
+  memCache = {};
+  pending.clear();
+  retryCooldown.clear();
+  bumpVersion();
+};
+
+export const setTranslationApiBaseUrl = (url: string) => {
+  apiBaseUrl = url;
+};
+
+// ── translation engine ──
+
+let memCache: Record<string, string> = {};
+let pending: Map<string, { resolve: (v: string) => void }> = new Map();
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+const textRegistry = new Map<string, { lang: string; text: string }>();
+
+// Global version counter — incremented every time a translation lands.
+// Components that use translateText() re-render when this changes.
+let translationVersion = 0;
+const versionSubscribers = new Set<() => void>();
+
+// Rate-limit retries: if API fails for a key, don't retry for 5s
+const retryCooldown = new Map<string, number>();
+const COOLDOWN_MS = 5000;
+
+export const subscribeTranslationVersion = (cb: () => void) => {
+  versionSubscribers.add(cb);
+  return () => { versionSubscribers.delete(cb); };
+};
+
+const bumpVersion = () => {
+  translationVersion++;
+  versionSubscribers.forEach((cb) => cb());
+};
+
+export const getTranslationVersion = () => translationVersion;
+
+const makeCacheKey = (lang: string, text: string): string =>
+  btoa(encodeURIComponent(`${lang}::${text}`)).replace(/\//g, "_").replace(/\+/g, "-");
+
+export const translateViaApi = (text: string, targetLang: string): Promise<string> => {
+  if (!text || !text.trim() || targetLang === "en") return Promise.resolve(text);
+  if (typeof crypto === "undefined") return Promise.resolve(text); // non-HTTPS / SSR guard
+
+  const cacheKey = makeCacheKey(targetLang, text);
+
+  if (memCache[cacheKey] !== undefined) return Promise.resolve(memCache[cacheKey]);
+
+  return new Promise((resolve) => {
+    // Check encrypted storage
+    decryptFromStorage(`__nm_tx_${cacheKey}`).then((cached) => {
+      if (cached !== null) {
+        memCache[cacheKey] = cached;
+        resolve(cached);
+        return;
+      }
+
+      // Register for batch
+      textRegistry.set(cacheKey, { lang: targetLang, text });
+
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      pending.set(cacheKey, { resolve });
+
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => flushPending(), 50);
+    }).catch(() => resolve(text));
+  });
+};
+
+const flushPending = async () => {
+  if (pending.size === 0 || !apiBaseUrl) return;
+
+  const batch = new Map(pending);
+  pending.clear();
+
+  // Group by language
+  const byLang: Record<string, { cacheKeys: string[]; texts: string[] }> = {};
+  for (const [cacheKey] of batch) {
+    const meta = textRegistry.get(cacheKey);
+    if (!meta) continue;
+    if (!byLang[meta.lang]) byLang[meta.lang] = { cacheKeys: [], texts: [] };
+    byLang[meta.lang].cacheKeys.push(cacheKey);
+    byLang[meta.lang].texts.push(meta.text);
+  }
+
+  for (const [lang, group] of Object.entries(byLang)) {
+    try {
+      const res = await fetch(`${apiBaseUrl}/api/translate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ texts: group.texts, target: lang }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        await Promise.all(
+          group.cacheKeys.map(async (cacheKey, i) => {
+            const translated = data.translations[i] ?? data.translations?.[0] ?? group.texts[i];
+            memCache[cacheKey] = translated;
+            retryCooldown.delete(cacheKey); // success clears cooldown
+            // Fire-and-forget encrypted write
+            encryptToStorage(`__nm_tx_${cacheKey}`, translated);
+            batch.get(cacheKey)?.resolve(translated);
+          })
+        );
+        bumpVersion();
+      } else {
+        // API returned non-OK — don't cache failures; bump version so UI shows originals
+        group.cacheKeys.forEach((cacheKey) => {
+          const meta = textRegistry.get(cacheKey);
+          const original = meta?.text ?? "";
+          retryCooldown.set(cacheKey, Date.now() + COOLDOWN_MS);
+          batch.get(cacheKey)?.resolve(original);
+        });
+        bumpVersion();
+      }
+    } catch {
+      // Network error — don't cache failures; bump version so UI shows originals
+      group.cacheKeys.forEach((cacheKey) => {
+        const meta = textRegistry.get(cacheKey);
+        const original = meta?.text ?? "";
+        retryCooldown.set(cacheKey, Date.now() + COOLDOWN_MS);
+        batch.get(cacheKey)?.resolve(original);
+      });
+      bumpVersion();
+    }
+  }
+
+  // Cleanup registry
+  for (const cacheKey of batch.keys()) textRegistry.delete(cacheKey);
+};
+
+// ── React hook: useTranslatedText ──
+// Returns translated text. Renders original on mount, then re-renders with
+// translated text when the API call resolves. All caching + batching handled
+// internally. Use this for every user-generated content field.
+
+export const useTranslatedText = (text?: string | null): string => {
+  const { language } = useLanguage();
+  const [translated, setTranslated] = useState(text ?? "");
+
+  useEffect(() => {
+    if (!text || language === "en") {
+      setTranslated(text ?? "");
+      return;
+    }
+
+    let cancelled = false;
+    translateViaApi(text, language).then((result) => {
+      if (!cancelled) setTranslated(result);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [text, language]);
+
+  return translated || text || "";
+};
+
+// ── legacy helpers (still used by existing code via context) ──
 
 const translateDynamicText = (text: string | null | undefined, language: LanguageCode): string => {
   if (!text) return "";
@@ -661,28 +957,26 @@ const translateDynamicText = (text: string | null | undefined, language: Languag
   if (citySeedMatch) return `${translate("City Heat Seed", language)} #${citySeedMatch[1]}`;
 
   const seededNeedMatch = normalized.match(/^Seeded city heatmap need in (.+)$/);
-  if (seededNeedMatch) return `${translate("Seeded city heatmap need in", language)} ${translateDynamicText(seededNeedMatch[1], language)}`;
+  if (seededNeedMatch)
+    return `${translate("Seeded city heatmap need in", language)} ${translateDynamicText(seededNeedMatch[1], language)}`;
 
   const wardMatch = normalized.match(/^Ward\s+(\d+)$/i);
   if (wardMatch) return `${translate("Ward", language)} ${wardMatch[1]}`;
 
-  if (normalized.includes(",")) {
-    return normalized
-      .split(",")
-      .map((part) => translateDynamicText(part, language))
-      .join(", ");
+  if (apiBaseUrl) {
+    // Check sync memCache first (populated by previous API calls)
+    const cacheKey = makeCacheKey(language, normalized);
+    if (memCache[cacheKey] !== undefined) return memCache[cacheKey];
+
+    // Rate-limit retries after failures
+    const cooldownUntil = retryCooldown.get(cacheKey);
+    if (cooldownUntil && Date.now() < cooldownUntil) return normalized;
+
+    // Fire async API call — next re-render (via version bump) will hit the cache
+    translateViaApi(normalized, language);
   }
 
-  return normalized
-    .split(/(\s+)/)
-    .map((part) => {
-      if (!part.trim()) return part;
-      const punctuationMatch = part.match(/^(.+?)([.,;:!?)]*)$/);
-      const word = punctuationMatch?.[1] ?? part;
-      const punctuation = punctuationMatch?.[2] ?? "";
-      return `${translate(word, language)}${punctuation}`;
-    })
-    .join("");
+  return normalized;
 };
 
 const translateAddressText = (text: string | null | undefined, language: LanguageCode) => {
@@ -706,6 +1000,12 @@ const LanguageContext = createContext<LanguageContextShape | undefined>(undefine
 
 export const LanguageProvider = ({ children }: { children: ReactNode }) => {
   const [language, setLanguageState] = useState<LanguageCode>("en");
+  const [, forceRender] = useState(0);
+
+  // Subscribe to translation cache updates so translateText() re-renders all consumers
+  useEffect(() => {
+    return subscribeTranslationVersion(() => forceRender((n) => n + 1));
+  }, []);
 
   useEffect(() => {
     setLanguageState(readStoredLanguage());
@@ -723,16 +1023,20 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const value = useMemo<LanguageContextShape>(() => ({
-    language,
-    languageOptions,
-    setLanguage,
-    t: (text) => translate(text, language),
-    translateText: (text) => translateDynamicText(text, language),
-    translateAddress: (text) => translateAddressText(text, language),
-    translateStatus: (text) => translateEnum(text, language),
-    translateCategory: (text) => translateEnum(text, language),
-  }), [language]);
+  const value = useMemo<LanguageContextShape>(
+    () => ({
+      language,
+      languageOptions,
+      setLanguage,
+      t: (text) => translate(text, language),
+      translateText: (text) => translateDynamicText(text, language),
+      translateAddress: (text) => translateAddressText(text, language),
+      translateStatus: (text) => translateEnum(text, language),
+      translateCategory: (text) => translateEnum(text, language),
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [language, translationVersion]
+  );
 
   return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
 };

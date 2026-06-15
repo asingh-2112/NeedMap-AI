@@ -15,6 +15,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useAccessibility } from "../../context/AccessibilityContext";
 import { useAuth } from "../../context/AuthContext";
 import { useLanguage } from "../../context/LanguageContext";
+import { translateViaApi } from "../../context/LanguageContext";
 import { useRealtime } from "../../context/RealtimeContext";
 import { useThemeMode } from "../../context/ThemeModeContext";
 import { apiRequest, moduleApi } from "../../services/api";
@@ -35,9 +36,9 @@ type LocationInfo = {
 type HomeStory = {
   id: number;
   title: string;
-  narrative: string;
+  content: string;
   image_url?: string | null;
-  media_urls?: string | null;
+  is_published: boolean;
   created_at: string;
 };
 
@@ -57,7 +58,7 @@ export const HomeScreen = () => {
   const { baseUrl, token, user } = useAuth();
   const { assignmentsVersion, needsVersion, volunteerRatingVersion } = useRealtime();
   const { reduceMotion } = useAccessibility();
-  const { t, translateAddress, translateCategory, translateStatus, translateText } = useLanguage();
+  const { t, translateAddress, translateCategory, translateStatus, translateText, language } = useLanguage();
   const { theme } = useThemeMode();
   const adminBranchId = user?.role === "admin" ? user?.managed_branch_id ?? null : null;
   const scopedOrganizationId = user?.role === "admin" ? adminBranchId ?? user?.organization_id : user?.organization_id;
@@ -291,6 +292,27 @@ export const HomeScreen = () => {
     void loadStories();
   }, [baseUrl, token, scopedOrganizationId]);
 
+  // Pre-fetch translations for all map needs and organizations when data changes
+  useEffect(() => {
+    if (!language || language === "en") return;
+
+    const texts: string[] = [];
+    for (const n of mapNeeds) {
+      if (n.title) texts.push(n.title);
+      if (n.description) texts.push(n.description);
+      if (n.address) texts.push(n.address);
+    }
+    for (const org of mapOrganizations) {
+      if (org.organization_name) texts.push(org.organization_name);
+      if (org.address) texts.push(org.address);
+    }
+
+    if (!texts.length) return;
+    for (const text of texts) {
+      translateViaApi(text, language);
+    }
+  }, [mapNeeds, mapOrganizations, language]);
+
   const goToMainTab = (screen: MainTabRoute) => {
     nav.navigate("MainTabs", { screen });
   };
@@ -403,17 +425,7 @@ export const HomeScreen = () => {
   }, [location]);
 
   const getStoryImage = (story: HomeStory): string => {
-    if (story.image_url) return story.image_url;
-    if (!story.media_urls) return "";
-    try {
-      const parsed = JSON.parse(story.media_urls);
-      if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === "string") {
-        return parsed[0];
-      }
-      return "";
-    } catch {
-      return "";
-    }
+    return story.image_url || "";
   };
 
   const impactStories = homeStories.slice(0, 3);
@@ -710,7 +722,7 @@ export const HomeScreen = () => {
                       {translateText(story.title)}
                     </Text>
                     <Text style={[styles.storyDesc, lightSecondary]} numberOfLines={2}>
-                      {t("Description")}: {translateText(story.narrative)}
+                      {t("Description")}: {translateText(story.content)}
                     </Text>
                     <Text style={[styles.storyLocation, lightPrimary]}>
                       {t("Date")}: {new Date(story.created_at).toLocaleDateString()}

@@ -5,31 +5,27 @@ from pydantic import BaseModel, Field
 
 class StoryCreateRequest(BaseModel):
     organization_id: int
-    need_id: int | None = None
-    title: str = Field(..., min_length=2, max_length=255)
-    narrative: str = Field(..., min_length=10)
-    media_urls: str | None = None  # JSON array string
-    metrics: str | None = None  # JSON string
+    title: str = Field(..., min_length=2, max_length=300)
+    content: str = Field(..., min_length=10)
+    image_url: str | None = None
+    is_published: bool = False
 
 
 class StoryUpdateRequest(BaseModel):
-    title: str | None = Field(default=None, min_length=2, max_length=255)
-    narrative: str | None = Field(default=None, min_length=10)
-    need_id: int | None = None
-    media_urls: str | None = None
-    metrics: str | None = None
+    title: str | None = Field(default=None, min_length=2, max_length=300)
+    content: str | None = Field(default=None, min_length=10)
+    image_url: str | None = None
+    is_published: bool | None = None
 
 
 class StoryResponse(BaseModel):
     id: int
-    organization_id: int
-    need_id: int | None
+    author_id: int
+    organization_id: int | None
     title: str
-    narrative: str
-    media_urls: str | None
-    metrics: str | None
-    created_by: int | None
+    content: str
+    image_url: str | None
+    is_published: bool
     created_at: datetime
-    updated_at: datetime
 
     model_config = {"from_attributes": True}

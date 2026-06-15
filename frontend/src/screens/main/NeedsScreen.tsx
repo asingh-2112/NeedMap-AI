@@ -18,6 +18,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useAccessibility } from "../../context/AccessibilityContext";
 import { useAuth } from "../../context/AuthContext";
 import { useLanguage } from "../../context/LanguageContext";
+import { translateViaApi } from "../../context/LanguageContext";
 import { useRealtime } from "../../context/RealtimeContext";
 import { useThemeMode } from "../../context/ThemeModeContext";
 import { apiRequest, moduleApi } from "../../services/api";
@@ -101,7 +102,7 @@ const getNeedLocationLabel = (need: Need) => {
 export const NeedsScreen = () => {
   const nav = useNavigation<Nav>();
   const { baseUrl, token, user } = useAuth();
-  const { t, translateAddress, translateCategory, translateStatus, translateText } = useLanguage();
+  const { t, translateAddress, translateCategory, translateStatus, translateText, language } = useLanguage();
   const { assignmentsVersion, needsVersion } = useRealtime();
   const { reduceMotion } = useAccessibility();
   const { theme } = useThemeMode();
@@ -214,6 +215,27 @@ export const NeedsScreen = () => {
   useEffect(() => {
     load();
   }, [adminBranchId, assignmentsVersion, baseUrl, isOrgManager, isOwner, isVolunteer, needsVersion, token]);
+
+  // Pre-fetch translations for all displayed needs when items change.
+  // This ensures translateText() hits the cache on the next render cycle.
+  useEffect(() => {
+    if (!language || language === "en") return;
+    if (!items.length) return;
+
+    const textsToTranslate: string[] = [];
+    for (const item of items) {
+      if (item.title) textsToTranslate.push(item.title);
+      if (item.description) textsToTranslate.push(item.description);
+      if (item.address) textsToTranslate.push(item.address);
+    }
+
+    if (!textsToTranslate.length) return;
+
+    // Fire all translations (debounced + batched internally)
+    for (const text of textsToTranslate) {
+      translateViaApi(text, language);
+    }
+  }, [items, language]);
 
   useFocusEffect(
     useCallback(() => {

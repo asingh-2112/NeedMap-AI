@@ -1,7 +1,8 @@
-﻿import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+﻿import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Platform } from "react-native";
 import Constants from "expo-constants";
 import { authApi } from "../services/api";
+import { clearTranslationCache, setTranslationApiBaseUrl } from "./LanguageContext";
 import type { AuthUser } from "../types/api";
 
 type AuthContextShape = {
@@ -52,6 +53,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [token, setToken] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Wire baseUrl into the translation service so translateText can call /api/translate
+  useEffect(() => {
+    setTranslationApiBaseUrl(baseUrl);
+  }, [baseUrl]);
 
   const login = async (email: string, password: string) => {
     setLoading(true);
@@ -131,6 +137,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const logout = () => {
+    clearTranslationCache();
     setToken("");
     setUser(null);
   };
