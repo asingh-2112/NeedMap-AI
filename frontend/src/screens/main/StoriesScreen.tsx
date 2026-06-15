@@ -12,6 +12,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { FadeInView } from "../../components/FadeInView";
+import { useAccessibility } from "../../context/AccessibilityContext";
+import { useLanguage } from "../../context/LanguageContext";
 import { STORIES } from "./stories";
 import type { RootStackParamList } from "../../navigation/types";
 import { colors } from "../../theme";
@@ -20,24 +22,36 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 export const StoriesScreen = () => {
   const nav = useNavigation<Nav>();
+  const { highContrast, reduceMotion, screenReaderOptimized, textScale, touchTarget } = useAccessibility();
+  const { t } = useLanguage();
   const floatA = useRef(new Animated.Value(0)).current;
   const floatB = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.loop(
+    if (reduceMotion) {
+      floatA.setValue(0);
+      floatB.setValue(0);
+      return;
+    }
+
+    const animations = [Animated.loop(
       Animated.sequence([
         Animated.timing(floatA, { toValue: 1, duration: 2800, useNativeDriver: true }),
         Animated.timing(floatA, { toValue: 0, duration: 2800, useNativeDriver: true }),
       ])
-    ).start();
+    ),
 
     Animated.loop(
       Animated.sequence([
         Animated.timing(floatB, { toValue: 1, duration: 3300, useNativeDriver: true }),
         Animated.timing(floatB, { toValue: 0, duration: 3300, useNativeDriver: true }),
       ])
-    ).start();
-  }, [floatA, floatB]);
+    )];
+    animations.forEach((animation) => animation.start());
+    return () => animations.forEach((animation) => animation.stop());
+  }, [floatA, floatB, reduceMotion]);
+
+  const textStyle = (fontSize: number, lineHeight?: number) => ({ fontSize: fontSize * textScale, ...(lineHeight ? { lineHeight: lineHeight * textScale } : {}) });
 
   const yA = floatA.interpolate({ inputRange: [0, 1], outputRange: [0, -12] });
   const yB = floatB.interpolate({ inputRange: [0, 1], outputRange: [0, -18] });
@@ -53,22 +67,22 @@ export const StoriesScreen = () => {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.brand}>NeedMap AI</Text>
-        <Text style={styles.title}>Story Highlights</Text>
-        <Text style={styles.subtitle}>Image + one-line summary. Tap to open full details.</Text>
+        <Text style={[styles.brand, textStyle(22, 28)]}>NeedMap AI</Text>
+        <Text style={[styles.title, textStyle(32, 38)]}>{t("Story Highlights")}</Text>
+        <Text style={[styles.subtitle, textStyle(14, 20)]}>{t("Image + one-line summary. Tap to open full details.")}</Text>
 
         {STORIES.map((story, idx) => (
-          <FadeInView key={story.id} delay={60 + idx * 70} style={styles.card}>
-            <Pressable onPress={() => nav.navigate("StoryDetail", { storyId: story.id })}>
+          <FadeInView key={story.id} delay={60 + idx * 70} style={[styles.card, highContrast ? styles.highContrastCard : null]}>
+            <Pressable onPress={() => nav.navigate("StoryDetail", { storyId: story.id })} style={{ minHeight: touchTarget }} accessibilityRole="button" accessibilityLabel={screenReaderOptimized ? `${t("Open")} ${t(story.title)}` : undefined}>
               <Image source={{ uri: story.image }} style={styles.image} />
-              <Text style={styles.cardTitle}>{story.title}</Text>
-              <Text numberOfLines={1} style={styles.meta}>
-                {story.shortDescription}
+              <Text style={[styles.cardTitle, textStyle(18, 23)]}>{t(story.title)}</Text>
+              <Text numberOfLines={1} style={[styles.meta, textStyle(14, 19)]}>
+                {t(story.shortDescription)}
               </Text>
-              <Text style={styles.location}>
-                {story.location} • {story.updatedAt}
+              <Text style={[styles.location, textStyle(12, 17)]}>
+                {t("Location")}: {t(story.location)} · {t("Updated")}: {t(story.updatedAt)}
               </Text>
-              <Text style={styles.readMore}>Read full story</Text>
+              <Text style={[styles.readMore, textStyle(14, 19)]}>{t("Read full story")}</Text>
             </Pressable>
           </FadeInView>
         ))}
@@ -98,6 +112,7 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 12,
   },
+  highContrastCard: { borderColor: "#FFFFFF", borderWidth: 2, backgroundColor: "#000000" },
   image: { width: "100%", height: 180, borderRadius: 12, marginBottom: 10 },
   cardTitle: { color: colors.textStrong, fontSize: 18, fontWeight: "900", marginBottom: 6 },
   meta: { color: colors.muted, fontSize: 14, marginBottom: 4 },

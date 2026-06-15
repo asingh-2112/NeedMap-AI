@@ -1,22 +1,21 @@
 """
-Unified multimodal LLM extraction — single-stage pipeline.
+Unified multimodal LLM extraction — single-stage pipeline via Vertex AI + ADK.
 
 All multimedia (text, images, audio, PDF) are sent **directly** to the LLM
-via its multimodal / vision capabilities.  No intermediate EasyOCR, Whisper,
+via its multimodal / vision capabilities. No intermediate EasyOCR, Whisper,
 or PyPDF pre-processing step.
 
 Supported input types
 ─────────────────────
 • raw text          → text message
-• image URL         → vision (image_url content part)
-• image bytes/b64   → vision (base64 data-uri)
-• audio URL         → downloaded → Whisper transcription → text to LLM
+• image URL         → vision (base64 inline_data Part)
+• audio URL         → downloaded → sent directly to Gemini (native audio)
 • PDF URL / bytes   → pages rendered to images → vision
 
-Uses Portkey gateway (PORTKEY_API_KEY + LLM_MODEL) to route to any
-multimodal model (Claude 3.5/4, GPT-4o, Gemini 1.5/2, etc.).
+Uses Google ADK (Agent Development Kit) with Gemini on Vertex AI.
+Auth via GOOGLE_APPLICATION_CREDENTIALS (service account JSON).
 
-Falls back to a rule-based keyword extractor when no API key is set.
+Falls back to a rule-based keyword extractor when no Vertex project is set.
 
 Public API
 ──────────
@@ -26,6 +25,7 @@ extract_need_from_audio(audio_url=, transcription=)      -> dict
 extract_need_from_pdf(pdf_url=, pdf_bytes=)              -> dict
 """
 
+import asyncio
 import base64
 import json
 import logging
@@ -33,15 +33,23 @@ import os
 import re
 import tempfile
 import urllib.request
-import uuid
-from datetime import datetime
+from datetime import datetime, timezone
+from functools import cached_property
+
+# Fix SSL cert verification on macOS Homebrew Python
+if 'SSL_CERT_FILE' not in os.environ:
+    try:
+        import certifi
+        os.environ['SSL_CERT_FILE'] = certifi.where()
+    except ImportError:
+        pass
 
 logger = logging.getLogger(__name__)
 
 # ── Prompt template (shared across all modalities) ────────────────────────────
 _SYSTEM_PROMPT = (
     "You are a precise structured-data extractor for community disaster-relief "
-    "needs. You can understand text, images, audio transcriptions, and scanned "
+    "needs. You can understand text, images, audio, and scanned "
     "documents. Always respond with valid JSON only. No prose, no markdown."
 )
 
@@ -74,6 +82,12 @@ _IMAGE_SUFFIX = (
 _PDF_SUFFIX = (
     "The images above are pages from a scanned document, field report, or "
     "official form. Read ALL text and visual cues across all pages.\n\n"
+    + _EXTRACTION_PROMPT
+)
+
+_AUDIO_PROMPT = (
+    "The following is a transcription of an audio field report or voice note "
+    "from a disaster-relief operation. Extract the structured need information.\n\n"
     + _EXTRACTION_PROMPT
 )
 
@@ -194,104 +208,255 @@ def _repair_truncated_json(s: str) -> str:
     return s
 
 
-def _get_portkey_client():
-    """Return (client, model, trace_id) or (None, None, None) if not configured."""
-    from openai import OpenAI
+# ══════════════════════════════════════════════════════════════════════════════
+# Gemini LLM — Vertex AI (primary) with AI Studio fallback
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# Auth priority:
+#   1. Vertex AI via service account JSON (GOOGLE_APPLICATION_CREDENTIALS)
+#      → Free tier available in Google Cloud ($300 credit for new projects)
+#   2. AI Studio API key (GEMINI_API_KEY env var) — fallback
+#      → https://aistudio.google.com/apikey
 
-    portkey_api_key = os.getenv("PORTKEY_API_KEY")
-    if not portkey_api_key:
-        return None, None, None
-
-    llm_model = os.getenv("LLM_MODEL", "claude-sonnet-4-6")
-    trace_id = str(uuid.uuid4())
-    request_id = str(uuid.uuid4())
-    timestamp = datetime.utcnow().isoformat() + "Z"
-
-    portkey_headers = {
-        "x-portkey-api-key": portkey_api_key,
-        "x-portkey-trace-id": trace_id,
-        "x-portkey-request-id": request_id,
-        "x-portkey-span-name": "llm.multimodal_extraction",
-        "x-portkey-metadata": (
-            f"operation=need_extraction,model={llm_model},timestamp={timestamp}"
-        ),
-    }
-
-    client = OpenAI(
-        api_key=portkey_api_key,
-        base_url="https://api.portkey.ai/v1",
-        default_headers=portkey_headers,
-    )
-    return client, llm_model, trace_id
+# Service account details for Vertex AI
+_VERTEX_PROJECT = "big-depth-420713"
+_VERTEX_LOCATION = "us-central1"
 
 
-def _call_llm(messages: list[dict], trace_id: str = "") -> dict:
+def _resolve_auth() -> tuple[str | None, str | None, str]:
     """
-    Send messages to LLM via Portkey and return sanitised extraction dict.
+    Resolve auth method and return (model_id, auth_mode, provider_label).
+
+    Returns:
+        model_id: full model name (e.g. projects/p/locations/... or gemini-2.5-flash)
+        auth_mode: "vertex" or "studio" or None
+        provider_label: human-readable label for logging
+    """
+    from google.genai import Client
+
+    model = os.getenv("LLM_MODEL", "gemini-2.5-flash")
+    creds_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+
+    # 1. Try Vertex AI with service account
+    if creds_path and os.path.exists(creds_path):
+        try:
+            # Verify credentials load
+            import google.auth
+            google.auth.load_credentials_from_file(creds_path)
+            vertex_model = (
+                f"projects/{_VERTEX_PROJECT}/locations/{_VERTEX_LOCATION}"
+                f"/publishers/google/models/{model}"
+            )
+            return vertex_model, "vertex", "Vertex AI"
+        except Exception as exc:
+            logger.warning("Vertex AI auth failed (%s), trying AI Studio fallback", exc)
+
+    # 2. Fallback: AI Studio API key
+    api_key = os.getenv("GEMINI_API_KEY")
+    if api_key:
+        return model, "studio", "AI Studio"
+
+    return None, None, "none"
+
+
+class _GeminiClient:
+    """
+    Gemini LLM wrapper — Vertex AI (primary) / AI Studio (fallback).
+
+    Uses service account JSON at GOOGLE_APPLICATION_CREDENTIALS for Vertex AI.
+    Falls back to GEMINI_API_KEY for AI Studio if service account unavailable.
+    """
+
+    def __init__(self, model_id: str, auth_mode: str) -> None:
+        self._model_id = model_id
+        self._auth_mode = auth_mode  # "vertex" or "studio"
+
+    @cached_property
+    def _client(self):
+        """Build genai.Client based on auth mode."""
+        from google.genai import Client
+
+        if self._auth_mode == "vertex":
+            return Client(
+                vertexai=True,
+                project=_VERTEX_PROJECT,
+                location=_VERTEX_LOCATION,
+            )
+        else:
+            api_key = os.getenv("GEMINI_API_KEY")
+            if not api_key:
+                raise RuntimeError("GEMINI_API_KEY not set")
+            return Client(api_key=api_key)
+
+    @cached_property
+    def _gemini(self):
+        """Lazy-init the ADK Gemini LLM with correct auth."""
+        from google.adk.models.google_llm import Gemini
+        client = self._client
+
+        class _AuthGemini(Gemini):
+            model: str = self._model_id
+
+            @cached_property
+            def api_client(self):
+                return client
+
+        return _AuthGemini(model=self._model_id)
+
+    async def _generate(self, contents, config=None) -> str:
+        """Send contents to Gemini and return the text response."""
+        from google.adk.models import LlmRequest
+        from google.genai import types as genai_types
+
+        if config is None:
+            config = genai_types.GenerateContentConfig(
+                temperature=0.1,
+                max_output_tokens=1024,
+            )
+
+        llm_request = LlmRequest(
+            model=self._model_id,
+            contents=contents,
+            config=config,
+        )
+
+        response_text = ""
+        async for llm_response in self._gemini.generate_content_async(llm_request, stream=False):
+            if llm_response.content and llm_response.content.parts:
+                for part in llm_response.content.parts:
+                    if part.text:
+                        response_text += part.text
+
+        return response_text
+
+    def generate(self, contents: list, config=None) -> str:
+        """Synchronous wrapper for _generate."""
+        return asyncio.run(self._generate(contents, config))
+
+
+def _get_gemini_client():
+    """Return (_GeminiClient, model_id, provider_label) or (None, None, None)."""
+    model_id, auth_mode, label = _resolve_auth()
+    if auth_mode is None:
+        return None, None, None
+    return _GeminiClient(model_id=model_id, auth_mode=auth_mode), model_id, label
+
+
+def _call_llm(contents: list, config=None) -> dict:
+    """
+    Send contents to Gemini (Vertex or AI Studio) and return sanitised dict.
     Raises on failure so callers can fall back.
     """
-    client, llm_model, tid = _get_portkey_client()
+    client, model_id, provider = _get_gemini_client()
     if client is None:
-        raise RuntimeError("PORTKEY_API_KEY not configured")
+        raise RuntimeError(
+            "No Gemini auth configured. Set GOOGLE_APPLICATION_CREDENTIALS "
+            "(service account JSON) or GEMINI_API_KEY (AI Studio)."
+        )
 
-    trace_id = trace_id or tid
-    logger.info("🔄 LLM extraction started | trace_id=%s | model=%s", trace_id, llm_model)
-
-    response = client.chat.completions.create(
-        model=llm_model,
-        messages=messages,
-        max_tokens=1024,
-        temperature=0.1,
-    )
-
-    content = response.choices[0].message.content
-    logger.debug("LLM raw response: %r", content)
+    logger.info("🔄 LLM extraction via %s | model=%s", provider, model_id)
 
     try:
-        raw_dict = _parse_llm_response(content)
+        response_text = client.generate(contents, config)
+    except Exception as exc:
+        logger.error("❌ Gemini API call failed: %s", exc)
+        raise
+
+    logger.debug("LLM raw response: %r", response_text)
+
+    try:
+        raw_dict = _parse_llm_response(response_text)
     except (json.JSONDecodeError, Exception) as exc:
-        logger.error("❌ JSON parse failed. content=%r error=%s", content, exc)
+        logger.error("❌ JSON parse failed. content=%r error=%s", response_text, exc)
         raise
 
     logger.info(
-        "✅ LLM extraction OK | trace_id=%s | category=%s | urgency=%s",
-        trace_id, raw_dict.get("category"), raw_dict.get("urgency"),
+        "✅ LLM extraction OK | model=%s | category=%s | urgency=%s",
+        model_id, raw_dict.get("category"), raw_dict.get("urgency"),
     )
     return _sanitise(raw_dict)
 
 
-def _download_to_tempfile(url: str, suffix: str = "") -> str:
-    """Download a URL to a temp file and return the path."""
-    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-        tmp_path = tmp.name
-    urllib.request.urlretrieve(url, tmp_path)  # noqa: S310
-    return tmp_path
+# ── Helpers for building multimodal contents ──────────────────────────────────
+
+def _download_bytes(url: str) -> bytes:
+    """Download a URL and return raw bytes."""
+    with urllib.request.urlopen(url) as resp:  # noqa: S310
+        return resp.read()
 
 
-def _url_to_base64(url: str, media_type: str = "image/jpeg") -> str:
-    """Download a URL and return a base64 data URI."""
-    tmp_path = _download_to_tempfile(url)
-    try:
-        with open(tmp_path, "rb") as f:
-            b64 = base64.b64encode(f.read()).decode("utf-8")
-        return f"data:{media_type};base64,{b64}"
-    finally:
-        try:
-            os.unlink(tmp_path)
-        except OSError:
-            pass
-
-
-def _guess_image_media_type(url: str) -> str:
-    """Guess MIME type from image URL extension."""
+def _guess_mime_type(url: str, default: str = "image/jpeg") -> str:
+    """Guess MIME type from URL extension."""
     lower = url.lower().split("?")[0]
-    if lower.endswith(".png"):
-        return "image/png"
-    if lower.endswith(".webp"):
-        return "image/webp"
-    if lower.endswith(".gif"):
-        return "image/gif"
-    return "image/jpeg"
+    mapping = {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".webp": "image/webp",
+        ".gif": "image/gif",
+        ".mp3": "audio/mp3",
+        ".wav": "audio/wav",
+        ".m4a": "audio/mp4",
+        ".ogg": "audio/ogg",
+        ".webm": "audio/webm",
+        ".flac": "audio/flac",
+    }
+    for ext, mime in mapping.items():
+        if lower.endswith(ext):
+            return mime
+    return default
+
+
+def _make_text_contents(system_prompt: str, user_text: str):
+    """Build contents list for a text-only LLM call."""
+    from google.genai import types as genai_types
+
+    return [
+        genai_types.Content(
+            role="user",
+            parts=[genai_types.Part(text=system_prompt + "\n\n" + user_text)],
+        )
+    ]
+
+
+def _make_image_contents(system_prompt: str, image_url: str):
+    """Build contents list with an image (downloaded as base64 inline_data)."""
+    from google.genai import types as genai_types
+
+    image_bytes = _download_bytes(image_url)
+    mime_type = _guess_mime_type(image_url)
+
+    return [
+        genai_types.Content(
+            role="user",
+            parts=[
+                genai_types.Part(
+                    inline_data=genai_types.Blob(data=image_bytes, mime_type=mime_type)
+                ),
+                genai_types.Part(text=system_prompt + "\n\n" + _IMAGE_SUFFIX),
+            ],
+        )
+    ]
+
+
+def _make_audio_contents(system_prompt: str, audio_url: str):
+    """Build contents list with audio (downloaded as inline_data)."""
+    from google.genai import types as genai_types
+
+    audio_bytes = _download_bytes(audio_url)
+    mime_type = _guess_mime_type(audio_url, default="audio/mp3")
+
+    return [
+        genai_types.Content(
+            role="user",
+            parts=[
+                genai_types.Part(
+                    inline_data=genai_types.Blob(data=audio_bytes, mime_type=mime_type)
+                ),
+                genai_types.Part(text=system_prompt + "\n\n" + _AUDIO_PROMPT),
+            ],
+        )
+    ]
 
 
 # ── Rule-based fallback (no API key needed) ───────────────────────────────────
@@ -381,27 +546,20 @@ def _keyword_fallback(raw_text: str) -> dict:
 def extract_need_from_text(raw_text: str) -> dict:
     """
     Extract structured need from raw text (field notes, messages, etc.).
-    LLM via Portkey if configured; keyword fallback otherwise.
+    Vertex AI (primary) → AI Studio (fallback) → keyword fallback.
 
     Returns dict with: category, urgency, location, description,
     skills_required, affected_count, confidence, model_used.
     """
-    portkey_api_key = os.getenv("PORTKEY_API_KEY")
-
-    if portkey_api_key:
-        try:
-            messages = [
-                {"role": "system", "content": _SYSTEM_PROMPT},
-                {
-                    "role": "user",
-                    "content": _TEXT_PREFIX.format(raw_text=raw_text),
-                },
-            ]
-            result = _call_llm(messages)
-            result["model_used"] = f"llm:{os.getenv('LLM_MODEL', 'claude-sonnet-4-6')}"
+    try:
+        model_id, auth_mode, _ = _resolve_auth()
+        if auth_mode:
+            contents = _make_text_contents(_SYSTEM_PROMPT, _TEXT_PREFIX.format(raw_text=raw_text))
+            result = _call_llm(contents)
+            result["model_used"] = f"gemini:{os.getenv('LLM_MODEL', 'gemini-2.5-flash')}:{auth_mode}"
             return result
-        except Exception as exc:
-            logger.warning("LLM text extraction failed (%s) — keyword fallback", exc)
+    except Exception as exc:
+        logger.warning("Gemini text extraction failed (%s) — keyword fallback", exc)
 
     result = _keyword_fallback(raw_text)
     result["model_used"] = "keyword_fallback"
@@ -410,46 +568,30 @@ def extract_need_from_text(raw_text: str) -> dict:
 
 def extract_need_from_image(image_url: str) -> dict:
     """
-    Send image DIRECTLY to the LLM vision model for structured extraction.
-    No EasyOCR, no intermediate OCR step — the LLM reads the image natively.
+    Send image DIRECTLY to Gemini vision for structured extraction.
+    Vertex AI (primary) → AI Studio (fallback).
 
     Returns dict with: category, urgency, location, description,
     skills_required, affected_count, confidence, model_used, multimedia_txt.
     """
-    portkey_api_key = os.getenv("PORTKEY_API_KEY")
-    if not portkey_api_key:
+    _, auth_mode, _ = _resolve_auth()
+    if not auth_mode:
         raise ValueError(
-            "Image extraction requires PORTKEY_API_KEY with a vision-capable model "
-            "(GPT-4o, Claude 3.5+, Gemini 1.5+)"
+            "Image extraction requires Gemini auth. "
+            "Set GOOGLE_APPLICATION_CREDENTIALS or GEMINI_API_KEY."
         )
 
-    # Always use base64 with explicit media type to avoid Vertex AI/Gemini
-    # mimeType errors (direct URLs fail on Gemini without a mimeType param)
     try:
-        media_type = _guess_image_media_type(image_url)
-        data_uri = _url_to_base64(image_url, media_type)
-        image_content = {"type": "image_url", "image_url": {"url": data_uri}}
-
-        messages = [
-            {"role": "system", "content": _SYSTEM_PROMPT},
-            {
-                "role": "user",
-                "content": [
-                    image_content,
-                    {"type": "text", "text": _IMAGE_SUFFIX},
-                ],
-            },
-        ]
-
-        result = _call_llm(messages)
-        result["model_used"] = f"llm_vision:{os.getenv('LLM_MODEL', 'claude-sonnet-4-6')}"
+        contents = _make_image_contents(_SYSTEM_PROMPT, image_url)
+        result = _call_llm(contents)
+        result["model_used"] = f"gemini_vision:{os.getenv('LLM_MODEL', 'gemini-2.5-flash')}:{auth_mode}"
         result["multimedia_txt"] = result.get("description", "")[:500]
         return result
 
     except Exception as exc:
         raise ValueError(
             f"Image extraction failed: {exc}. "
-            "Ensure PORTKEY_API_KEY routes to a vision-capable model."
+            "Check GOOGLE_APPLICATION_CREDENTIALS or GEMINI_API_KEY."
         ) from exc
 
 
@@ -462,7 +604,10 @@ def extract_need_from_audio(
 
     Strategy:
       1. If pre-transcribed text is provided → send text to LLM.
-      2. If audio_url → Whisper transcription → send text to LLM.
+      2. If audio_url → send audio directly to Gemini (native audio understanding).
+
+    Gemini 2.5 Flash natively understands audio — no separate Whisper
+    transcription step needed.
 
     Returns dict with: category, urgency, location, description,
     skills_required, affected_count, confidence, model_used, raw_text.
@@ -475,12 +620,26 @@ def extract_need_from_audio(
         result["raw_text"] = transcription
         return result
 
-    # Whisper transcription → LLM text extraction
-    raw_text = _transcribe_via_whisper(audio_url)
-    result = extract_need_from_text(raw_text)
-    result["raw_text"] = raw_text
-    result["model_used"] = f"whisper+{result['model_used']}"
-    return result
+    # Send audio directly to Gemini (native multimodal audio)
+    _, auth_mode, _ = _resolve_auth()
+    if not auth_mode:
+        raise ValueError(
+            "Audio extraction requires Gemini auth. "
+            "Set GOOGLE_APPLICATION_CREDENTIALS or GEMINI_API_KEY."
+        )
+
+    try:
+        contents = _make_audio_contents(_SYSTEM_PROMPT, audio_url)
+        result = _call_llm(contents)
+        result["model_used"] = f"gemini_audio:{os.getenv('LLM_MODEL', 'gemini-2.5-flash')}:{auth_mode}"
+        result["raw_text"] = result.get("description", "")
+        return result
+
+    except Exception as exc:
+        raise ValueError(
+            f"Audio extraction failed: {exc}. "
+            "Ensure GEMINI_API_KEY is set."
+        ) from exc
 
 
 def extract_need_from_pdf(
@@ -492,7 +651,7 @@ def extract_need_from_pdf(
 
     Strategy (single-stage — LLM reads the document directly as images):
       1. Convert each PDF page to an image.
-      2. Send all page images to the LLM vision model in a single request.
+      2. Send all page images to Gemini vision in a single request.
       3. LLM reads text + visual cues across all pages.
 
     Falls back to text extraction + LLM if image conversion is unavailable.
@@ -500,46 +659,40 @@ def extract_need_from_pdf(
     Returns dict with: category, urgency, location, description,
     skills_required, affected_count, confidence, model_used, multimedia_txt.
     """
-    portkey_api_key = os.getenv("PORTKEY_API_KEY")
+    _, auth_mode, _ = _resolve_auth()
 
     # Get PDF bytes
     if pdf_bytes is None:
         if not pdf_url:
             raise ValueError("Provide either pdf_url or pdf_bytes")
-        tmp_path = _download_to_tempfile(pdf_url, suffix=".pdf")
-        try:
-            with open(tmp_path, "rb") as f:
-                pdf_bytes = f.read()
-        finally:
-            try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
+        pdf_bytes = _download_bytes(pdf_url)
 
-    # Strategy 1: PDF pages → images → LLM vision
-    if portkey_api_key:
+    # Strategy 1: PDF pages → images → Gemini vision
+    if auth_mode:
         try:
             page_images_b64 = _pdf_to_base64_images(pdf_bytes)
             if page_images_b64:
-                content_parts = []
+                from google.genai import types as genai_types
+
+                parts = []
                 for b64_img in page_images_b64:
-                    content_parts.append({
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/png;base64,{b64_img}"},
-                    })
-                content_parts.append({"type": "text", "text": _PDF_SUFFIX})
+                    parts.append(
+                        genai_types.Part(
+                            inline_data=genai_types.Blob(
+                                data=base64.b64decode(b64_img),
+                                mime_type="image/png",
+                            )
+                        )
+                    )
+                parts.append(genai_types.Part(text=_SYSTEM_PROMPT + "\n\n" + _PDF_SUFFIX))
 
-                messages = [
-                    {"role": "system", "content": _SYSTEM_PROMPT},
-                    {"role": "user", "content": content_parts},
-                ]
-
-                result = _call_llm(messages)
-                result["model_used"] = f"llm_vision_pdf:{os.getenv('LLM_MODEL', 'claude-sonnet-4-6')}"
+                contents = [genai_types.Content(role="user", parts=parts)]
+                result = _call_llm(contents)
+                result["model_used"] = f"gemini_vision_pdf:{os.getenv('LLM_MODEL', 'gemini-2.5-flash')}:{auth_mode}"
                 result["multimedia_txt"] = result.get("description", "")[:500]
                 return result
         except Exception as exc:
-            logger.warning("PDF→image→LLM failed (%s), trying text fallback", exc)
+            logger.warning("PDF→image→Gemini failed (%s), trying text fallback", exc)
 
     # Strategy 2: Extract text from PDF → LLM
     try:
@@ -552,66 +705,18 @@ def extract_need_from_pdf(
         logger.warning("PDF text extraction failed (%s)", exc)
 
     raise ValueError(
-        "PDF extraction failed. Ensure PORTKEY_API_KEY is set with a "
-        "vision-capable model, or install pymupdf/pypdf for text extraction."
+        "PDF extraction failed. "
+        "Set GOOGLE_APPLICATION_CREDENTIALS (Vertex AI) or GEMINI_API_KEY (AI Studio),"
+        " or install pymupdf/pypdf for text extraction."
     )
 
 
-# ── Audio helper ──────────────────────────────────────────────────────────────
+# ── Legacy alias ──────────────────────────────────────────────────────────────
 
-def _transcribe_via_whisper(audio_url: str) -> str:
-    """Transcribe audio via Whisper (Portkey gateway or direct OpenAI)."""
-    portkey_api_key = os.getenv("PORTKEY_API_KEY")
-    openai_api_key = os.getenv("OPENAI_API_KEY")
-
-    if not portkey_api_key and not openai_api_key:
-        raise ValueError(
-            "No transcription API configured. "
-            "Set PORTKEY_API_KEY or OPENAI_API_KEY, "
-            "or provide a pre-transcribed 'transcription' field instead."
-        )
-
-    suffix = _guess_audio_suffix(audio_url)
-    tmp_path = _download_to_tempfile(audio_url, suffix=suffix)
-
-    try:
-        import openai as _openai
-
-        if portkey_api_key:
-            trace_id = str(uuid.uuid4())
-            client = _openai.OpenAI(
-                api_key=portkey_api_key,
-                base_url="https://api.portkey.ai/v1",
-                default_headers={
-                    "x-portkey-api-key": portkey_api_key,
-                    "x-portkey-trace-id": trace_id,
-                    "x-portkey-span-name": "llm.voice_transcription",
-                },
-            )
-            logger.info("🔄 Voice transcription via Portkey | trace_id=%s", trace_id)
-        else:
-            client = _openai.OpenAI(api_key=openai_api_key)
-            logger.info("🔄 Voice transcription via OpenAI direct")
-
-        with open(tmp_path, "rb") as f:
-            transcript = client.audio.transcriptions.create(model="whisper-1", file=f)
-
-        logger.info("✅ Transcription OK | length=%d chars", len(transcript.text))
-        return transcript.text
-
-    finally:
-        try:
-            os.unlink(tmp_path)
-        except OSError:
-            pass
-
-
-def _guess_audio_suffix(url: str) -> str:
-    lower = url.lower().split("?")[0]
-    for ext in (".mp3", ".wav", ".m4a", ".ogg", ".webm", ".flac"):
-        if lower.endswith(ext):
-            return ext
-    return ".mp3"
+def transcribe_audio_url(audio_url: str) -> str:
+    """Legacy alias. Audio is now sent directly to Gemini — no separate transcription."""
+    result = extract_need_from_audio(audio_url=audio_url)
+    return result.get("raw_text", "")
 
 
 # ── PDF helpers ───────────────────────────────────────────────────────────────
@@ -663,10 +768,3 @@ def _extract_text_from_pdf(pdf_bytes: bytes) -> str:
         pass
 
     raise ImportError("Install pymupdf or pypdf for PDF text extraction")
-
-
-# ── Legacy aliases ────────────────────────────────────────────────────────────
-
-def transcribe_audio_url(audio_url: str) -> str:
-    """Legacy alias for Whisper transcription."""
-    return _transcribe_via_whisper(audio_url)

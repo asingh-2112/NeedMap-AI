@@ -1,7 +1,8 @@
-﻿import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+﻿import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Platform } from "react-native";
 import Constants from "expo-constants";
 import { authApi } from "../services/api";
+import { clearTranslationCache, setTranslationApiBaseUrl } from "./LanguageContext";
 import type { AuthUser } from "../types/api";
 
 type AuthContextShape = {
@@ -10,7 +11,7 @@ type AuthContextShape = {
   user: AuthUser | null;
   token: string;
   loading: boolean;
-  signup: (name: string, email: string, password: string) => Promise<void>;
+  signup: (name: string, email: string, password: string, role?: string, phone?: string) => Promise<void>;
   registerOrganization: (payload: {
     organizationName: string;
     address?: string;
@@ -20,7 +21,7 @@ type AuthContextShape = {
     ownerPassword: string;
   }) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
-  loginBypass: (email?: string, password?: string) => void;
+  loginBypass: (email?: string, password?: string, role?: "volunteer" | "admin") => void;
   refreshMe: () => Promise<void>;
   logout: () => void;
 };
@@ -53,6 +54,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [token, setToken] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Wire baseUrl into the translation service so translateText can call /api/translate
+  useEffect(() => {
+    setTranslationApiBaseUrl(baseUrl);
+  }, [baseUrl]);
+
   const login = async (email: string, password: string) => {
     setLoading(true);
     try {
@@ -79,14 +85,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(localUser);
   };
 
-  const signup = async (name: string, email: string, password: string) => {
+  const signup = async (name: string, email: string, password: string, role = "volunteer", phone?: string) => {
     setLoading(true);
     try {
       await authApi.signup(baseUrl, {
         user_name: name.trim(),
         email: email.trim(),
         password,
-        role: "volunteer",
+        role,
+        ...(phone ? { phone: phone.trim() } : {}),
       });
       const auth = await authApi.login(baseUrl, email.trim(), password);
       const me = await authApi.me(baseUrl, auth.access_token);
@@ -130,6 +137,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const logout = () => {
+    clearTranslationCache();
     setToken("");
     setUser(null);
   };

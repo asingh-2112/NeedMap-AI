@@ -65,17 +65,26 @@ def _relevant_keywords_for_category(need_category: str) -> set[str]:
     canonical_skills = CATEGORY_SKILL_MAP.get(need_category, [])
     keywords: set[str] = set()
     for skill in canonical_skills:
+        keywords.add(skill)
         keywords.update(SKILL_TAXONOMY.get(skill, []))
     return keywords
 
 
-def _skill_score(volunteer, need_category: str) -> float:
+def _relevant_keywords_for_need(need_category: str, need_text: str = "") -> set[str]:
+    keywords = _relevant_keywords_for_category(need_category)
+    for skill in extract_skills_from_text(need_text):
+        keywords.add(skill)
+        keywords.update(SKILL_TAXONOMY.get(skill, []))
+    return keywords
+
+
+def _skill_score(volunteer, need_category: str, need_text: str = "") -> float:
     """
     Returns 0.0–1.0.
-    Finds the best-matching skill the volunteer has for this need category.
+    Finds the best-matching skill the volunteer has for this need category or need text.
     Score = PROFICIENCY_WEIGHT of the best match; 0.0 if no match.
     """
-    keywords = _relevant_keywords_for_category(need_category)
+    keywords = _relevant_keywords_for_need(need_category, need_text)
     if not keywords or not volunteer.skills:
         return 0.0
 
@@ -165,10 +174,14 @@ def score_volunteers_for_need(volunteers, need) -> list[dict]:
     ]
     """
     need_category = need.category.value if hasattr(need.category, "value") else str(need.category)
+    need_text = " ".join(
+        str(getattr(need, field, "") or "")
+        for field in ("title", "description", "address", "city", "state")
+    )
 
     results = []
     for v in volunteers:
-        skill  = _skill_score(v, need_category)
+        skill  = _skill_score(v, need_category, need_text)
         geo    = _geo_score(v.user.latitude, v.user.longitude, need.latitude, need.longitude, v.user.radius_km)
         rel    = _reliability_score(v)
         avail  = _availability_score(v)

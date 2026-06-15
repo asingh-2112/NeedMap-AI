@@ -10,6 +10,13 @@ from app.api.needs import router as needs_router
 from app.api.organizations import router as organizations_router
 from app.api.users import router as users_router
 from app.api.volunteers import router as volunteers_router
+from app.api.notifications import router as notifications_router
+from app.api.nominations import router as nominations_router
+from app.api.analytics import router as analytics_router
+from app.api.stories import router as stories_router
+from app.api.campaigns import router as campaigns_router
+from app.api.websocket import router as websocket_router
+from app.api.translate import router as translate_router
 from app.core.config import settings
 
 # Import all models so Base knows about them
@@ -45,6 +52,13 @@ app.include_router(organizations_router)
 app.include_router(needs_router)
 app.include_router(volunteers_router)
 app.include_router(assignments_router)
+app.include_router(notifications_router)
+app.include_router(nominations_router)
+app.include_router(analytics_router)
+app.include_router(stories_router)
+app.include_router(campaigns_router)
+app.include_router(websocket_router)
+app.include_router(translate_router)
 
 @app.get("/")
 def root():

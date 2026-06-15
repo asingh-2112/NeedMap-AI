@@ -10,7 +10,9 @@ import {
   View,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { useAccessibility } from "../../context/AccessibilityContext";
 import { useAuth } from "../../context/AuthContext";
+import { useLanguage } from "../../context/LanguageContext";
 import { colors, fonts } from "../../theme";
 
 type Props = {
@@ -19,6 +21,8 @@ type Props = {
 
 export const OrganizationSignupScreen = ({ onBack }: Props) => {
   const { registerOrganization, loading, baseUrl } = useAuth();
+  const { t } = useLanguage();
+  const { highContrast, reduceMotion, screenReaderOptimized, textScale, touchTarget } = useAccessibility();
 
   const [organizationName, setOrganizationName] = useState("");
   const [address, setAddress] = useState("");
@@ -31,20 +35,40 @@ export const OrganizationSignupScreen = ({ onBack }: Props) => {
   const drift = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.loop(
+    if (reduceMotion) {
+      pulse.setValue(0);
+      drift.setValue(0);
+      return;
+    }
+
+    const pulseAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(pulse, { toValue: 1, duration: 1700, useNativeDriver: true }),
         Animated.timing(pulse, { toValue: 0, duration: 1700, useNativeDriver: true }),
       ]),
-    ).start();
+    );
 
-    Animated.loop(
+    const driftAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(drift, { toValue: 1, duration: 3200, useNativeDriver: true }),
         Animated.timing(drift, { toValue: 0, duration: 3200, useNativeDriver: true }),
       ]),
-    ).start();
-  }, [pulse, drift]);
+    );
+
+    pulseAnimation.start();
+    driftAnimation.start();
+    return () => {
+      pulseAnimation.stop();
+      driftAnimation.stop();
+    };
+  }, [drift, pulse, reduceMotion]);
+
+  const textStyle = (fontSize: number, lineHeight?: number) => ({
+    fontSize: fontSize * textScale,
+    ...(lineHeight ? { lineHeight: lineHeight * textScale } : {}),
+  });
+  const touchStyle = { minHeight: touchTarget };
+  const highContrastInput = highContrast ? styles.highContrastInput : null;
 
   const disabled =
     loading ||
@@ -64,8 +88,8 @@ export const OrganizationSignupScreen = ({ onBack }: Props) => {
         ownerPassword,
       });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Organization signup failed";
-      Alert.alert("Organization signup failed", `${msg}\n\nBackend URL: ${baseUrl}`);
+      const msg = err instanceof Error ? err.message : t("Organization signup failed");
+      Alert.alert(t("Organization signup failed"), `${msg}\n\n${t("Backend URL")}: ${baseUrl}`);
     }
   };
 
@@ -81,33 +105,33 @@ export const OrganizationSignupScreen = ({ onBack }: Props) => {
       <Animated.View style={[styles.blob, styles.blobB, { transform: [{ translateY: lift }] }]} />
 
       <View style={styles.container}>
-        <Text style={styles.title}>Register Organization</Text>
-        <Text style={styles.subtitle}>Create org + first owner account in one step.</Text>
+        <Text style={[styles.title, textStyle(34, 40)]}>{t("Register Organization")}</Text>
+        <Text style={[styles.subtitle, textStyle(14, 20)]}>{t("Create org + first owner account in one step.")}</Text>
 
-        <Text style={styles.label}>Organization Name</Text>
-        <TextInput style={styles.input} value={organizationName} onChangeText={setOrganizationName} placeholder="Hope Foundation" placeholderTextColor={colors.muted} />
+        <Text style={[styles.label, textStyle(14, 19)]}>{t("Organization Name")}</Text>
+        <TextInput style={[styles.input, touchStyle, highContrastInput, textStyle(14, 19)]} value={organizationName} onChangeText={setOrganizationName} placeholder={t("Hope Foundation")} placeholderTextColor={colors.muted} accessibilityLabel={t("Organization name")} />
 
-        <Text style={styles.label}>Address (optional)</Text>
-        <TextInput style={styles.input} value={address} onChangeText={setAddress} placeholder="12 Main Street" placeholderTextColor={colors.muted} />
+        <Text style={[styles.label, textStyle(14, 19)]}>{t("Address (optional)")}</Text>
+        <TextInput style={[styles.input, touchStyle, highContrastInput, textStyle(14, 19)]} value={address} onChangeText={setAddress} placeholder={t("12 Main Street")} placeholderTextColor={colors.muted} accessibilityLabel={t("Organization address")} />
 
-        <Text style={styles.label}>Phone (optional)</Text>
-        <TextInput style={styles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholder="+91XXXXXXXXXX" placeholderTextColor={colors.muted} />
+        <Text style={[styles.label, textStyle(14, 19)]}>{t("Phone (optional)")}</Text>
+        <TextInput style={[styles.input, touchStyle, highContrastInput, textStyle(14, 19)]} value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholder="+91XXXXXXXXXX" placeholderTextColor={colors.muted} accessibilityLabel={t("Organization phone")} />
 
-        <Text style={styles.label}>Owner Name</Text>
-        <TextInput style={styles.input} value={ownerName} onChangeText={setOwnerName} placeholder="Owner full name" placeholderTextColor={colors.muted} />
+        <Text style={[styles.label, textStyle(14, 19)]}>{t("Owner Name")}</Text>
+        <TextInput style={[styles.input, touchStyle, highContrastInput, textStyle(14, 19)]} value={ownerName} onChangeText={setOwnerName} placeholder={t("Owner full name")} placeholderTextColor={colors.muted} accessibilityLabel={t("Owner full name")} />
 
-        <Text style={styles.label}>Owner Email</Text>
-        <TextInput style={styles.input} value={ownerEmail} onChangeText={setOwnerEmail} autoCapitalize="none" keyboardType="email-address" placeholder="owner@example.com" placeholderTextColor={colors.muted} />
+        <Text style={[styles.label, textStyle(14, 19)]}>{t("Owner Email")}</Text>
+        <TextInput style={[styles.input, touchStyle, highContrastInput, textStyle(14, 19)]} value={ownerEmail} onChangeText={setOwnerEmail} autoCapitalize="none" keyboardType="email-address" placeholder="owner@example.com" placeholderTextColor={colors.muted} accessibilityLabel={t("Owner email")} />
 
-        <Text style={styles.label}>Owner Password</Text>
-        <TextInput style={styles.input} value={ownerPassword} onChangeText={setOwnerPassword} secureTextEntry placeholder="Min 8 characters" placeholderTextColor={colors.muted} />
+        <Text style={[styles.label, textStyle(14, 19)]}>{t("Owner Password")}</Text>
+        <TextInput style={[styles.input, touchStyle, highContrastInput, textStyle(14, 19)]} value={ownerPassword} onChangeText={setOwnerPassword} secureTextEntry placeholder={t("Min 8 characters")} placeholderTextColor={colors.muted} accessibilityLabel={t("Owner password")} />
 
-        <Pressable style={[styles.primary, disabled && styles.disabled]} disabled={disabled} onPress={onSubmit}>
-          {loading ? <ActivityIndicator color={colors.textStrong} /> : <Text style={styles.primaryText}>Register Organization</Text>}
+        <Pressable style={[styles.primary, touchStyle, disabled && styles.disabled]} disabled={disabled} onPress={onSubmit} accessibilityRole="button" accessibilityLabel={screenReaderOptimized ? t("Register organization") : undefined}>
+          {loading ? <ActivityIndicator color={colors.textStrong} /> : <Text style={[styles.primaryText, textStyle(16, 21)]}>{t("Register Organization")}</Text>}
         </Pressable>
 
-        <Pressable style={styles.secondary} onPress={onBack}>
-          <Text style={styles.secondaryText}>Back</Text>
+        <Pressable style={[styles.secondary, touchStyle]} onPress={onBack} accessibilityRole="button">
+          <Text style={[styles.secondaryText, textStyle(14, 19)]}>{t("Back")}</Text>
         </Pressable>
       </View>
     </View>
@@ -147,6 +171,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     fontFamily: fonts.body,
   },
+  highContrastInput: { borderColor: "#FFFFFF", borderWidth: 2, backgroundColor: "#000000", color: "#FFFFFF" },
 
   primary: {
     marginTop: 8,

@@ -51,7 +51,7 @@
 | **Frontend** | React Native, Expo, TypeScript |
 | **Backend** | Python 3.11+, FastAPI, SQLAlchemy 2.0 |
 | **Database** | PostgreSQL 17 (Supabase) |
-| **ML / AI** | Gemini Vision API, custom scoring models |
+| **ML / AI** | Gemini 2.5 Flash (Google AI Studio), custom scoring models |
 | **Auth** | JWT (Bearer tokens) |
 | **Deployment** | Vercel (frontend), Render (backend) |
 
@@ -65,8 +65,8 @@
 |--------|-------------|
 | **`priority.py`** | Scores need urgency (0–100) using weighted factors: urgency level, category, source count, keyword density, geo-density, and age decay |
 | **`matching.py`** | Ranks volunteers for a need with composite scoring: skill match (40%), proximity (30%), reliability (20%), availability (10%) |
-| **`ocr.py`** | Extracts structured data from paper surveys via image → OCR → AI extraction pipeline |
-| **`llm_extraction.py`** | Gemini Vision-based structured data extraction from images |
+| **`ocr.py`** | Extracts structured data from images via Gemini Vision (single-hop — no intermediate EasyOCR) |
+| **`llm_extraction.py`** | Unified multimodal extraction via Google AI Studio Gemini API (text, image, audio, PDF) |
 
 ### 📡 API Endpoints
 
@@ -116,8 +116,8 @@ npx expo start
 | `JWT_SECRET_KEY` | JWT signing secret |
 | `JWT_EXPIRE_MINUTES` | Token expiry (default 60) |
 | `RUN_MIGRATIONS` | `true` to auto-create tables on startup |
-| `OCR_USE_GPU` | `true` for GPU, `false` for CPU-only hosts |
-| `GOOGLE_API_KEY` | Gemini API key for vision/extraction |
+| `GEMINI_API_KEY` | Google AI Studio API key for Gemini LLM extraction |
+| `LLM_MODEL` | Gemini model name (default `gemini-2.5-flash`) |
 
 ---
 

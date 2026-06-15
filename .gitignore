@@ -17,6 +17,14 @@ venv/
 
 # Secrets
 .env
+.env.example
+*.env
+service-account.json
+*-service-account.json
+*credentials*.json
+
+# Orca
+.orcascan/
 
 command.md
 
@@ -24,3 +32,6 @@ command.md
 
 # Local utility scripts
 backend/scripts/
+
+diagrams.html
+CLAUDE.md

@@ -8,6 +8,7 @@ from app.models.need import Need
 from app.models.need_source import NeedSource
 from app.models.organization import Organization
 from app.models.user import User
+from app.services.organization_service import get_accessible_organization_ids
 from app.schemas.need import NeedCreateRequest, NeedSourceCreateRequest, NeedUpdateRequest
 
 
@@ -24,6 +25,12 @@ def _get_active_organization(db: Session, organization_id: int) -> Organization:
 
 def create_need(db: Session, current_user: User, payload: NeedCreateRequest) -> Need:
     _get_active_organization(db, payload.organization_id)
+    allowed_ids = set(get_accessible_organization_ids(db=db, current_user=current_user))
+    if payload.organization_id not in allowed_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not allowed to create needs for this organization/branch",
+        )
 
     need = Need(
         title=payload.title,
@@ -45,12 +52,14 @@ def create_need(db: Session, current_user: User, payload: NeedCreateRequest) -> 
 
 def list_needs(
     db: Session,
+    current_user: User,
     status_filter=None,
     urgency_filter=None,
     category_filter=None,
     organization_id: int | None = None,
 ) -> list[Need]:
-    query = db.query(Need)
+    allowed_ids = set(get_accessible_organization_ids(db=db, current_user=current_user))
+    query = db.query(Need).filter(Need.organization_id.in_(allowed_ids))
 
     if status_filter is not None:
         query = query.filter(Need.status == status_filter)
@@ -59,31 +68,50 @@ def list_needs(
     if category_filter is not None:
         query = query.filter(Need.category == category_filter)
     if organization_id is not None:
+        if organization_id not in allowed_ids:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not allowed to access this organization/branch",
+            )
         query = query.filter(Need.organization_id == organization_id)
 
     return query.order_by(Need.created_at.desc()).all()
 
 
-def list_need_heatmap_items(db: Session) -> list[Need]:
+def list_need_heatmap_items(db: Session, current_user: User) -> list[Need]:
+    allowed_ids = set(get_accessible_organization_ids(db=db, current_user=current_user))
     return (
         db.query(Need)
-        .filter(Need.status != NeedStatus.CLOSED)
+        .filter(Need.status != NeedStatus.CLOSED, Need.organization_id.in_(allowed_ids))
         .order_by(Need.created_at.desc())
         .all()
     )
 
 
-def get_need_by_id(db: Session, need_id: int) -> Need:
+def get_need_by_id(db: Session, need_id: int, current_user: User | None = None) -> Need:
     need = db.query(Need).filter(Need.id == need_id).first()
     if need is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Need not found")
+    if current_user is not None:
+        allowed_ids = set(get_accessible_organization_ids(db=db, current_user=current_user))
+        if need.organization_id not in allowed_ids:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not allowed to access this need",
+            )
     return need
 
 
-def update_need(db: Session, need_id: int, payload: NeedUpdateRequest) -> Need:
-    need = get_need_by_id(db, need_id)
+def update_need(db: Session, current_user: User, need_id: int, payload: NeedUpdateRequest) -> Need:
+    need = get_need_by_id(db, need_id, current_user=current_user)
+    allowed_ids = set(get_accessible_organization_ids(db=db, current_user=current_user))
 
     if payload.organization_id is not None:
+        if payload.organization_id not in allowed_ids:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not allowed to move need to this organization/branch",
+            )
         _get_active_organization(db, payload.organization_id)
         need.organization_id = payload.organization_id
 
@@ -114,22 +142,33 @@ def update_need(db: Session, need_id: int, payload: NeedUpdateRequest) -> Need:
     return need
 
 
-def close_need(db: Session, need_id: int) -> None:
-    need = get_need_by_id(db, need_id)
-    need.status = NeedStatus.CLOSED
-    db.add(need)
+def close_need(db: Session, current_user: User, need_id: int) -> None:
+    need = get_need_by_id(db, need_id, current_user=current_user)
+    db.delete(need)
     db.commit()
 
 
-def add_need_source(db: Session, need_id: int, payload: NeedSourceCreateRequest) -> NeedSource:
-    get_need_by_id(db, need_id)
+def _clean_text_column(value: str | None, limit: int) -> str | None:
+    if value is None:
+        return None
+    cleaned = value.replace("\x00", "")[:limit].strip()
+    return cleaned or None
+
+
+def add_need_source(
+    db: Session,
+    need_id: int,
+    payload: NeedSourceCreateRequest,
+    current_user: User | None = None,
+) -> NeedSource:
+    get_need_by_id(db, need_id, current_user=current_user)
 
     source = NeedSource(
         need_id=need_id,
         source_type=payload.source_type,
-        location=payload.location,
-        multimedia_txt=payload.multimedia_txt,
-        ai_extraction=payload.ai_extraction,
+        location=_clean_text_column(payload.location, 100),
+        multimedia_txt=_clean_text_column(payload.multimedia_txt, 500),
+        ai_extraction=_clean_text_column(payload.ai_extraction, 500),
     )
     db.add(source)
     db.commit()
@@ -137,8 +176,8 @@ def add_need_source(db: Session, need_id: int, payload: NeedSourceCreateRequest)
     return source
 
 
-def list_need_sources(db: Session, need_id: int) -> list[NeedSource]:
-    get_need_by_id(db, need_id)
+def list_need_sources(db: Session, need_id: int, current_user: User | None = None) -> list[NeedSource]:
+    get_need_by_id(db, need_id, current_user=current_user)
     return (
         db.query(NeedSource)
         .filter(NeedSource.need_id == need_id)

@@ -1,6 +1,8 @@
 import { ScrollView, StyleSheet, Text, View, Image } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { RouteProp, useRoute } from "@react-navigation/native";
+import { useAccessibility } from "../../context/AccessibilityContext";
+import { useLanguage } from "../../context/LanguageContext";
 import type { RootStackParamList } from "../../navigation/types";
 import { STORIES } from "./stories";
 import { colors } from "../../theme";
@@ -9,12 +11,18 @@ type StoryDetailRoute = RouteProp<RootStackParamList, "StoryDetail">;
 
 export const StoryDetailScreen = () => {
   const route = useRoute<StoryDetailRoute>();
+  const { highContrast, textScale } = useAccessibility();
+  const { t } = useLanguage();
   const story = STORIES.find((s) => s.id === route.params.storyId);
+  const scaledText = (fontSize: number, lineHeight?: number) => ({
+    fontSize: fontSize * textScale,
+    ...(lineHeight ? { lineHeight: lineHeight * textScale } : {}),
+  });
 
   if (!story) {
     return (
       <View style={styles.center}>
-        <Text style={styles.notFound}>Story not found.</Text>
+        <Text style={[styles.notFound, scaledText(16, 21)]}>{t("Story not found.")}</Text>
       </View>
     );
   }
@@ -22,11 +30,11 @@ export const StoryDetailScreen = () => {
   return (
     <View style={styles.page}>
       <LinearGradient colors={[colors.bg, colors.bgSoft, colors.bgWarm]} style={StyleSheet.absoluteFillObject} />
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.title}>{story.title}</Text>
+      <ScrollView contentContainerStyle={[styles.content, highContrast ? styles.highContrastContent : null]}>
+        <Text style={[styles.title, scaledText(28, 34)]}>{t(story.title)}</Text>
         <Image source={{ uri: story.image }} style={styles.hero} />
-        <Text style={styles.section}>{story.shortDescription}</Text>
-        <Text style={styles.body}>{story.fullDescription}</Text>
+        <Text style={[styles.section, scaledText(16, 22)]}>{t(story.shortDescription)}</Text>
+        <Text style={[styles.body, scaledText(15, 22)]}>{t(story.fullDescription)}</Text>
       </ScrollView>
     </View>
   );
@@ -35,6 +43,7 @@ export const StoryDetailScreen = () => {
 const styles = StyleSheet.create({
   page: { flex: 1 },
   content: { padding: 16, paddingBottom: 30 },
+  highContrastContent: { backgroundColor: "#000000" },
   title: { color: colors.text, fontSize: 28, fontWeight: "900", marginBottom: 12 },
   hero: { width: "100%", height: 220, borderRadius: 14, marginBottom: 12 },
   section: { color: colors.textStrong, fontSize: 16, fontWeight: "800", marginBottom: 10 },

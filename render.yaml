@@ -9,11 +9,18 @@ services:
     envVars:
       - key: DATABASE_URL
         sync: false  # Set manually in Render dashboard
-      - key: JWT_SECRET
-        sync: false
-      - key: JWT_EXPIRE_SECONDS
-        value: "3600"
+      - key: JWT_SECRET_KEY
+        sync: false  # Set manually in Render dashboard
+      - key: JWT_EXPIRE_MINUTES
+        value: "60"
       - key: APP_NAME
         value: "NeedMap AI"
       - key: RUN_MIGRATIONS
         value: "true"
+      # ── Gemini — Vertex AI (primary) + AI Studio (fallback) ──
+      - key: GOOGLE_APPLICATION_CREDENTIALS
+        sync: false  # Path to service account JSON (from Google Cloud Console)
+      - key: GEMINI_API_KEY
+        sync: false  # AI Studio fallback key (https://aistudio.google.com/apikey)
+      - key: LLM_MODEL
+        value: "gemini-2.5-flash"

@@ -1,6 +1,9 @@
 from datetime import datetime
 
 from pydantic import BaseModel, EmailStr, Field, model_validator
+from typing_extensions import Self
+
+from app.schemas.user import _validate_password_strength, _PHONE_RE
 
 
 # ── Organization + Admin registration (public, no token) ─────────────────────
@@ -13,6 +16,17 @@ class OrganizationRegisterRequest(BaseModel):
     owner_name: str = Field(..., min_length=2, max_length=255)
     owner_email: EmailStr
     owner_password: str = Field(..., min_length=8)
+
+    @model_validator(mode="after")
+    def validate_password(self) -> Self:
+        _validate_password_strength(self.owner_password)
+        return self
+
+    @model_validator(mode="after")
+    def validate_phone(self) -> Self:
+        if self.phone and not _PHONE_RE.match(self.phone.strip()):
+            raise ValueError("Invalid phone number format")
+        return self
 
 
 class OrganizationRegisterResponse(BaseModel):
@@ -51,10 +65,15 @@ class OrganizationUpdateRequest(BaseModel):
 
 class OrganizationResponse(BaseModel):
     id: int
+    parent_organization_id: int | None = None
     organization_name: str
+    branch_location: str | None = None
+    is_branch: bool = False
     address: str | None
     phone: str | None
     user_id: int
+    branch_admin_name: str | None = None
+    branch_admin_email: str | None = None
     is_active: bool
     created_at: datetime
 
@@ -63,3 +82,14 @@ class OrganizationResponse(BaseModel):
 
 # Resolve forward reference for OrganizationRegisterResponse
 OrganizationRegisterResponse.model_rebuild()
+
+
+class BranchCreateRequest(BaseModel):
+    organization_name: str = Field(..., min_length=2, max_length=255)
+    branch_location: str = Field(..., min_length=2, max_length=255)
+    address: str | None = Field(default=None, max_length=500)
+    phone: str | None = Field(default=None, max_length=20)
+
+
+class BranchResponse(OrganizationResponse):
+    pass

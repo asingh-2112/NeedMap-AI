@@ -1,8 +1,9 @@
 """
-OCR pipeline — now a thin wrapper around the unified LLM vision extraction.
+OCR pipeline — now a thin wrapper around the unified Vertex AI + ADK
+multimodal extraction.
 
-The old EasyOCR-based pipeline has been replaced with a single-stage approach
-where the image is sent directly to the LLM's vision model.
+The image is sent directly to Gemini's vision model via Vertex AI.
+No EasyOCR or intermediate OCR step needed.
 
 This module is kept for backward compatibility with existing imports.
 """
@@ -17,7 +18,7 @@ from app.ml.llm_extraction import _detect_category, _detect_urgency, _detect_add
 
 def run_ocr_pipeline(image_url: str) -> dict:
     """
-    Full image → structured extraction pipeline (single-stage LLM vision).
+    Full image → structured extraction pipeline (single-stage Gemini vision).
 
     Args:
         image_url: Publicly accessible image URL (JPEG, PNG, BMP, WEBP).

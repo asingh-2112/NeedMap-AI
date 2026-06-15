@@ -1,0 +1,12 @@
+**/__pycache__
+**/*.pyc
+**/.env
+service-account.json
+.git
+.gitignore
+*.md
+tests/
+venv/
+.venv/
+node_modules/
+tmp/

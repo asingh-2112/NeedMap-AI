@@ -3,140 +3,426 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  Image,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { useAccessibility } from "../../context/AccessibilityContext";
 import { useAuth } from "../../context/AuthContext";
-import { colors, fonts } from "../../theme";
+import { useLanguage } from "../../context/LanguageContext";
+
+const LOGIN_GIF = "https://cdn.dribbble.com/users/1162077/screenshots/3848914/programmer.gif";
 
 type Props = {
   onBack: () => void;
+  onSignup?: () => void;
 };
 
-export const LoginScreen = ({ onBack }: Props) => {
-  const { login, loading, baseUrl } = useAuth();
-  const [email, setEmail] = useState("");
+const DEMO_ACCOUNTS = [
+  { role: "Owner", emoji: "👑", email: "owner.phase2@needmap.org", password: "Owner@1234", color: "#FF6B6B", bgColor: "rgba(255,107,107,0.15)" },
+  { role: "Admin", emoji: "🛡️", email: "admin.phase2@needmap.org", password: "Admin@1234", color: "#667EEA", bgColor: "rgba(102,126,234,0.15)" },
+  { role: "Volunteer", emoji: "🙋", email: "volunteer.phase2@needmap.org", password: "Volunteer@1234", color: "#34D399", bgColor: "rgba(52,211,153,0.15)" },
+] as const;
+
+export const LoginScreen = ({ onBack, onSignup }: Props) => {
+  const { login, loading } = useAuth();
+  const { t } = useLanguage();
+  const { highContrast, reduceMotion, screenReaderOptimized, textScale, touchTarget } = useAccessibility();
+  const [emailOrUsername, setEmailOrUsername] = useState("");
   const [password, setPassword] = useState("");
-  const glow = useRef(new Animated.Value(0)).current;
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [showPassword, setShowPassword] = useState(false);
+  const [showDemo, setShowDemo] = useState(false);
+  const [demoLoading, setDemoLoading] = useState<string | null>(null);
+
+  const fadeIn = useRef(new Animated.Value(0)).current;
+  const slideUp = useRef(new Animated.Value(40)).current;
+  const pulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(glow, { toValue: 1, duration: 1600, useNativeDriver: true }),
-        Animated.timing(glow, { toValue: 0, duration: 1600, useNativeDriver: true }),
-      ]),
-    ).start();
-  }, [glow]);
+    if (reduceMotion) {
+      fadeIn.setValue(1);
+      slideUp.setValue(0);
+      pulse.setValue(1);
+      return;
+    }
 
-  const disabled = loading || !email.trim() || !password.trim();
+    const entrance = Animated.parallel([
+      Animated.timing(fadeIn, { toValue: 1, duration: 800, useNativeDriver: true }),
+      Animated.spring(slideUp, { toValue: 0, tension: 50, friction: 8, useNativeDriver: true }),
+    ]);
+
+    const pulseAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1.03, duration: 2000, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: 2000, useNativeDriver: true }),
+      ])
+    );
+
+    entrance.start();
+    pulseAnimation.start();
+    return () => {
+      entrance.stop();
+      pulseAnimation.stop();
+    };
+  }, [fadeIn, pulse, reduceMotion, slideUp]);
+
+  const textStyle = (fontSize: number, lineHeight?: number) => ({
+    fontSize: fontSize * textScale,
+    ...(lineHeight ? { lineHeight: lineHeight * textScale } : {}),
+  });
+  const highContrastCard = highContrast ? styles.highContrastCard : null;
+  const highContrastInput = highContrast ? styles.highContrastInput : null;
+  const touchStyle = { minHeight: touchTarget };
+
+  const validate = (): boolean => {
+    const newErrors: { email?: string; password?: string } = {};
+    if (!emailOrUsername.trim()) {
+      newErrors.email = t("Email or username is required");
+    }
+    if (!password.trim()) {
+      newErrors.password = t("Password is required");
+    } else if (password.length < 8) {
+      newErrors.password = t("Password must be at least 8 characters");
+    }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const onSubmit = async () => {
+    if (!validate()) return;
     try {
-      await login(email, password);
+      await login(emailOrUsername.trim(), password);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Login failed";
-      Alert.alert("Login failed", `${msg}\n\nBackend URL: ${baseUrl}`);
+      const msg = err instanceof Error ? err.message : t("Login failed");
+      Alert.alert(t("Login Failed"), msg);
     }
   };
 
-  const pulse = glow.interpolate({ inputRange: [0, 1], outputRange: [0.15, 0.42] });
+  const onDemoLogin = async (account: typeof DEMO_ACCOUNTS[number]) => {
+    setDemoLoading(account.role);
+    try {
+      await login(account.email, account.password);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : t("Demo login failed");
+      Alert.alert(t("Demo Login Failed"), msg);
+    } finally {
+      setDemoLoading(null);
+    }
+  };
 
   return (
     <View style={styles.page}>
-      <LinearGradient colors={[colors.bg, colors.bgSoft, colors.bgWarm]} style={StyleSheet.absoluteFillObject} />
-      <Animated.View style={[styles.glow, { opacity: pulse }]} />
+      <LinearGradient
+        colors={["#0F0C29", "#302B63", "#24243E"]}
+        style={StyleSheet.absoluteFillObject}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      />
 
-      <View style={styles.container}>
-        <Text style={styles.title}>Secure Login</Text>
-        <Text style={styles.subtitle}>Return to your NGO coordination workspace.</Text>
+      {/* Floating glassmorphism blobs */}
+      <View style={[styles.blob, styles.blob1]} />
+      <View style={[styles.blob, styles.blob2]} />
+      <View style={[styles.blob, styles.blob3]} />
 
-        <Text style={styles.label}>Email</Text>
-        <TextInput
-          style={styles.input}
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          keyboardType="email-address"
-          placeholder="you@example.com"
-          placeholderTextColor={colors.muted}
-        />
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          <Animated.View style={[styles.container, { opacity: fadeIn, transform: [{ translateY: slideUp }] }]}>
 
-        <Text style={styles.label}>Password</Text>
-        <TextInput
-          style={styles.input}
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          placeholder="Enter password"
-          placeholderTextColor={colors.muted}
-        />
+            {/* Animated GIF illustration */}
+            <Animated.View style={[styles.gifWrap, { transform: [{ scale: pulse }] }]}>
+              <Image source={{ uri: LOGIN_GIF }} style={styles.gif} resizeMode="contain" />
+            </Animated.View>
 
-        <Pressable style={[styles.primary, disabled && styles.disabled]} onPress={onSubmit} disabled={disabled}>
-          {loading ? <ActivityIndicator color={colors.textStrong} /> : <Text style={styles.primaryText}>Login</Text>}
-        </Pressable>
+            {/* Title */}
+            <Text style={[styles.title, textStyle(32, 38)]}>{t("Welcome Back")}</Text>
+            <Text style={[styles.subtitle, textStyle(15, 21)]}>{t("Sign in to your account")}</Text>
 
-        <Pressable style={styles.secondary} onPress={onBack}>
-          <Text style={styles.secondaryText}>Back</Text>
-        </Pressable>
-      </View>
+            {/* Quick Demo Access — highlighted box above login */}
+            <View style={styles.demoBox}>
+              <Pressable
+                style={styles.demoBoxHeader}
+                onPress={() => setShowDemo(!showDemo)}
+                accessibilityRole="button"
+                accessibilityLabel={t("Explore app without login")}
+              >
+                <Text style={[styles.demoBoxIcon, textStyle(18)]}>🚀</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.demoBoxTitle, textStyle(14, 18)]}>{t("Explore App Without Login")}</Text>
+                  <Text style={[styles.demoBoxSub, textStyle(11, 14)]}>{t("Try the app instantly as any role")}</Text>
+                </View>
+                <Text style={[styles.demoBoxArrow, textStyle(16)]}>{showDemo ? "▾" : "▸"}</Text>
+              </Pressable>
+
+              {showDemo && (
+                <View style={styles.demoBoxBody}>
+                  <View style={styles.demoRoles}>
+                    {DEMO_ACCOUNTS.map((account) => (
+                      <Pressable
+                        key={account.role}
+                        style={[styles.demoRoleCard, { borderColor: account.color, backgroundColor: account.bgColor }]}
+                        onPress={() => onDemoLogin(account)}
+                        disabled={!!demoLoading}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${t("Login as")} ${account.role}`}
+                      >
+                        {demoLoading === account.role ? (
+                          <ActivityIndicator color={account.color} size="small" />
+                        ) : (
+                          <>
+                            <Text style={[styles.demoRoleEmoji, textStyle(26)]}>{account.emoji}</Text>
+                            <Text style={[styles.demoRoleLabel, { color: account.color }, textStyle(13, 17)]}>
+                              {t(account.role)}
+                            </Text>
+                          </>
+                        )}
+                      </Pressable>
+                    ))}
+                  </View>
+
+                  <View style={styles.demoBanner}>
+                    <Text style={[styles.demoBannerIcon, textStyle(14)]}>⚠️</Text>
+                    <Text style={[styles.demoBannerText, textStyle(10, 14)]}>
+                      {t("Demo only — these accounts will be removed in production.")}
+                    </Text>
+                  </View>
+                </View>
+              )}
+            </View>
+
+            {/* Divider between demo and login */}
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <Text style={[styles.dividerText, textStyle(11, 15)]}>{t("OR SIGN IN")}</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            {/* Glass card */}
+            <View style={[styles.glassCard, highContrastCard]}>
+              {/* Email Input */}
+              <View style={styles.fieldGroup}>
+                <View style={[styles.inputWrapper, touchStyle, highContrastInput, errors.email ? styles.inputError : null]}>
+                  <Text style={[styles.inputIcon, textStyle(16)]}>✉️</Text>
+                  <TextInput
+                    style={[styles.input, textStyle(15, 20)]}
+                    value={emailOrUsername}
+                    onChangeText={(t) => { setEmailOrUsername(t); setErrors((e) => ({ ...e, email: undefined })); }}
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                    placeholder={t("Email or Username")}
+                    placeholderTextColor="#8B8DA3"
+                    accessibilityLabel={t("Email or username")}
+                  />
+                </View>
+                {errors.email && <Text style={[styles.errorText, textStyle(12, 17)]}>{errors.email}</Text>}
+              </View>
+
+              {/* Password Input */}
+              <View style={styles.fieldGroup}>
+                <View style={[styles.inputWrapper, touchStyle, highContrastInput, errors.password ? styles.inputError : null]}>
+                  <Text style={[styles.inputIcon, textStyle(16)]}>🔒</Text>
+                  <TextInput
+                    style={[styles.input, { flex: 1 }, textStyle(15, 20)]}
+                    value={password}
+                    onChangeText={(t) => { setPassword(t); setErrors((e) => ({ ...e, password: undefined })); }}
+                    secureTextEntry={!showPassword}
+                    placeholder={t("Password")}
+                    placeholderTextColor="#8B8DA3"
+                    accessibilityLabel={t("Password")}
+                  />
+                  <Pressable onPress={() => setShowPassword(!showPassword)} style={[styles.toggleBtn, touchStyle]} accessibilityRole="button" accessibilityLabel={screenReaderOptimized ? `${showPassword ? t("Hide") : t("Show")} ${t("password")}` : undefined}>
+                    <Text style={[styles.toggleText, textStyle(13, 18)]}>{showPassword ? t("Hide") : t("Show")}</Text>
+                  </Pressable>
+                </View>
+                {errors.password && <Text style={[styles.errorText, textStyle(12, 17)]}>{errors.password}</Text>}
+              </View>
+
+              {/* Forgot password */}
+              <Pressable style={[styles.forgotBtn, touchStyle]} accessibilityRole="button">
+                <Text style={[styles.forgotText, textStyle(13, 18)]}>{t("Forgot Password?")}</Text>
+              </Pressable>
+
+              {/* Login Button */}
+              <Pressable style={[styles.loginBtn, loading && styles.disabled]} onPress={onSubmit} disabled={loading} accessibilityRole="button" accessibilityLabel={screenReaderOptimized ? t("Sign in") : undefined}>
+                <LinearGradient
+                  colors={["#667EEA", "#764BA2"]}
+                  style={[styles.btnGradient, touchStyle]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                >
+                  {loading ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <Text style={[styles.loginBtnText, textStyle(16, 21)]}>{t("Sign In")}</Text>
+                  )}
+                </LinearGradient>
+              </Pressable>
+            </View>
+
+            {/* Sign Up link */}
+            <View style={styles.bottomLink}>
+              <Text style={[styles.bottomLinkText, textStyle(14, 19)]}>{t("Don't have an account?")} </Text>
+              <Pressable onPress={onSignup || onBack} accessibilityRole="button">
+                <Text style={[styles.bottomLinkAction, textStyle(14, 19)]}>{t("Sign Up")}</Text>
+              </Pressable>
+            </View>
+          </Animated.View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   page: { flex: 1 },
-  container: { flex: 1, justifyContent: "center", padding: 24 },
+  scrollContent: { flexGrow: 1, justifyContent: "center" },
+  container: { paddingHorizontal: 24, paddingVertical: 40 },
 
-  glow: {
-    position: "absolute",
-    width: 320,
-    height: 220,
-    borderRadius: 180,
-    top: 120,
-    alignSelf: "center",
-    backgroundColor: colors.accent,
+  // Floating blobs
+  blob: { position: "absolute", borderRadius: 999 },
+  blob1: { width: 200, height: 200, top: -40, right: -60, backgroundColor: "rgba(102,126,234,0.15)" },
+  blob2: { width: 160, height: 160, bottom: 100, left: -50, backgroundColor: "rgba(118,75,162,0.12)" },
+  blob3: { width: 100, height: 100, top: "40%", right: 20, backgroundColor: "rgba(240,147,251,0.08)" },
+
+  // GIF
+  gifWrap: {
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  gif: {
+    width: 220,
+    height: 180,
+    borderRadius: 20,
   },
 
-  title: { color: colors.text, fontSize: 34, fontWeight: "900", marginBottom: 6, fontFamily: fonts.heading },
-  subtitle: { color: colors.muted, fontSize: 14, marginBottom: 16, fontFamily: fonts.body },
+  // Title
+  title: {
+    fontSize: 32,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    textAlign: "center",
+    marginBottom: 6,
+    letterSpacing: -0.5,
+  },
+  subtitle: {
+    fontSize: 15,
+    color: "rgba(255,255,255,0.6)",
+    textAlign: "center",
+    marginBottom: 28,
+  },
 
-  label: { color: colors.textStrong, fontWeight: "800", marginBottom: 6, fontFamily: fonts.body },
+  // Glass card
+  glassCard: {
+    backgroundColor: "rgba(255,255,255,0.07)",
+    borderRadius: 24,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  highContrastCard: { borderColor: "#FFFFFF", borderWidth: 2, backgroundColor: "#000000" },
+
+  // Input fields
+  fieldGroup: { marginBottom: 16 },
+  inputWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    paddingHorizontal: 18,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+  },
+  inputError: { borderColor: "#FF6B6B" },
+  highContrastInput: { borderColor: "#FFFFFF", borderWidth: 2, backgroundColor: "#000000" },
+  inputIcon: { fontSize: 16, marginRight: 12 },
   input: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 14,
-    backgroundColor: colors.card,
-    color: colors.text,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 12,
-    fontFamily: fonts.body,
+    flex: 1,
+    height: 56,
+    color: "#FFFFFF",
+    fontSize: 15,
+    backgroundColor: "transparent",
   },
+  toggleBtn: { paddingVertical: 6, paddingHorizontal: 10 },
+  toggleText: { fontSize: 13, fontWeight: "600", color: "#667EEA" },
+  errorText: { color: "#FF6B6B", fontSize: 12, marginTop: 6, marginLeft: 18 },
 
-  primary: {
-    marginTop: 6,
-    height: 50,
-    borderRadius: 14,
-    backgroundColor: colors.primary,
+  // Forgot
+  forgotBtn: { alignSelf: "flex-end", marginBottom: 20 },
+  forgotText: { color: "rgba(255,255,255,0.5)", fontSize: 13 },
+
+  // Login button
+  loginBtn: { borderRadius: 16, overflow: "hidden" },
+  btnGradient: {
+    height: 56,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
   },
-  disabled: { opacity: 0.55 },
-  primaryText: { color: colors.textStrong, fontSize: 16, fontWeight: "900", fontFamily: fonts.body },
+  loginBtnText: { color: "#FFFFFF", fontSize: 16, fontWeight: "700", letterSpacing: 0.5 },
+  disabled: { opacity: 0.6 },
 
-  secondary: {
-    marginTop: 10,
-    height: 48,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.cardSoft,
+  // Bottom link
+  bottomLink: { flexDirection: "row", justifyContent: "center", marginTop: 28 },
+  bottomLinkText: { color: "rgba(255,255,255,0.5)", fontSize: 14 },
+  bottomLinkAction: { color: "#667EEA", fontSize: 14, fontWeight: "700" },
+
+  // Demo highlighted box
+  demoBox: {
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: "rgba(102,126,234,0.5)",
+    backgroundColor: "rgba(102,126,234,0.08)",
+    marginBottom: 16,
+    overflow: "hidden",
+  },
+  demoBoxHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    gap: 12,
+  },
+  demoBoxIcon: { fontSize: 18 },
+  demoBoxTitle: { color: "#FFFFFF", fontSize: 14, fontWeight: "700" },
+  demoBoxSub: { color: "rgba(255,255,255,0.5)", fontSize: 11, marginTop: 2 },
+  demoBoxArrow: { color: "rgba(255,255,255,0.6)", fontSize: 16 },
+  demoBoxBody: { paddingHorizontal: 16, paddingBottom: 16 },
+
+  // Demo role cards
+  demoRoles: { flexDirection: "row", justifyContent: "space-between", gap: 10, marginBottom: 12 },
+  demoRoleCard: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
+    paddingVertical: 16,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    minHeight: 80,
   },
-  secondaryText: { color: colors.textStrong, fontWeight: "800", fontFamily: fonts.body },
+  demoRoleEmoji: { fontSize: 26, marginBottom: 6 },
+  demoRoleLabel: { fontSize: 13, fontWeight: "700" },
+
+  // Demo warning
+  demoBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(251,191,36,0.08)",
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  demoBannerIcon: { fontSize: 14, marginRight: 8 },
+  demoBannerText: { flex: 1, color: "rgba(251,191,36,0.75)", fontSize: 10, lineHeight: 14 },
+
+  // Divider
+  dividerRow: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: "rgba(255,255,255,0.12)" },
+  dividerText: { color: "rgba(255,255,255,0.35)", fontSize: 11, fontWeight: "600", marginHorizontal: 16 },
 });

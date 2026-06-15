@@ -66,7 +66,7 @@ tmp/
 *.pt
 *.pkl
 *.joblib
-models/
+# models/ directory is tracked — model files are committed
 
 # Audio/Media (local testing)
 *.mp3

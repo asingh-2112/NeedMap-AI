@@ -1,7 +1,10 @@
 {
+  "cli": {
+    "appVersionSource": "remote"
+  },
   "expo": {
-    "name": "frontend",
-    "slug": "frontend",
+    "name": "NeedMap AI",
+    "slug": "needmap-ai-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -13,18 +16,44 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.jaraxxxx.needmapaiapp",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyDTEeVeEPJLrw3lYtl1tTRULF0V67P2q8c"
+        }
+      },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.jaraxxxx.needmapaiapp"
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "32646162-5fc9-4061-905d-11d30e83ec88"
+      }
+    },
+    "owner": "jaraxxxx",
+    "plugins": [
+    ["expo-build-properties", {
+      "android": {
+        "enableProguardInReleaseBuilds": false
+      }
+    }]
+  ]
   }
 }
