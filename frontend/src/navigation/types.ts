@@ -23,6 +23,7 @@ export type RootStackParamList = {
   StoryDetail: { storyId: string };
   NeedDetail: { needId: number };
   BranchDetail: { branchId: number };
+  FullMap: undefined;
 };
 
 export type TabParamList = MainTabParamList;

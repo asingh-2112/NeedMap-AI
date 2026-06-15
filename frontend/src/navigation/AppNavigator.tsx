@@ -24,6 +24,7 @@ import { CampsScreen } from "../screens/main/CampsScreen";
 import { AssignmentsScreen } from "../screens/main/AssignmentsScreen";
 import { StoryDetailScreen } from "../screens/main/StoryDetailScreen";
 import { BranchDetailScreen } from "../screens/main/BranchDetailScreen";
+import { FullMapScreen } from "../screens/main/FullMapScreen";
 import type { RootStackParamList, TabParamList } from "./types";
 
 const RootStack = createNativeStackNavigator<RootStackParamList>();
@@ -224,6 +225,7 @@ export const AppNavigator = () => {
             <RootStack.Screen name="StoryDetail" component={StoryDetailScreen} options={{ headerShown: true, title: t("Story Detail"), headerStyle: { backgroundColor: theme.nav.card }, headerTintColor: highContrast ? "#FFFFFF" : theme.nav.text, headerTitleStyle: { fontWeight: "900", fontSize: 18 * textScale }, headerRight }} />
             <RootStack.Screen name="NeedDetail" component={NeedDetailScreen} options={{ headerShown: false }} />
             <RootStack.Screen name="BranchDetail" component={BranchDetailScreen} options={{ headerShown: true, title: t("Branch Details"), headerStyle: { backgroundColor: theme.nav.card }, headerTintColor: highContrast ? "#FFFFFF" : theme.nav.text, headerTitleStyle: { fontWeight: "900", fontSize: 18 * textScale }, headerRight }} />
+            <RootStack.Screen name="FullMap" component={FullMapScreen} options={{ headerShown: true, title: t("Full Map"), headerStyle: { backgroundColor: theme.nav.card }, headerTintColor: highContrast ? "#FFFFFF" : theme.nav.text, headerTitleStyle: { fontWeight: "900", fontSize: 18 * textScale }, headerRight }} />
           </>
         ) : (
           <RootStack.Screen name="Landing" component={AuthFlow} />
