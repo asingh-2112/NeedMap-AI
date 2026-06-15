@@ -1,4 +1,7 @@
 {
+  "cli": {
+    "appVersionSource": "remote"
+  },
   "expo": {
     "name": "NeedMap AI",
     "slug": "needmap-ai-app",
