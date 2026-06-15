@@ -102,6 +102,27 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
+    // Polling fallback: fetch notification unread count every 10s
+    // Cloud Run has ephemeral instances so in-memory WebSocket subscriptions
+    // don't survive across scale-to-zero or instance restarts.
+    const pollTimer = setInterval(async () => {
+      try {
+        const notificationsUrl = `\${baseUrl.replace(/\/+$/, "")}/api/notifications/unread-count`;
+        const res = await fetch(notificationsUrl, {
+          headers: { Authorization: `Bearer \${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const unreadCount: unknown = data?.unread_count ?? data?.count ?? 0;
+          if (typeof unreadCount === "number" && unreadCount > 0) {
+            scheduleRefresh(["assignments", "needs", "statistics"]);
+          }
+        }
+      } catch {
+        // Silently ignore polling errors
+      }
+    }, 10000);
+
     const socket = new WebSocket(getWebSocketUrl(baseUrl, token));
     socketRef.current = socket;
 
@@ -179,6 +200,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     };
 
     return () => {
+      clearInterval(pollTimer);
       socket.close();
       if (socketRef.current === socket) socketRef.current = null;
     };
