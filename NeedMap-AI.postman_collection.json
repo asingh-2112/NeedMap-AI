@@ -1,0 +1,349 @@
+{
+  "info": {
+    "name": "NeedMap AI - Backend Testing",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Test all backend endpoints including LLM extraction. Base URL: http://localhost:8000"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "token",
+      "value": ""
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var json = pm.response.json();",
+                  "    pm.collectionVariables.set('token', json.access_token);",
+                  "    console.log('Token saved:', json.access_token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test@needmap.ai\",\n  \"password\": \"test123456\",\n  \"user_name\": \"Test User\",\n  \"role\": \"volunteer\",\n  \"phone\": \"+919999999999\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var json = pm.response.json();",
+                  "    pm.collectionVariables.set('token', json.access_token);",
+                  "    console.log('Token saved:', json.access_token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test@needmap.ai\",\n  \"password\": \"test123456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Get Me",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "me"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "LLM Extraction",
+      "item": [
+        {
+          "name": "Text Ingest (LLM Test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "console.log('Category:', json.category);",
+                  "console.log('Urgency:', json.urgency);",
+                  "console.log('Location:', json.location);",
+                  "console.log('Description:', json.description);",
+                  "console.log('Skills:', json.skills_required);",
+                  "console.log('Confidence:', json.confidence);",
+                  "console.log('Model:', json.model_used);",
+                  "console.log('Need ID:', json.need_id);",
+                  "",
+                  "pm.test('Status 201', function () { pm.response.to.have.status(201); });",
+                  "pm.test('Has category', function () { pm.expect(json.category).to.be.a('string'); });",
+                  "pm.test('Has urgency', function () { pm.expect(json.urgency).to.be.a('string'); });",
+                  "pm.test('Has description', function () { pm.expect(json.description).to.be.a('string'); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"raw_text\": \"There is a critical water shortage in Rajiv Nagar, Bangalore. Around 500 families have no access to clean drinking water since the main pipeline burst 3 days ago. We urgently need plumbers and water tankers.\",\n  \"organization_id\": 1,\n  \"latitude\": 12.9716,\n  \"longitude\": 77.5946,\n  \"address\": \"Rajiv Nagar, Bangalore\",\n  \"create_need\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/needs/ingest/text",
+              "host": ["{{baseUrl}}"],
+              "path": ["needs", "ingest", "text"]
+            }
+          }
+        },
+        {
+          "name": "Text Ingest - Medical Emergency",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"raw_text\": \"Emergency! A building collapsed in Dharavi, Mumbai. At least 50 people are trapped under debris. We need doctors, paramedics, first aid supplies, and search and rescue teams immediately. This is life-threatening.\",\n  \"organization_id\": 1,\n  \"latitude\": 19.0425,\n  \"longitude\": 72.8539,\n  \"address\": \"Dharavi, Mumbai\",\n  \"create_need\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/needs/ingest/text",
+              "host": ["{{baseUrl}}"],
+              "path": ["needs", "ingest", "text"]
+            }
+          }
+        },
+        {
+          "name": "Text Ingest - Education/Teaching",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"raw_text\": \"We need volunteer teachers for our after-school program in Anna Nagar, Chennai. About 80 underprivileged children need tutoring in math, science, and English. We need 5-6 teachers who can commit 2 hours every weekday evening.\",\n  \"organization_id\": 1,\n  \"latitude\": 13.0850,\n  \"longitude\": 80.2101,\n  \"address\": \"Anna Nagar, Chennai\",\n  \"create_need\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/needs/ingest/text",
+              "host": ["{{baseUrl}}"],
+              "path": ["needs", "ingest", "text"]
+            }
+          }
+        },
+        {
+          "name": "Voice Ingest (Transcription Demo)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transcription\": \"Hello, this is Ramesh from the flood relief camp. We have 200 families that need shelter urgently. The river overflowed yesterday and their homes are underwater. We need tents, blankets, and dry food supplies. Location is near the bridge at Chamrajpet, Mysore.\",\n  \"organization_id\": 1,\n  \"latitude\": 12.2958,\n  \"longitude\": 76.6394,\n  \"address\": \"Chamrajpet, Mysore\",\n  \"create_need\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/needs/ingest/voice",
+              "host": ["{{baseUrl}}"],
+              "path": ["needs", "ingest", "voice"]
+            }
+          }
+        },
+        {
+          "name": "OCR Extract (Image URL)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"image_url\": \"https://upload.wikimedia.org/wikipedia/commons/thumb/e/e8/Housing_project_in_Nairobi_%282%29.jpg/1280px-Housing_project_in_Nairobi_%282%29.jpg\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/needs/ocr-extract",
+              "host": ["{{baseUrl}}"],
+              "path": ["needs", "ocr-extract"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Needs CRUD",
+      "item": [
+        {
+          "name": "Create Need (Manual)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Test Manual Need\",\n  \"description\": \"This is a manually created need for testing\",\n  \"category\": \"health\",\n  \"urgency\": \"high\",\n  \"organization_id\": 1,\n  \"latitude\": 12.9716,\n  \"longitude\": 77.5946,\n  \"address\": \"Test Address, Bangalore\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/needs/",
+              "host": ["{{baseUrl}}"],
+              "path": ["needs", ""]
+            }
+          }
+        },
+        {
+          "name": "List Needs",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/needs/?page=1&size=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["needs", ""],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "size", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Need by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/needs/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["needs", "1"]
+            }
+          }
+        },
+        {
+          "name": "Update Need",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"urgency\": \"critical\",\n  \"description\": \"Updated description\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/needs/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["needs", "1"]
+            }
+          }
+        },
+        {
+          "name": "Close Need",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/needs/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["needs", "1"]
+            }
+          }
+        },
+        {
+          "name": "Suggest Volunteers for Need",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/needs/1/volunteers",
+              "host": ["{{baseUrl}}"],
+              "path": ["needs", "1", "volunteers"]
+            }
+          }
+        },
+        {
+          "name": "Heatmap Data",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/needs/heatmap?category=health",
+              "host": ["{{baseUrl}}"],
+              "path": ["needs", "heatmap"],
+              "query": [
+                { "key": "category", "value": "health" }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

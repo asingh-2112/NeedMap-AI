@@ -204,13 +204,13 @@ export const StatisticsScreen = () => {
     });
 
     const sorted = Array.from(map.entries())
-      .map(([label, value], index) => ({ label: translateCategory(label), value, color: CATEGORY_COLORS[index % CATEGORY_COLORS.length] }))
+      .map(([key, value], index) => ({ key, label: translateCategory(key), value, color: CATEGORY_COLORS[index % CATEGORY_COLORS.length] }))
       .sort((a, b) => b.value - a.value);
 
     if (sorted.length <= 5) return sorted;
     return [
       ...sorted.slice(0, 5),
-      { label: translateCategory("other"), value: sorted.slice(5).reduce((sum, item) => sum + item.value, 0), color: "#94A3B8" },
+      { key: "other", label: translateCategory("other"), value: sorted.slice(5).reduce((sum, item) => sum + item.value, 0), color: "#94A3B8" },
     ];
   }, [needs, translateCategory]);
 
@@ -402,7 +402,7 @@ export const StatisticsScreen = () => {
                 <View style={styles.chartSplit}>
                   <Donut gradient={categoryGradient} center={String(summary.total)} label={t("Needs")} />
                   <View style={styles.legendCol}>
-                    {needsByCategory.map((item) => <LegendItem key={item.label} item={item} total={summary.total} isLight={isLight} />)}
+                    {needsByCategory.map((item) => <LegendItem key={item.key} item={item} total={summary.total} isLight={isLight} />)}
                   </View>
                 </View>
               ) : (
