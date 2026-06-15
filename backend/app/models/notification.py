@@ -14,7 +14,7 @@ class Notification(Base):
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    body: Mapped[str] = mapped_column(Text, nullable=False)
+    body: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_read: Mapped[bool] = mapped_column(Boolean, default=False)
     notification_type: Mapped[str] = mapped_column(String(50), default="info")
     payload_json: Mapped[str | None] = mapped_column(Text, nullable=True)
