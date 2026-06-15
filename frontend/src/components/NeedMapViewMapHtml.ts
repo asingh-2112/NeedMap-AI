@@ -284,12 +284,12 @@ export const buildWebMapHtml = ({
         if (!document.getElementById('map')) { setTimeout(initMap, 50); return; }
 
         const map = L.map('map', { zoomControl: true, attributionControl: false });
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          maxZoom: 18, opacity: 1, attribution: '&copy; OSM'
+        const hasUsableMapSize = () => { const s = map.getSize(); const c = map.getContainer(); return s.x > 0 && s.y > 0 && c.clientWidth > 0 && c.clientHeight > 0; };
+        
+        // OSM tiles
+        var tileLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 18, crossOrigin: true,
         }).addTo(map);
-
-        // Add a visible tile as a fallback check
-        L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', { maxZoom: 18 });
 
         const bounds = [];
         let zonesLayer = L.layerGroup().addTo(map);
