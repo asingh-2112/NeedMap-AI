@@ -45,6 +45,12 @@
       }
     },
     "owner": "jaraxxxx",
-    "plugins": []
+    "plugins": [
+    ["expo-build-properties", {
+      "android": {
+        "enableProguardInReleaseBuilds": false
+      }
+    }]
+  ]
   }
 }
